@@ -6,7 +6,17 @@ from dataclasses import replace
 from functools import partial
 from pathlib import Path
 
-from PyQt6.QtCore import QElapsedTimer, QEvent, QEventLoop, QPoint, QPointF, QRectF, QSettings, Qt
+from PyQt6.QtCore import (
+    QElapsedTimer,
+    QEvent,
+    QEventLoop,
+    QPoint,
+    QPointF,
+    QRectF,
+    QSettings,
+    Qt,
+    QTimer,
+)
 from PyQt6.QtGui import (
     QAction,
     QActionGroup,
@@ -54,10 +64,17 @@ from sldgridy.model.entities import (
     ConnectionPoint,
     Dimension,
     Entity,
+    InterruptionPoint,
     Text,
     Wire,
 )
 from sldgridy.model.geometry import Point
+from sldgridy.model.interruptions import (
+    interruption_geometry,
+    interruption_targets,
+    partner,
+    unpaired_names,
+)
 from sldgridy.model.layers import DEFAULT_LAYER
 from sldgridy.model.snap import ALL_MODES, SnapHit, SnapMode
 from sldgridy.model.wires import label_anchor, label_text, project_on_path
@@ -70,6 +87,7 @@ from sldgridy.tools.draw import (
     BusbarTool,
     CircleTool,
     DimensionTool,
+    InterruptionTool,
     LineTool,
     PolylineTool,
     RectangleTool,
@@ -143,6 +161,9 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self._locale = ui_locale()
         self.document = Document.new(self.tr("Blatt 1"), title_labels())
+        self._interruptions: dict[str, tuple[str, str]] | None = None
+        self._interruption_refresh_pending = False
+        self._watched_pages: dict[int, EntityContainer] = {}
         self.file_path: Path | None = None
         self.current_layer = DEFAULT_LAYER
 
@@ -340,6 +361,33 @@ class MainWindow(QMainWindow):
     def message(self, text: str) -> None:
         self.statusBar().showMessage(text, 5000)
 
+    def ask_interruption_name(self) -> str | None:
+        """Name of a new interruption point; names placed only once so far come first
+        (usually the partner that is being placed)."""
+        suggestions = unpaired_names(self.document)
+        name, ok = QInputDialog.getItem(
+            self,
+            self.tr("Unterbrechungspunkt"),
+            self.tr("Name (z. B. L1, N, PE, -X1:3):"),
+            suggestions or [""],
+            0,
+            True,
+        )
+        name = name.strip()
+        return name if ok and name else None
+
+    def go_to_partner(self, point_id: str) -> bool:
+        """Show the page of the interruption point's partner, centred and selected."""
+        found = partner(self.document, point_id)
+        if found is None:
+            return False
+        page_id, point = found
+        self.sheets.show_sheet(page_id)
+        self.scene.clearSelection()
+        self._sync.item(point.id).setSelected(True)
+        self.canvas.centerOn(QPointF(point.position.x, point.position.y))
+        return True
+
     def ask_choice(self, key: str, options: list[str]) -> int | None:
         """Small menu at the mouse; the last choice for ``key`` is preselected."""
         settings = QSettings()
@@ -421,6 +469,13 @@ class MainWindow(QMainWindow):
         self.act_dimension_aligned.setToolTip(
             self.tr("Parallel zur Strecke zwischen den Punkten, misst die wahre Länge")
         )
+        self.act_interruption = self._tool_action(self.tr("&Unterbrechungspunkt"), InterruptionTool)
+        self.act_interruption.setToolTip(
+            self.tr(
+                "Leitung geht auf einer anderen Seite weiter: Stelle, Richtung, Name. "
+                "Gleichnamige Punkte zeigen gegenseitig ihre Seite und Spalte."
+            )
+        )
         self.act_module_field = self._action(self.tr("&Modulfeld …"), self.module_field)
         self.act_module_field.setToolTip(
             self.tr("Dachfläche automatisch mit PV-Modulen belegen (Arbeitsbereich Zeichnung)")
@@ -437,6 +492,7 @@ class MainWindow(QMainWindow):
             self.act_dimension,
             self.act_dimension_aligned,
             self.act_dimension_angle,
+            self.act_interruption,
             self.act_module_field,
         ]
 
@@ -721,8 +777,13 @@ class MainWindow(QMainWindow):
         self.blocks.attach_properties(self.properties_dock)
         self.sheets.attach_properties(self.properties_dock)
         self.properties_dock.extra_type_names.update(
-            {Wire: self.tr("Leitung"), Busbar: self.tr("Sammelschiene")}
+            {
+                Wire: self.tr("Leitung"),
+                Busbar: self.tr("Sammelschiene"),
+                InterruptionPoint: self.tr("Unterbrechungspunkt"),
+            }
         )
+        self.properties_dock.extra_editors.append(self._interruption_editor)
         self.properties_dock.extra_editors.append(self._wire_label_editor)
         self.properties_dock.extra_editors.append(self._dimension_editor)
         self.library_dock.insert_requested.connect(self.blocks.insert_from_source)
@@ -842,6 +903,9 @@ class MainWindow(QMainWindow):
             return [entity, label] if label is not None else [entity]
         if isinstance(entity, Dimension):
             return dimension_geometry(entity, self.canvas.decimal_comma)
+        if isinstance(entity, InterruptionPoint):
+            target = self.interruption_targets().get(entity.id)
+            return interruption_geometry(entity, target[0] if target else None)
         if isinstance(entity, BlockReference):
             try:
                 parts = expand(entity, blocks if blocks is not None else self.document.blocks)
@@ -887,6 +951,46 @@ class MainWindow(QMainWindow):
 
     def _on_sheets_changed(self) -> None:
         self.sheets.on_sheets_changed()
+        self._watch_pages()
+        self._interruptions_changed()
+
+    # -- interruption points (multi-line pages) ---------------------------------
+
+    def interruption_targets(self) -> dict[str, tuple[str, str]]:
+        """Reference text and target page of every paired interruption point (cached
+        until a page or the page order changes)."""
+        if self._interruptions is None:
+            self._interruptions = interruption_targets(self.document)
+        return self._interruptions
+
+    def _watch_pages(self) -> None:
+        for page in self.document.pages:
+            if id(page.entities) not in self._watched_pages:
+                self._watched_pages[id(page.entities)] = page.entities
+                page.entities.subscribe(self._on_page_changed)
+
+    def _unwatch_pages(self) -> None:
+        for container in self._watched_pages.values():
+            container.unsubscribe(self._on_page_changed)
+        self._watched_pages = {}
+
+    def _on_page_changed(self, event: str, entity: Entity | None) -> None:
+        if event == "batch_end" or isinstance(entity, InterruptionPoint):
+            self._interruptions_changed()
+
+    def _interruptions_changed(self) -> None:
+        """Partners may have changed: references of all points are drawn anew, once."""
+        self._interruptions = None
+        if not self._interruption_refresh_pending:
+            self._interruption_refresh_pending = True
+            QTimer.singleShot(0, self._refresh_interruptions)
+
+    def _refresh_interruptions(self) -> None:
+        self._interruption_refresh_pending = False
+        for space in self.sheets.all_spaces():
+            for item in space.sync.items():
+                if isinstance(item.entity, InterruptionPoint):
+                    item.refresh()
 
     def _on_model_changed(self, event: str, _entity: Entity | None) -> None:
         if self.document.model_space.in_batch:
@@ -934,7 +1038,10 @@ class MainWindow(QMainWindow):
         self.canvas.set_background(BACKGROUND_COLOR, show_origin=True)
         self.undo_group.setActiveStack(self.undo_stack)
         self._drop_space(old)
+        self._unwatch_pages()
+        self._interruptions = None
         self._subscribe_document()
+        self._watch_pages()
         self.undo_stack.clear()
         self.undo_stack.setClean()
         self.sheets.rebuild_tabs()
@@ -942,6 +1049,12 @@ class MainWindow(QMainWindow):
         self.properties_dock.refresh()
         self.library_dock.refresh_document()
         self._update_title()
+        if self.workspace == WORKSPACE_MLD:
+            # A drawing without pages is not changed just by opening it.
+            if document.pages:
+                self.sheets.show_sheet(document.pages[0].id)
+            else:
+                self.set_workspace(WORKSPACE_SLD)
         self.canvas.set_initial_view(self._opening_view)
 
     # -- view when a drawing is opened ----------------------------------------
@@ -1362,6 +1475,14 @@ class MainWindow(QMainWindow):
         entity = self.container.get(entity_id)
         if self.blocks.edit_entity(entity):
             return
+        if isinstance(entity, InterruptionPoint):
+            if not self.go_to_partner(entity.id):
+                self.message(
+                    self.tr("Zu „{name}“ gibt es noch keinen zweiten Punkt").format(
+                        name=entity.name
+                    )
+                )
+            return
         if isinstance(entity, Wire):
             label, ok = QInputDialog.getText(
                 self, self.tr("Leitung"), self.tr("Beschriftung:"), text=entity.label
@@ -1499,6 +1620,36 @@ class MainWindow(QMainWindow):
         text.editingFinished.connect(set_text)
         height.valueChanged.connect(set_height)
         orientation.activated.connect(lambda _i: set_orientation())
+
+    def _interruption_editor(self, entities: list[Entity], layout: QVBoxLayout) -> None:
+        points = [e for e in entities if isinstance(e, InterruptionPoint)]
+        if len(points) != 1 or len(entities) != 1:
+            return
+        point = points[0]
+        box = QGroupBox(self.tr("Unterbrechungspunkt"))
+        form = QFormLayout(box)
+        name = QLineEdit(point.name)
+        target = self.interruption_targets().get(point.id)
+        where = QLabel(target[0] if target else self.tr("(noch kein zweiter Punkt)"))
+        go = QPushButton(self.tr("Zum Gegenstück"))
+        go.setEnabled(target is not None)
+        go.clicked.connect(lambda: self.go_to_partner(point.id))
+        form.addRow(self.tr("Name:"), name)
+        form.addRow(self.tr("Gegenstück:"), where)
+        form.addRow(go)
+        layout.addWidget(box)
+
+        def apply() -> None:
+            value = name.text().strip()
+            current = self.container.get(point.id) if point.id in self.container else None
+            if current is not None and value and value != current.name:
+                self.push(
+                    ReplaceEntitiesCommand(
+                        self.container, [replace(current, name=value)], self.tr("Umbenennen")
+                    )
+                )
+
+        name.editingFinished.connect(apply)
 
     def _wire_label_editor(self, entities: list[Entity], layout: QVBoxLayout) -> None:
         """Label of every selected wire; differing fields show *verschieden*, a new
@@ -1712,6 +1863,7 @@ class MainWindow(QMainWindow):
         for action in (self.act_wire, self.act_busbar):
             action.setVisible(not drawing)
         self.act_module_field.setVisible(drawing)
+        self.act_interruption.setVisible(mld)
         self.sheets.set_pages_mode(mld)
         self.pages_dock.setVisible(mld)
         if mld:

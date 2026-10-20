@@ -11,7 +11,15 @@ from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 from sldgridy.model.blocks import BlockError, expand
 from sldgridy.model.dimensions import dimension_geometry
 from sldgridy.model.document import Document, SheetLayout
-from sldgridy.model.entities import BlockReference, Dimension, Entity, Viewport, Wire
+from sldgridy.model.entities import (
+    BlockReference,
+    Dimension,
+    Entity,
+    InterruptionPoint,
+    Viewport,
+    Wire,
+)
+from sldgridy.model.interruptions import interruption_geometry, interruption_targets
 from sldgridy.model.sheet import (
     column_strip_entities,
     designation_text,
@@ -43,6 +51,21 @@ def resolve_style(doc: Document, e: Entity, monochrome: bool = False) -> Style:
     return Style(color, doc.effective_lineweight(e), doc.effective_linetype(e))
 
 
+def _interruption_targets(doc: Document) -> dict[str, tuple[str, str]]:
+    """References of interruption points, cached on the document for one output run
+    (the key changes with any point or page order change)."""
+    key = tuple(
+        (p.id, p.plant, p.location, p.paper, p.orientation, p.columns)
+        + tuple((e.id, e.name, e.position) for e in p.entities if isinstance(e, InterruptionPoint))
+        for p in doc.pages
+    )
+    cached = getattr(doc, "_interruption_cache", None)
+    if cached is None or cached[0] != key:
+        cached = (key, interruption_targets(doc))
+        doc._interruption_cache = cached  # noqa: SLF001 - plain cache attribute
+    return cached[1]
+
+
 def expand_for_display(doc: Document, e: Entity) -> list[Entity]:
     """Simple entities that make up ``e`` on screen and on paper."""
     if isinstance(e, Wire):
@@ -50,6 +73,9 @@ def expand_for_display(doc: Document, e: Entity) -> list[Entity]:
         return [e, label] if label is not None else [e]
     if isinstance(e, Dimension):
         return dimension_geometry(e, _decimal_comma())
+    if isinstance(e, InterruptionPoint):
+        target = _interruption_targets(doc).get(e.id)
+        return interruption_geometry(e, target[0] if target else None)
     if isinstance(e, BlockReference):
         try:
             parts = expand(e, doc.blocks)

@@ -18,6 +18,7 @@ from sldgridy.model.entities import (
     ConnectionPoint,
     Dimension,
     Entity,
+    InterruptionPoint,
     JunctionMark,
     Line,
     Polyline,
@@ -103,6 +104,7 @@ _TYPE_NAMES: dict[type, str] = {
     Busbar: "busbar",
     Viewport: "viewport",
     JunctionMark: "junction",
+    InterruptionPoint: "interruption",
     Dimension: "dimension",
 }
 
@@ -160,6 +162,9 @@ def entity_to_dict(e: Entity) -> dict[str, Any]:
             d["name"], d["position"], d["direction"] = e.name, _pt(e.position), e.direction
         case JunctionMark():
             d["position"], d["connected"] = _pt(e.position), e.connected
+        case InterruptionPoint():
+            d["name"], d["position"] = e.name, _pt(e.position)
+            d["direction"], d["height"] = _angle(e.direction), e.height
         case Viewport():
             d["p1"], d["p2"], d["center"] = _pt(e.p1), _pt(e.p2), _pt(e.center)
             d["scale"], d["locked"], d["print_border"] = e.scale, e.locked, e.print_border
@@ -201,6 +206,14 @@ def entity_from_dict(d: dict[str, Any]) -> Entity:
             return Line(p1=_to_pt(d["p1"]), p2=_to_pt(d["p2"]), **common)
         case "rectangle":
             return Rectangle(p1=_to_pt(d["p1"]), p2=_to_pt(d["p2"]), **common)
+        case "interruption":
+            return InterruptionPoint(
+                name=str(d["name"]),
+                position=_to_pt(d["position"]),
+                direction=_angle(d.get("direction", 0)),
+                height=float(d.get("height", 2.5)),
+                **common,
+            )
         case "junction":
             return JunctionMark(
                 position=_to_pt(d["position"]), connected=bool(d.get("connected", True)), **common

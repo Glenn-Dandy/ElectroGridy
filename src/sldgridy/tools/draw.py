@@ -11,6 +11,7 @@ from sldgridy.model.entities import (
     Circle,
     Dimension,
     Entity,
+    InterruptionPoint,
     Line,
     Polyline,
     Rectangle,
@@ -555,3 +556,62 @@ class AngularDimensionTool(DimensionTool):
             ]
         d = self._make(self.cursor, PREVIEW_ID)
         return [d] if d is not None else []
+
+
+class InterruptionTool(_DrawTool):
+    """Interruption point: position, then the way the conductor runs on (right, left, up
+    or down), then its name. Stays active for the next one."""
+
+    def __init__(self, ctx) -> None:
+        super().__init__(ctx)
+        self._position: Point | None = None
+
+    def prompt(self) -> str:
+        if self._position is None:
+            return tr("Unterbrechungspunkt: Stelle angeben")
+        return tr("Unterbrechungspunkt: Richtung zeigen, in die die Leitung weiterläuft")
+
+    def base_point(self) -> Point | None:
+        return self._position
+
+    def _direction(self, p: Point) -> float:
+        assert self._position is not None
+        dx, dy = p.x - self._position.x, p.y - self._position.y
+        if abs(dx) >= abs(dy):
+            return 0.0 if dx >= 0 else 180.0
+        return 270.0 if dy > 0 else 90.0
+
+    def pick(self, p: Point) -> None:
+        if self._position is None:
+            self._position = p
+            return
+        if p == self._position:
+            return
+        direction = self._direction(p)
+        ask = getattr(self.ctx, "ask_interruption_name", None)
+        name = ask() if ask is not None else "L1"
+        if name:
+            self._add(
+                InterruptionPoint(
+                    id=new_id(),
+                    layer=self.ctx.current_layer,
+                    position=self._position,
+                    name=name,
+                    direction=direction,
+                ),
+                tr("Unterbrechungspunkt"),
+            )
+        self._position = None
+
+    def preview(self) -> list[Entity]:
+        if self._position is None or self.cursor is None or self.cursor == self._position:
+            return []
+        return [
+            InterruptionPoint(
+                id=PREVIEW_ID,
+                layer=self.ctx.current_layer,
+                position=self._position,
+                name="?",
+                direction=self._direction(self.cursor),
+            )
+        ]

@@ -384,6 +384,32 @@ class Dimension(Entity):
 
 
 @dataclass(frozen=True, kw_only=True)
+class InterruptionPoint(Entity):
+    """Where a conductor leaves a page and continues on another one.
+
+    Points with the same ``name`` (e.g. "L1", "-X1:3") belong together; each shows
+    where its partner sits ("/3.4": page 3, column 4). ``direction`` points the way the
+    conductor runs on (degrees, 0 right, counter-clockwise).
+    """
+
+    position: Point
+    name: str
+    direction: float = 0
+    height: float = 2.5
+
+    def _mapped(self, fn, quarters):
+        return replace(
+            self, position=fn(self.position), direction=(self.direction + 90 * quarters) % 360
+        )
+
+    def mirrored(self, axis: Point, horizontal: bool) -> Self:
+        flipped = (-self.direction if horizontal else 180.0 - self.direction) % 360
+        return replace(
+            self, position=mirror_point(self.position, axis, horizontal), direction=flipped
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
 class JunctionMark(Entity):
     """Manual override of the automatic connection dot at ``position``.
 

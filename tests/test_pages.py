@@ -135,3 +135,81 @@ def test_page_print_list(window):
     assert dialog.rb_all.text() == "Alle Seiten" and not dialog.rb_model.isVisibleTo(dialog)
     dialog.rb_all.setChecked(True)
     assert dialog.sheets() == window.document.pages
+
+
+# -- step 2: interruption points ------------------------------------------------
+
+
+def ip(pid, name, x, y, direction=0):
+    from sldgridy.model.entities import InterruptionPoint
+
+    return InterruptionPoint(id=pid, name=name, position=Point(x, y), direction=direction)
+
+
+def test_interruption_pairs_refer_to_each_other():
+    from sldgridy.model.interruptions import interruption_targets, partner, unpaired_names
+
+    doc = doc_with_pages()
+    p = doc.pages  # /1 /2 of =PV1 +UV1, /1 of =PV1 +WR, /1 without designation
+    p[0].entities.add(ip("a", "L1", 280, 50))  # column 10 of page /1
+    p[1].entities.add(ip("b", "L1", 25, 50, 180))  # column 1 of page /2
+    p[2].entities.add(ip("c", "N", 150, 60))
+    targets = interruption_targets(doc)
+    assert targets["a"] == ("/2.1", p[1].id)
+    assert targets["b"] == ("/1.10", p[0].id)
+    assert "c" not in targets and unpaired_names(doc) == ["N"]
+    # Into another location: the designation is written in front.
+    p[0].entities.add(ip("d", "N", 270, 80))
+    assert interruption_targets(doc)["d"] == ("=PV1 +WR /1.5", p[2].id)
+    assert partner(doc, "c")[1].id == "d"
+    # Reordering pages changes the references.
+    doc.move_layout(PAGES, 1, 0)
+    assert interruption_targets(doc)["a"][0] == "/1.1"
+    assert interruption_targets(doc)["b"][0] == "/2.10"
+
+
+def test_interruption_geometry_and_file():
+    from sldgridy.fileio.json_format import entity_from_dict, entity_to_dict
+    from sldgridy.model.entities import Text
+    from sldgridy.model.interruptions import interruption_geometry
+
+    point = ip("a", "L1", 100, 50, 90)
+    texts = [e.text for e in interruption_geometry(point, "/2.1") if isinstance(e, Text)]
+    assert texts == ["L1  /2.1"]
+    assert entity_from_dict(entity_to_dict(point)) == point
+    assert point.rotated(Point(0, 0), 1).direction == 180
+    assert point.mirrored(Point(0, 0), False).direction == 90
+
+
+def test_interruption_tool_and_jump(window, monkeypatch):
+    from PyQt6.QtTest import QTest
+
+    from sldgridy.model.entities import InterruptionPoint
+
+    window.set_workspace(WORKSPACE_MLD)
+    assert window.act_interruption.isVisible()
+    sheets = window.sheets
+    monkeypatch.setattr(sheets, "_page_values", lambda title, page: ("", "", "Zwei"))
+    first = window.document.pages[0]
+    names = iter(["L1", "L1"])
+    monkeypatch.setattr(window, "ask_interruption_name", lambda: next(names))
+    sheets.show_sheet(first.id)
+    window.act_interruption.trigger()
+    window.tools.pick(Point(280, 50))
+    window.tools.pick(Point(290, 50))  # runs on to the right
+    window.tools.cancel()
+    sheets.new_sheet()
+    second = sheets.current_sheet()
+    window.act_interruption.trigger()
+    window.tools.pick(Point(25, 50))
+    window.tools.pick(Point(15, 50))
+    window.tools.cancel()
+    (a,) = [e for e in first.entities if isinstance(e, InterruptionPoint)]
+    (b,) = [e for e in second.entities if isinstance(e, InterruptionPoint)]
+    assert (a.direction, b.direction) == (0, 180)
+    assert window.interruption_targets()[a.id][0] == "/2.1"
+    QTest.qWait(10)  # the other page's point is redrawn with its reference
+    # Double click (edit) on the point jumps to its partner.
+    window._edit_entity(b.id)
+    assert sheets.current_sheet() is first
+    assert window.selected_ids() == [a.id]

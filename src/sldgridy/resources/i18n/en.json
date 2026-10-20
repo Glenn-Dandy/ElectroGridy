@@ -720,5 +720,15 @@
  "Seite „{name}“ löschen?": "Delete page “{name}”?",
  "Seiten": "Pages",
  "Seiten werden je Anlage und Ort fortlaufend nummeriert. Leer lassen, wenn es nur eine Anlage oder einen Ort gibt.": "Pages are numbered per plant and location. Leave empty if there is only one plant or location.",
- "z. B. Einspeisung, Steuerung Wechselrichter": "e.g. Feed-in, inverter control"
+ "z. B. Einspeisung, Steuerung Wechselrichter": "e.g. Feed-in, inverter control",
+ "&Unterbrechungspunkt": "&Interruption point",
+ "(noch kein zweiter Punkt)": "(no second point yet)",
+ "Gegenstück:": "Counterpart:",
+ "Leitung geht auf einer anderen Seite weiter: Stelle, Richtung, Name. Gleichnamige Punkte zeigen gegenseitig ihre Seite und Spalte.": "The conductor continues on another page: position, direction, name. Points with the same name show each other's page and column.",
+ "Name (z. B. L1, N, PE, -X1:3):": "Name (e.g. L1, N, PE, -X1:3):",
+ "Unterbrechungspunkt": "Interruption point",
+ "Unterbrechungspunkt: Richtung zeigen, in die die Leitung weiterläuft": "Interruption point: show the direction the conductor continues in",
+ "Unterbrechungspunkt: Stelle angeben": "Interruption point: specify position",
+ "Zu „{name}“ gibt es noch keinen zweiten Punkt": "There is no second point for “{name}” yet",
+ "Zum Gegenstück": "Go to counterpart"
 }

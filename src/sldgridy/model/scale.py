@@ -15,6 +15,7 @@ from sldgridy.model.entities import (
     ConnectionPoint,
     Dimension,
     Entity,
+    InterruptionPoint,
     JunctionMark,
     Line,
     Polyline,
@@ -62,6 +63,8 @@ def scale_entity(e: Entity, center: Point, factor: float) -> Entity:
             return replace(e, position=s(e.position), height=e.height * factor)
         case ConnectionPoint() | JunctionMark():
             return replace(e, position=s(e.position))
+        case InterruptionPoint():
+            return replace(e, position=s(e.position), height=e.height * factor)
         case Dimension():
             return replace(
                 e,

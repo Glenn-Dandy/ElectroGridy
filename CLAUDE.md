@@ -229,6 +229,13 @@ Schritt 1, Seiten (1.3.0.dev3):
 - Drucken und Export im MLD: Bereich „Aktuelle Seite“, „Alle Seiten“, Auswahl; kein Modell-Schnelldruck.
 - Dateiformat 3: `pages` wie `sheets` plus `plant`, `location`, `columns` (nur wenn gesetzt). Geschrieben wird Version 3 nur, wenn die Zeichnung Seiten hat; sonst bleibt es Version 2, ebenso Bibliotheken und Rahmenvorlagen (`BASE_VERSION`), damit SLDGridy 1.2 sie weiter öffnet. Migrationen arbeiten auf einer Kopie der eingelesenen Daten.
 
+Schritt 2, Seitenübergänge (1.3.0.dev4):
+- `InterruptionPoint` (Datei `interruption`: name, position, direction, height): Leitung läuft auf einer anderen Seite weiter. Gleichnamige Punkte auf allen MLD-Seiten gehören zusammen (`model/interruptions.py`, rein Python). Reihenfolge nach Seite, Spalte, y, x; jeder Punkt verweist auf den nächsten, der letzte auf den ersten (ein Paar verweist gegenseitig). Verweis `/Seite.Spalte`, bei anderer Anlage/anderem Ort mit Kennzeichen davor (`=PV1 +WR /1.5`). Ungepaarte Punkte zeigen nur den Namen.
+- Darstellung (`interruption_geometry`): Pfeil in Laufrichtung (Stiel und zwei Flügel, Länge = Texthöhe), dahinter eine Textzeile „Name  Verweis“ (eine Zeile, weil Leiter oft 5 mm auseinander liegen), bei senkrechten Pfeilen rechts daneben.
+- Verweise in der Oberfläche: `MainWindow.interruption_targets()` rechnet einmal und merkt sich das Ergebnis; jede Änderung an einer Seite (Punkt geändert oder `batch_end`) und jede Seitenänderung (Reihenfolge, Anlage/Ort) verwirft es und zeichnet alle Unterbrechungspunkte der offenen Seiten einmal neu (`_interruptions_changed`, gebündelt per QTimer). Ausgabe (Druck/PDF) über `display._interruption_targets` mit Schlüssel aus Seiten und Punkten.
+- Werkzeug Zeichnen > Unterbrechungspunkt (nur MLD, `InterruptionTool`): Stelle, Richtung zeigen (rechts, links, oben, unten), Name; bleibt für den nächsten Punkt aktiv. Die Namensabfrage (`ask_interruption_name`) schlägt zuerst Namen vor, die es bisher nur einmal gibt (`unpaired_names`).
+- Doppelklick auf einen Punkt springt zum Gegenstück (Seite wechseln, Punkt markieren, mittig zeigen, `go_to_partner`); Eigenschaften-Dock: Name, Gegenstück, Knopf „Zum Gegenstück“. Drehen, Spiegeln und Skalieren drehen bzw. spiegeln die Richtung mit.
+
 ### Mitgelieferte Symbolbibliothek
 
 Symbole nach DIN EN 60617 im 2,5-mm-Raster, jeweils mit Anschlusspunkten und (mindestens) den Attributen `BMK` (Betriebsmittelkennzeichen), `TYP` und `WERT`. Das Bibliotheks-Dock filtert nach Quelle und Kategorie:
