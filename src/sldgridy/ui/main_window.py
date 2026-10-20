@@ -640,8 +640,7 @@ class MainWindow(QMainWindow):
         m.addAction(self.act_about)
 
     def _create_toolbars(self) -> None:
-        bar = QToolBar(self.tr("Arbeitsbereich"), self)
-        bar.setObjectName("toolbar_workspace")
+        # The workspace switch sits at the right end of the status bar (Florian's wish).
         self.workspace_box = QComboBox()
         self.workspace_box.addItem(self.tr("Schaltplan (SLD)"), WORKSPACE_SLD)
         self.workspace_box.addItem(self.tr("Zeichnung"), WORKSPACE_DRAWING)
@@ -654,8 +653,6 @@ class MainWindow(QMainWindow):
         self.workspace_box.activated.connect(
             lambda _i: self.set_workspace(self.workspace_box.currentData())
         )
-        bar.addWidget(self.workspace_box)
-        self.addToolBar(bar)
         self.workspace = WORKSPACE_SLD
         for name, title, actions in (
             ("draw", self.tr("Zeichnen"), self.draw_actions),
@@ -807,6 +804,7 @@ class MainWindow(QMainWindow):
             status.addPermanentWidget(button)
         status.addPermanentWidget(self.lbl_layer)
         status.addPermanentWidget(self.lbl_zoom)
+        status.addPermanentWidget(self.workspace_box)
         self._show_cursor_position(QPointF(0.0, 0.0))
 
     # -- style, blocks and snapping -----------------------------------------
