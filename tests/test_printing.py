@@ -217,3 +217,14 @@ def test_line_widths_in_a_viewport_are_paper_widths(qapp, monkeypatch):
     painter.end()
     # 0.5 mm on paper is 25 mm in the model at 1:50.
     assert seen == [pytest.approx(25.0)]
+
+
+def test_pdf_of_multi_line_pages_is_a4_landscape(qapp, tmp_path):
+    from sldgridy.model.document import new_page
+
+    doc = sample_doc()
+    doc.pages = [new_page("Einspeisung", "PV1", "UV1"), new_page("Zähler", "PV1", "UV1")]
+    path = tmp_path / "mld.pdf"
+    assert export_pdf(path, doc, doc.pages, OUT) == 2
+    assert pdf_pages(path) == [pytest.approx((297, 210), abs=0.5)] * 2
+    assert pdf_text_operators(path)  # designation and column numbers are text

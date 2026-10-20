@@ -12,7 +12,12 @@ from sldgridy.model.blocks import BlockError, expand
 from sldgridy.model.dimensions import dimension_geometry
 from sldgridy.model.document import Document, SheetLayout
 from sldgridy.model.entities import BlockReference, Dimension, Entity, Viewport, Wire
-from sldgridy.model.sheet import frame_entities, title_block_reference
+from sldgridy.model.sheet import (
+    column_strip_entities,
+    designation_text,
+    frame_entities,
+    title_block_reference,
+)
 from sldgridy.model.title_block import FIELD_LABELS
 from sldgridy.model.wires import junction_diameter, junctions, label_text
 from sldgridy.view.render import Style, entity_bounds, make_pen, paint_entity
@@ -160,6 +165,15 @@ def title_block_parts(doc: Document, sheet: SheetLayout) -> list[Entity]:
         return []
 
 
+def page_frame_parts(doc: Document, sheet: SheetLayout) -> list[Entity]:
+    """Column strip and designation of a multi-line diagram page (nothing for sheets)."""
+    w, h = sheet.size
+    parts = column_strip_entities(w, h, sheet.columns)
+    if any(p.id == sheet.id for p in doc.pages):
+        parts.append(designation_text(w, h, doc.page_label(sheet.id)))
+    return parts
+
+
 def paint_frame(
     painter: QPainter,
     doc: Document,
@@ -172,6 +186,8 @@ def paint_frame(
     w, h = sheet.size
     for e in frame_entities(w, h):
         paint_entity(painter, e, Style(color, e.lineweight or 0.7), px_per_mm, options.helpers)
+    for e in page_frame_parts(doc, sheet):
+        paint_entity(painter, e, Style(color, e.lineweight or 0.25), px_per_mm, options.helpers)
     parts = title_block_parts(doc, sheet)
     if not parts:
         return

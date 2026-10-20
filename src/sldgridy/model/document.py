@@ -1,4 +1,10 @@
-"""Top-level drawing document: one model space plus one or more sheet layouts."""
+"""Top-level drawing document: one model space plus one or more sheet layouts.
+
+Sheets show the model through viewports (circuit diagram SLD, scaled drawings).
+Pages are sheets without viewports that are drawn on directly (multi-line circuit
+diagram MLD): they carry a plant and location designation and a column grid, and
+are numbered per plant and location.
+"""
 
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
@@ -37,6 +43,10 @@ class SheetLayout:
     title_block: str = TITLE_BLOCK_NAME
     # Per-sheet title block values (TITEL, ZEICHNUNGSNR, DATUM, GEPRUEFT, AENDERUNG).
     fields: dict[str, str] = field(default_factory=dict)
+    # Pages only: designation "=plant +location" and columns of the reference grid.
+    plant: str = ""
+    location: str = ""
+    columns: int = 0
 
     @property
     def size(self) -> tuple[float, float]:
@@ -44,6 +54,39 @@ class SheetLayout:
 
     def viewports(self) -> list[Viewport]:
         return [e for e in self.entities if isinstance(e, Viewport)]
+
+
+PAGE_FORMAT = "A4"
+PAGE_COLUMNS = 10
+SHEETS, PAGES = "sheets", "pages"
+
+
+def new_page(
+    name: str = "",
+    plant: str = "",
+    location: str = "",
+    paper: str = PAGE_FORMAT,
+    orientation: Orientation = Orientation.LANDSCAPE,
+) -> SheetLayout:
+    """Page of a multi-line circuit diagram: drawn on directly, no viewport."""
+    return SheetLayout(
+        name=name,
+        paper=paper,
+        orientation=orientation,
+        plant=plant,
+        location=location,
+        columns=PAGE_COLUMNS,
+    )
+
+
+def designation(plant: str, location: str) -> str:
+    """ "=PV1 +UV1" style designation (empty parts left out)."""
+    parts = []
+    if plant:
+        parts.append(f"={plant}")
+    if location:
+        parts.append(f"+{location}")
+    return " ".join(parts)
 
 
 def new_sheet(
@@ -61,6 +104,7 @@ def new_sheet(
 class Document:
     model_space: ModelSpace = field(default_factory=ModelSpace)
     sheets: list[SheetLayout] = field(default_factory=list)
+    pages: list[SheetLayout] = field(default_factory=list)
     layers: list[Layer] = field(default_factory=lambda: [Layer(DEFAULT_LAYER)])
     blocks: dict[str, BlockDefinition] = field(default_factory=dict)
     # Drawing-wide title block values (PROJEKT, FIRMA, BEARBEITER).
@@ -105,21 +149,85 @@ class Document:
         return self.sheets[self.sheet_index(sheet_id)]
 
     def insert_sheet(self, index: int, sheet: SheetLayout) -> None:
-        self.sheets.insert(index, sheet)
-        self.sheets_changed()
+        self.insert_layout(SHEETS, index, sheet)
 
     def remove_sheet(self, sheet_id: str) -> tuple[int, SheetLayout]:
-        if len(self.sheets) <= 1:
-            raise ValueError("a drawing keeps at least one sheet")
-        i = self.sheet_index(sheet_id)
-        sheet = self.sheets.pop(i)
-        self.sheets_changed()
-        return i, sheet
+        return self.remove_layout(SHEETS, sheet_id)
 
     def move_sheet(self, old: int, new: int) -> None:
-        sheet = self.sheets.pop(old)
-        self.sheets.insert(new, sheet)
+        self.move_layout(SHEETS, old, new)
+
+    # -- sheets and pages alike -----------------------------------------------
+
+    def layouts(self, kind: str) -> list[SheetLayout]:
+        if kind == SHEETS:
+            return self.sheets
+        if kind == PAGES:
+            return self.pages
+        raise ValueError(kind)
+
+    def kind_of(self, layout_id: str) -> str:
+        if any(s.id == layout_id for s in self.sheets):
+            return SHEETS
+        if any(p.id == layout_id for p in self.pages):
+            return PAGES
+        raise KeyError(layout_id)
+
+    def layout_index(self, layout_id: str) -> int:
+        for i, s in enumerate(self.layouts(self.kind_of(layout_id))):
+            if s.id == layout_id:
+                return i
+        raise KeyError(layout_id)
+
+    def layout(self, layout_id: str) -> SheetLayout:
+        """A sheet or page by id."""
+        return self.layouts(self.kind_of(layout_id))[self.layout_index(layout_id)]
+
+    def insert_layout(self, kind: str, index: int, layout: SheetLayout) -> None:
+        self.layouts(kind).insert(index, layout)
         self.sheets_changed()
+
+    def remove_layout(self, kind: str, layout_id: str) -> tuple[int, SheetLayout]:
+        items = self.layouts(kind)
+        if kind == SHEETS and len(items) <= 1:
+            raise ValueError("a drawing keeps at least one sheet")
+        i = self.layout_index(layout_id)
+        layout = items.pop(i)
+        self.sheets_changed()
+        return i, layout
+
+    def move_layout(self, kind: str, old: int, new: int) -> None:
+        items = self.layouts(kind)
+        items.insert(new, items.pop(old))
+        self.sheets_changed()
+
+    # -- pages ----------------------------------------------------------------
+
+    def page_index(self, page_id: str) -> int:
+        for i, p in enumerate(self.pages):
+            if p.id == page_id:
+                return i
+        raise KeyError(page_id)
+
+    def page(self, page_id: str) -> SheetLayout:
+        return self.pages[self.page_index(page_id)]
+
+    def page_group(self, page: SheetLayout) -> list[SheetLayout]:
+        """Pages with the same plant and location, in page order."""
+        return [p for p in self.pages if (p.plant, p.location) == (page.plant, page.location)]
+
+    def page_number(self, page_id: str) -> tuple[int, int]:
+        """Number of a page within its plant and location, and how many there are."""
+        page = self.page(page_id)
+        group = self.page_group(page)
+        return [p.id for p in group].index(page_id) + 1, len(group)
+
+    def page_label(self, page_id: str) -> str:
+        """Full page designation, e.g. "=PV1 +UV1 /3"."""
+        page = self.page(page_id)
+        number = self.page_number(page_id)[0]
+        prefix = designation(page.plant, page.location)
+        return f"{prefix} /{number}" if prefix else f"/{number}"
 
     def unique_sheet_name(self, base: str) -> str:
         names = {s.name for s in self.sheets}
@@ -137,12 +245,20 @@ class Document:
         landscape: str = "quer",
         portrait: str = "hoch",
     ) -> dict[str, str]:
-        """Title block values of a sheet including computed ones (words for BLATT/FORMAT)."""
-        index = self.sheet_index(sheet_id)
-        sheet = self.sheets[index]
+        """Title block values of a sheet or page including computed ones (words for
+        BLATT/FORMAT). Pages count within their plant and location."""
+        sheet = self.layout(sheet_id)
         values = {tag: self.properties.get(tag, "") for tag in DOCUMENT_FIELDS}
         values.update({tag: sheet.fields.get(tag, "") for tag in SHEET_FIELDS})
-        values["BLATT"] = f"{index + 1} {of} {len(self.sheets)}"
+        if self.kind_of(sheet_id) == PAGES:
+            number, total = self.page_number(sheet_id)
+            if not values["TITEL"]:
+                values["TITEL"] = sheet.name
+            if not values["ZEICHNUNGSNR"]:
+                values["ZEICHNUNGSNR"] = designation(sheet.plant, sheet.location)
+        else:
+            number, total = self.sheet_index(sheet_id) + 1, len(self.sheets)
+        values["BLATT"] = f"{number} {of} {total}"
         orientation = landscape if sheet.orientation is Orientation.LANDSCAPE else portrait
         values["FORMAT"] = f"{sheet.paper} {orientation}"
         return values
@@ -152,6 +268,8 @@ class Document:
         yield self.model_space
         for sheet in self.sheets:
             yield sheet.entities
+        for page in self.pages:
+            yield page.entities
         for definition in self.blocks.values():
             yield definition.entities
 

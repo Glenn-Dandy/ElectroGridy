@@ -8,7 +8,9 @@ Ein Desktop-Programm für Linux zum Zeichnen einpoliger Übersichtsschaltpläne 
 
 Schwerpunkt sind SLDs für Photovoltaikanlagen (PV-Generator, Wechselrichter, Speicher, NA-Schutz, Netzanschluss) und Transformatorstationen (Mittelspannungsschaltanlage, Transformator, Niederspannungsverteilung) sowie allgemeine Niederspannungsverteilungen.
 
-Nicht im Umfang: Schraffur, Splines, Stromlaufpläne mit Querverweisen, elektrische Berechnung oder Prüfung, 3D.
+Seit 1.3 außerdem allpolige Schaltpläne (MLD) mit Haupt- und Steuerstromkreisen auf nummerierten Seiten, Querverweisen und Auswertungen (Abschnitt „Schaltplan (MLD)“), verknüpft mit dem SLD über das BMK.
+
+Nicht im Umfang: Schraffur, Splines, elektrische Berechnung oder Prüfung, 3D.
 
 ## Technik (festgelegt)
 
@@ -211,6 +213,21 @@ Umsetzung (M4):
 - Definitionen gelten als gleich, wenn sie ohne Objekt-IDs übereinstimmen (`block_signature`).
 - Die Zwischenablage trägt die nötigen Blockdefinitionen mit.
 - DXF-Import (`fileio/dxf.py`, eigener Leser ohne Zusatzpaket, nur ASCII-DXF): benannte Blöcke werden Definitionen (anonyme `*…`, externe und Layout-Blöcke nicht), ohne Blöcke wird der Modellbereich ein Symbol. LINE, LWPOLYLINE/POLYLINE (Bulges als Bögen), CIRCLE, ARC, ELLIPSE (Kreis/Bogen bei Verhältnis 1, sonst Polylinie mit 72 Segmenten), TEXT, MTEXT (Formatcodes entfernt), ATTDEF, INSERT (aufgelöst, Attribute verschachtelter Blöcke entfallen), POINT als Anschlusspunkt (Name 1, 2 …, Richtung vom Symbolmittelpunkt weg). Alles landet auf Ebene 0, Farben werden nicht übernommen. `$INSUNITS` nach mm, Y gespiegelt. Ergebnis wird als `<DXF-Name>.sldglib` in der Benutzerbibliothek gespeichert (Kategorie = Dateiname, gleichnamige Symbole werden beim erneuten Import ersetzt). Geprüft gegen die 1272 DXF-Dateien der LibreCAD-Bibliothek.
+
+### Schaltplan (MLD)
+
+Allpoliger Schaltplan (Hauptstromkreis L1, L2, L3, N, PE und Steuerstromkreise) auf Seiten, für Pläne mit 20 und mehr Seiten. Entschieden mit Florian am 2026-10-20: SLD und Zeichnung bleiben Modell plus Blätter mit Ansichtsfenstern (Maßstäbe, große zusammenhängende Pläne); das MLD wird direkt auf Seiten gezeichnet. Alles liegt in einer Datei, damit SLD und MLD über das BMK verknüpft sind. In Texten, Code und Doku keine Namen anderer CAD-Programme verwenden.
+
+Schritt 1, Seiten (1.3.0.dev3):
+- `Document.pages` (Liste von `SheetLayout` ohne Ansichtsfenster) neben `Document.sheets`. Seiten tragen `plant` (Anlage, geschrieben `=PV1`), `location` (Ort, `+UV1`) und `columns` (Spalten der Verweisleiste, Standard 10). `new_page()`: A4 quer (Florians Wunsch), 10 Spalten.
+- Nummerierung je Anlage und Ort in Seitenreihenfolge (`page_number`), Kennzeichen `=PV1 +UV1 /3` (`page_label`, leere Teile entfallen). Schriftfeld einer Seite: BLATT zählt innerhalb der Gruppe, TITEL fällt auf die Seitenbeschreibung (`name`) zurück, ZEICHNUNGSNR auf das Kennzeichen ohne Seitennummer.
+- Allgemeine Zugriffe für Blätter und Seiten: `layouts(kind)`, `kind_of`, `layout`, `layout_index`, `insert_layout`/`remove_layout`/`move_layout` (Konstanten `SHEETS`, `PAGES`); die Blatt-Befehle (`AddSheetCommand`, `RemoveSheetCommand`, `MoveSheetCommand`, `ChangeSheetCommand`) nehmen ein `kind` bzw. finden es selbst. Das letzte Blatt bleibt, Seiten dürfen alle gelöscht werden.
+- Rahmen einer Seite (`display.page_frame_parts`, `model/sheet.py`): Spaltenleiste 5 mm hoch oben im Rahmen mit Ziffern 1 … n (`column_strip_entities`, `column_edges`, `column_at` für spätere Verweise `/Seite.Spalte`), Kennzeichen 3,5 mm über der rechten oberen Rahmenecke. Gilt am Bildschirm, im Druck und im Export.
+- Arbeitsbereich „Schaltplan (MLD)“ (`WORKSPACE_MLD` = "mld"): Leitung und Sammelschiene sichtbar, Modulfeld nicht; Ebenen mit `workspace` "mld"; Bibliotheken mit `"workspace": "sld"` ausgeblendet. `SheetController.set_pages_mode` stellt die Reiterleiste auf die Seiten um (ohne Reiter Modell), Menü „Seite“ statt „Blatt“ (Neue Seite …, Seite bearbeiten …, Duplizieren, Löschen, Format, Schriftfeld, Vorlage), Ansichtsfenster und Blattumrisse ausgeblendet. Gibt es noch keine Seite, legt der Wechsel ins MLD Seite 1 an (Undo-Schritt). Zurück im SLD oder in der Zeichnung zeigt die Leiste wieder Modell und Blätter.
+- Neue Seite / Seite bearbeiten: `ui/page_dialog.py` (Anlage, Ort, Beschreibung; Vorschläge aus vorhandenen Seiten; führende = bzw. + werden entfernt). Neue Seiten kommen hinter die aktuelle Seite, wenn sie zur selben Anlage und zum selben Ort gehören, sonst hinter die letzte Seite dieser Gruppe oder ans Ende (`page_insert_index`); ein Wechsel von Anlage/Ort verschiebt die Seite ans Ende der neuen Gruppe. Vorlagen werden zu Seiten ohne Ansichtsfenster.
+- Seiten-Dock (`ui/pages_dock.py`, links, nur im MLD sichtbar): Baum Anlage > Ort > Seite, Klick öffnet, Kontextmenü mit Neue Seite, Bearbeiten, Duplizieren, Nach oben/unten (innerhalb der Gruppe), Löschen; folgt der angezeigten Seite.
+- Drucken und Export im MLD: Bereich „Aktuelle Seite“, „Alle Seiten“, Auswahl; kein Modell-Schnelldruck.
+- Dateiformat 3: `pages` wie `sheets` plus `plant`, `location`, `columns` (nur wenn gesetzt). Geschrieben wird Version 3 nur, wenn die Zeichnung Seiten hat; sonst bleibt es Version 2, ebenso Bibliotheken und Rahmenvorlagen (`BASE_VERSION`), damit SLDGridy 1.2 sie weiter öffnet. Migrationen arbeiten auf einer Kopie der eingelesenen Daten.
 
 ### Mitgelieferte Symbolbibliothek
 

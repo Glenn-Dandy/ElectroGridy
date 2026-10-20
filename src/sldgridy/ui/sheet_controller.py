@@ -42,11 +42,12 @@ from sldgridy.fileio.paths import system_template_dir, user_template_dir
 from sldgridy.fileio.templates import TEMPLATE_SUFFIX, load_frame, save_frame
 from sldgridy.i18n import ui_locale
 from sldgridy.model.container import EntityContainer
-from sldgridy.model.document import SheetLayout, new_sheet
+from sldgridy.model.document import PAGES, SHEETS, SheetLayout, new_page, new_sheet
 from sldgridy.model.entities import Entity, Rectangle, Viewport, new_id
 from sldgridy.model.geometry import Point
 from sldgridy.model.paper import Orientation
 from sldgridy.tools.base import PREVIEW_ID, Tool, tr
+from sldgridy.ui.page_dialog import PageDialog
 from sldgridy.ui.sheet_dialogs import FieldsDialog, FormatDialog, TemplateChooserDialog
 from sldgridy.ui.space import SHEET, Space
 from sldgridy.view.items import EntityItem
@@ -165,6 +166,8 @@ class SheetController(QObject):
         self.show_outlines = True
         self._navigator: ViewportNavigator | None = None
         self._updating_tabs = False
+        # Multi-line diagram: the tabs show its pages instead of model and sheets.
+        self.pages_mode = False
         self.tabs = QTabBar()
         self.tabs.setShape(QTabBar.Shape.RoundedSouth)
         self.tabs.setMovable(True)
@@ -209,6 +212,49 @@ class SheetController(QObject):
             self.act_viewport,
         ]
 
+    @property
+    def kind(self) -> str:
+        return PAGES if self.pages_mode else SHEETS
+
+    def layouts(self) -> list[SheetLayout]:
+        return self.doc.layouts(self.kind)
+
+    def set_pages_mode(self, pages: bool) -> None:
+        """Switch the tab bar between model + sheets and the pages of the multi-line
+        diagram (with the workspace)."""
+        if pages == self.pages_mode and self.tabs.count():
+            return
+        self.pages_mode = pages
+        self.deactivate_viewport()
+        self._retitle()
+        if pages:
+            if not self.doc.pages:
+                self._add_layout(new_page())
+                self.w.message(self.tr("Erste Seite des Schaltplans (MLD) angelegt"))
+            current = self.current_sheet()
+            if current is None or self.doc.kind_of(current.id) != PAGES:
+                self.show_sheet(self.doc.pages[0].id)
+        else:
+            current = self.current_sheet()
+            if current is not None and self.doc.kind_of(current.id) == PAGES:
+                self.w.activate_space(self.w.model_view)
+        self.rebuild_tabs()
+
+    def _retitle(self) -> None:
+        if not hasattr(self, "menu"):
+            return
+        pages = self.pages_mode
+        self.menu.setTitle(self.tr("Sei&te") if pages else self.tr("Bl&att"))
+        self.act_new.setText(self.tr("&Neue Seite …") if pages else self.tr("&Neues Blatt"))
+        self.act_from_template.setText(
+            self.tr("Neue Seite aus &Vorlage …") if pages else self.tr("Neues Blatt aus &Vorlage …")
+        )
+        self.act_rename.setText(
+            self.tr("Seite &bearbeiten …") if pages else self.tr("&Umbenennen …")
+        )
+        for action in (self.act_viewport, self.act_outlines, self.align_menu.menuAction()):
+            action.setVisible(not pages)
+
     def create_menu(self, bar: QMenuBar) -> None:
         m = bar.addMenu(self.tr("Bl&att"))
         m.addActions([self.act_new, self.act_from_template])
@@ -224,10 +270,14 @@ class SheetController(QObject):
         self._update_actions()
 
     def _update_actions(self) -> None:
-        on_sheet = self.current_sheet() is not None
+        current = self.current_sheet()
+        on_sheet = current is not None
         for action in self.sheet_only:
             action.setEnabled(on_sheet)
-        self.act_delete.setEnabled(on_sheet and len(self.doc.sheets) > 1)
+        if on_sheet and self.doc.kind_of(current.id) == PAGES:
+            self.act_viewport.setEnabled(False)
+        else:
+            self.act_delete.setEnabled(on_sheet and len(self.doc.sheets) > 1)
 
     def _tab_menu(self, pos) -> None:
         index = self.tabs.tabAt(pos)
@@ -236,11 +286,12 @@ class SheetController(QObject):
         if index != self.tabs.currentIndex():
             self.tabs.setCurrentIndex(index)
         menu = QMenu(self.tabs)
-        if index == 0:
+        first = 0 if self.pages_mode else 1
+        if index == 0 and not self.pages_mode:
             self._fill_align_menu(menu)
             menu.addSeparator()
         menu.addActions([self.act_new, self.act_from_template])
-        if index > 0:
+        if index >= first:
             menu.addSeparator()
             menu.addActions([self.act_rename, self.act_duplicate, self.act_delete, self.act_format])
             menu.addActions([self.act_fields, self.act_save_template])
@@ -279,6 +330,8 @@ class SheetController(QObject):
 
     def _on_tab_clicked(self, index: int) -> None:
         # A click on the model tab while the model is shown offers the sheets.
+        if self.pages_mode:
+            return
         if index == 0 and self.tabs.currentIndex() == 0 and self.doc.sheets:
             QTimer.singleShot(0, self._show_align_popup)
 
@@ -297,20 +350,30 @@ class SheetController(QObject):
 
     # -- tabs ---------------------------------------------------------------
 
+    def tab_text(self, layout: SheetLayout) -> str:
+        if self.doc.kind_of(layout.id) == PAGES:
+            label = self.doc.page_label(layout.id)
+            return f"{label} {layout.name}".strip()
+        return layout.name
+
     def rebuild_tabs(self) -> None:
         current = self.current_sheet()
         self._updating_tabs = True
         try:
             while self.tabs.count():
                 self.tabs.removeTab(0)
-            self.tabs.addTab(self.tr("Modell"))
-            self.tabs.setTabData(0, None)
-            for sheet in self.doc.sheets:
-                i = self.tabs.addTab(sheet.name)
-                self.tabs.setTabData(i, sheet.id)
+            offset = 0
+            if not self.pages_mode:
+                self.tabs.addTab(self.tr("Modell"))
+                self.tabs.setTabData(0, None)
+                offset = 1
+            items = self.layouts()
+            for layout in items:
+                i = self.tabs.addTab(self.tab_text(layout))
+                self.tabs.setTabData(i, layout.id)
             index = 0
-            if current is not None and any(s.id == current.id for s in self.doc.sheets):
-                index = self.doc.sheet_index(current.id) + 1
+            if current is not None and any(s.id == current.id for s in items):
+                index = self.doc.layout_index(current.id) + offset
             self.tabs.setCurrentIndex(index)
         finally:
             self._updating_tabs = False
@@ -323,12 +386,17 @@ class SheetController(QObject):
         if sheet_id is None:
             if self.w.space.kind == SHEET:
                 self.w.activate_space(self.w.model_view)
-        else:
+        elif any(s.id == sheet_id for s in self.layouts()):
             self.show_sheet(sheet_id)
         self._update_actions()
 
     def _on_tab_moved(self, old: int, new: int) -> None:
         if self._updating_tabs:
+            return
+        if self.pages_mode:
+            self.w.push(
+                MoveSheetCommand(self.doc, old, new, self.tr("Seite verschieben"), kind=PAGES)
+            )
             return
         if old == 0 or new == 0:
             self.rebuild_tabs()  # the model tab stays first
@@ -337,7 +405,13 @@ class SheetController(QObject):
 
     def select_tab_for(self, space: Space) -> None:
         sheet = space.extra.get("sheet")
-        index = 0 if sheet is None else self.doc.sheet_index(sheet.id) + 1
+        if hasattr(self.w, "pages_dock"):
+            self.w.pages_dock.select_page(sheet.id if sheet is not None else None)
+        if sheet is not None and self.doc.kind_of(sheet.id) != self.kind:
+            self._update_actions()
+            return
+        offset = 0 if self.pages_mode else 1
+        index = 0 if sheet is None else self.doc.layout_index(sheet.id) + offset
         if self.tabs.currentIndex() != index:
             self._updating_tabs = True
             self.tabs.setCurrentIndex(index)
@@ -355,10 +429,10 @@ class SheetController(QObject):
         space = self.spaces.get(sheet_id)
         if space is not None:
             return space
-        sheet = self.doc.sheet(sheet_id)
+        sheet = self.doc.layout(sheet_id)
 
         def get_sheet(sid=sheet_id):
-            return self.doc.sheet(sid)
+            return self.doc.layout(sid)
 
         def factory(e: Entity) -> EntityItem | None:
             if isinstance(e, Viewport):
@@ -385,7 +459,7 @@ class SheetController(QObject):
         first = space.view is None
         self.w.activate_space(space)
         if first:
-            w, h = self.doc.sheet(sheet_id).size
+            w, h = self.doc.layout(sheet_id).size
             self.w.canvas.fit_rect(QRectF(0, 0, w, h), 0.03)
 
     def all_spaces(self) -> list[Space]:
@@ -400,17 +474,19 @@ class SheetController(QObject):
         self.rebuild_tabs()
 
     def on_sheets_changed(self) -> None:
-        ids = {s.id for s in self.doc.sheets}
+        ids = {s.id for s in self.doc.sheets} | {p.id for p in self.doc.pages}
         for sid in [sid for sid in self.spaces if sid not in ids]:
             space = self.spaces.pop(sid)
             if self.w.space is space:
                 self.w.activate_space(self.w.model_view)
             self.w._drop_space(space)
         for sid, space in self.spaces.items():
-            space.extra["sheet"] = self.doc.sheet(sid)
+            space.extra["sheet"] = self.doc.layout(sid)
             space.extra["paper"].refresh()
             space.extra["frame"].refresh()
         self.rebuild_tabs()
+        if hasattr(self.w, "pages_dock"):
+            self.w.pages_dock.rebuild()
         self.w._update_title()
 
     def refresh_viewports(self) -> None:
@@ -590,18 +666,30 @@ class SheetController(QObject):
 
     # -- sheet commands -----------------------------------------------------
 
-    def _insert_index(self) -> int:
-        sheet = self.current_sheet()
-        return self.doc.sheet_index(sheet.id) + 1 if sheet else len(self.doc.sheets)
+    def _insert_index(self, layout: SheetLayout | None = None) -> int:
+        current = self.current_sheet()
+        items = self.layouts()
+        if current is not None and self.doc.kind_of(current.id) != self.kind:
+            current = None
+        if self.pages_mode and layout is not None:
+            return page_insert_index(items, layout, current)
+        return self.doc.layout_index(current.id) + 1 if current else len(items)
 
-    def _add_sheet(self, sheet: SheetLayout, extra_blocks=()) -> None:
-        index = self._insert_index()
-        self.w.begin_macro(self.tr("Blatt {name} anlegen").format(name=sheet.name))
+    def _add_layout(self, sheet: SheetLayout, extra_blocks=()) -> None:
+        index = self._insert_index(sheet)
+        text = (
+            self.tr("Seite anlegen")
+            if self.pages_mode
+            else self.tr("Blatt {name} anlegen").format(name=sheet.name)
+        )
+        self.w.begin_macro(text)
         for definition in extra_blocks:
             self.w.push(AddBlockCommand(self.doc, definition, ""))
-        self.w.push(AddSheetCommand(self.doc, index, sheet, ""))
+        self.w.push(AddSheetCommand(self.doc, index, sheet, "", kind=self.kind))
         self.w.end_macro()
         self.show_sheet(sheet.id)
+
+    _add_sheet = _add_layout
 
     def _next_name(self) -> str:
         return self.doc.unique_sheet_name(self.tr("Blatt {n}").format(n=len(self.doc.sheets) + 1))
@@ -609,6 +697,9 @@ class SheetController(QObject):
     def new_sheet(self) -> None:
         if self.w.blocks.in_editor():
             self.w.message(self.tr("Zuerst den Blockeditor schließen"))
+            return
+        if self.pages_mode:
+            self.new_page()
             return
         current = self.current_sheet()
         template = current or (self.doc.sheets[0] if self.doc.sheets else None)
@@ -618,9 +709,75 @@ class SheetController(QObject):
             sheet.title_block = template.title_block
         self._add_sheet(sheet)
 
+    def _page_values(self, title: str, page: SheetLayout | None):
+        plants = sorted({p.plant for p in self.doc.pages if p.plant})
+        locations = sorted({p.location for p in self.doc.pages if p.location})
+        dialog = PageDialog(
+            title,
+            page.plant if page else "",
+            page.location if page else "",
+            page.name if page else "",
+            plants,
+            locations,
+            self.w,
+        )
+        if dialog.exec() != PageDialog.DialogCode.Accepted:
+            return None
+        return dialog.values()
+
+    def new_page(self) -> None:
+        current = self.current_sheet()
+        if current is not None and self.doc.kind_of(current.id) != PAGES:
+            current = None
+        values = self._page_values(self.tr("Neue Seite"), current)
+        if values is None:
+            return
+        plant, location, name = values
+        page = new_page(name, plant, location)
+        if current is not None:
+            page.paper, page.orientation = current.paper, current.orientation
+            page.title_block, page.columns = current.title_block, current.columns
+        self._add_layout(page)
+
+    def edit_page(self) -> None:
+        current = self.current_sheet()
+        if current is None:
+            return
+        values = self._page_values(self.tr("Seite bearbeiten"), current)
+        if values is None:
+            return
+        plant, location, name = values
+        changes = {
+            k: v
+            for k, v in (("plant", plant), ("location", location), ("name", name))
+            if getattr(current, k) != v
+        }
+        if not changes:
+            return
+        self.w.begin_macro(self.tr("Seite bearbeiten"))
+        if "plant" in changes or "location" in changes:
+            # Joining another plant/location: the page moves to the end of that group.
+            moved = replace(current, plant=plant, location=location)
+            others = [p for p in self.doc.pages if p.id != current.id]
+            target = page_insert_index(others, moved, None)
+            old = self.doc.layout_index(current.id)
+            if target != old:
+                self.w.push(MoveSheetCommand(self.doc, old, target, "", kind=PAGES))
+        self.w.push(ChangeSheetCommand(self.doc, current.id, "", **changes))
+        self.w.end_macro()
+
     def duplicate_sheet(self) -> None:
         current = self.current_sheet()
         if current is None:
+            return
+        if self.doc.kind_of(current.id) == PAGES:
+            page = replace(
+                current,
+                id=new_id(),
+                entities=EntityContainer(e.with_new_id() for e in current.entities),
+                fields=copy.deepcopy(current.fields),
+            )
+            self._add_layout(page)
             return
         sheet = SheetLayout(
             name=self.doc.unique_sheet_name(current.name),
@@ -635,6 +792,9 @@ class SheetController(QObject):
     def rename_sheet(self) -> None:
         current = self.current_sheet()
         if current is None:
+            return
+        if self.doc.kind_of(current.id) == PAGES:
+            self.edit_page()
             return
         name, ok = QInputDialog.getText(
             self.w, self.tr("Blatt umbenennen"), self.tr("Name:"), text=current.name
@@ -651,16 +811,28 @@ class SheetController(QObject):
 
     def delete_sheet(self) -> None:
         current = self.current_sheet()
-        if current is None or len(self.doc.sheets) <= 1:
+        if current is None:
             return
-        answer = QMessageBox.question(
-            self.w,
-            self.tr("Blatt löschen"),
-            self.tr("Blatt „{name}“ löschen?").format(name=current.name),
-        )
-        if answer == QMessageBox.StandardButton.Yes:
-            self.deactivate_viewport()
-            self.w.push(RemoveSheetCommand(self.doc, current.id, self.tr("Blatt löschen")))
+        page = self.doc.kind_of(current.id) == PAGES
+        if not page and len(self.doc.sheets) <= 1:
+            return
+        if page:
+            title = self.tr("Seite löschen")
+            question = self.tr("Seite „{name}“ löschen?").format(name=self.tab_text(current))
+        else:
+            title = self.tr("Blatt löschen")
+            question = self.tr("Blatt „{name}“ löschen?").format(name=current.name)
+        if QMessageBox.question(self.w, title, question) != QMessageBox.StandardButton.Yes:
+            return
+        self.deactivate_viewport()
+        neighbours = self.layouts()
+        index = self.doc.layout_index(current.id)
+        self.w.push(RemoveSheetCommand(self.doc, current.id, title))
+        if page:
+            if self.doc.pages:
+                self.show_sheet(neighbours[min(index, len(neighbours) - 1)].id)
+            else:
+                self.w.activate_space(self.w.model_view)
 
     def change_format(self) -> None:
         current = self.current_sheet()
@@ -686,7 +858,7 @@ class SheetController(QObject):
 
     def _warn_outside(self, sheet_id: str) -> None:
         space = self.spaces.get(sheet_id)
-        sheet = self.doc.sheet(sheet_id)
+        sheet = self.doc.layout(sheet_id)
         if space is None:
             return
         w, h = sheet.size
@@ -773,6 +945,14 @@ class SheetController(QObject):
             QMessageBox.critical(self.w, self.tr("Rahmenvorlage"), str(exc))
             return
         sheet.name = self._next_name()
+        if self.pages_mode:
+            current = self.current_sheet()
+            sheet.name = ""
+            sheet.columns = 10
+            if current is not None and self.doc.kind_of(current.id) == PAGES:
+                sheet.plant, sheet.location = current.plant, current.location
+            for vp in sheet.viewports():
+                sheet.entities.remove(vp.id)
         missing = []
         for definition in blocks:
             existing = self.doc.blocks.get(definition.name)
@@ -817,3 +997,17 @@ class SheetController(QObject):
             path = path.with_name(path.name + TEMPLATE_SUFFIX)
         save_frame(current, self.doc.blocks, path, name.strip())
         self.w.message(self.tr("Vorlage gespeichert: {path}").format(path=path))
+
+
+def page_insert_index(
+    pages: list[SheetLayout], page: SheetLayout, after: SheetLayout | None
+) -> int:
+    """Where a new page goes: after ``after`` when it belongs to the same plant and
+    location, else behind the last page of its group, else at the end."""
+    key = (page.plant, page.location)
+    if after is not None and (after.plant, after.location) == key:
+        ids = [p.id for p in pages]
+        if after.id in ids:
+            return ids.index(after.id) + 1
+    last = [i for i, p in enumerate(pages) if (p.plant, p.location) == key]
+    return last[-1] + 1 if last else len(pages)

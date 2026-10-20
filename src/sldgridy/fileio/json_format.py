@@ -1,5 +1,6 @@
 """Conversion between the document model and the versioned JSON structure."""
 
+import copy
 from collections.abc import Callable
 from typing import Any
 
@@ -32,7 +33,12 @@ from sldgridy.model.paper import Orientation, sheet_size
 from sldgridy.model.sheet import default_viewport
 from sldgridy.model.title_block import TITLE_BLOCK_NAME, title_block_definition
 
-FORMAT_VERSION = 2
+# Newest version this program reads. Files are written with the lowest version that
+# holds their content, so older releases keep opening what they can show: libraries,
+# frame templates and drawings without multi-line pages stay version 2; drawings with
+# pages (version 3) need SLDGridy 1.3 or newer.
+FORMAT_VERSION = 3
+BASE_VERSION = 2
 
 
 def _migrate_1_to_2(data: dict) -> dict:
@@ -54,8 +60,15 @@ def _migrate_1_to_2(data: dict) -> dict:
     return data
 
 
+def _migrate_2_to_3(data: dict) -> dict:
+    """Version 3 adds multi-line circuit diagram pages; older files have none."""
+    if data.get("type") not in ("library", "frame"):
+        data.setdefault("pages", [])
+    return data
+
+
 # Migration from version N to N + 1, keyed by N.
-MIGRATIONS: dict[int, Callable[[dict], dict]] = {1: _migrate_1_to_2}
+MIGRATIONS: dict[int, Callable[[dict], dict]] = {1: _migrate_1_to_2, 2: _migrate_2_to_3}
 
 
 class FileFormatError(Exception):
@@ -337,7 +350,7 @@ def block_signature(b: BlockDefinition) -> dict[str, Any]:
 
 def library_to_dict(blocks: list[BlockDefinition], name: str = "") -> dict[str, Any]:
     return {
-        "format_version": FORMAT_VERSION,
+        "format_version": BASE_VERSION,
         "type": "library",
         "name": name,
         "blocks": [block_to_dict(b) for b in blocks],
@@ -385,8 +398,8 @@ def _layer_from_dict(d: dict[str, Any]) -> Layer:
 
 
 def document_to_dict(doc: Document) -> dict[str, Any]:
-    return {
-        "format_version": FORMAT_VERSION,
+    d = {
+        "format_version": FORMAT_VERSION if doc.pages else BASE_VERSION,
         "application": f"SLDGridy {__version__}",
         "properties": dict(doc.properties),
         "layers": [_layer_to_dict(layer) for layer in doc.layers],
@@ -394,6 +407,9 @@ def document_to_dict(doc: Document) -> dict[str, Any]:
         "model": {"entities": [entity_to_dict(e) for e in doc.model_space]},
         "sheets": [sheet_to_dict(s) for s in doc.sheets],
     }
+    if doc.pages:
+        d["pages"] = [sheet_to_dict(p) for p in doc.pages]
+    return d
 
 
 def migrate(data: dict[str, Any]) -> dict[str, Any]:
@@ -405,6 +421,8 @@ def migrate(data: dict[str, Any]) -> dict[str, Any]:
         raise FileFormatError(
             f"file format version {version} is newer than supported version {FORMAT_VERSION}"
         )
+    if version < FORMAT_VERSION:
+        data = copy.deepcopy(data)  # migrations work on a copy, the caller's data stays
     while version < FORMAT_VERSION:
         data = MIGRATIONS[version](data)
         version += 1
@@ -423,16 +441,22 @@ def document_from_dict(data: dict[str, Any]) -> Document:
         sheets = [sheet_from_dict(s) for s in data["sheets"]]
         if not sheets:
             raise FileFormatError("a drawing needs at least one sheet")
+        pages = [sheet_from_dict(p) for p in data.get("pages", [])]
         properties = {str(k): str(v) for k, v in data.get("properties", {}).items()}
     except (KeyError, TypeError, ValueError) as exc:
         raise FileFormatError(f"invalid drawing data: {exc}") from exc
     return Document(
-        model_space=model, sheets=sheets, layers=layers, blocks=blocks, properties=properties
+        model_space=model,
+        sheets=sheets,
+        pages=pages,
+        layers=layers,
+        blocks=blocks,
+        properties=properties,
     )
 
 
 def sheet_to_dict(s: SheetLayout) -> dict[str, Any]:
-    return {
+    d = {
         "id": s.id,
         "name": s.name,
         "paper": s.paper,
@@ -441,6 +465,10 @@ def sheet_to_dict(s: SheetLayout) -> dict[str, Any]:
         "fields": dict(s.fields),
         "entities": [entity_to_dict(e) for e in s.entities],
     }
+    for key in ("plant", "location", "columns"):  # pages only
+        if getattr(s, key):
+            d[key] = getattr(s, key)
+    return d
 
 
 def sheet_from_dict(s: dict[str, Any]) -> SheetLayout:
@@ -455,4 +483,7 @@ def sheet_from_dict(s: dict[str, Any]) -> SheetLayout:
         title_block=str(s.get("title_block", TITLE_BLOCK_NAME)),
         fields={str(k): str(v) for k, v in s.get("fields", {}).items()},
         entities=EntityContainer(entity_from_dict(d) for d in s.get("entities", [])),
+        plant=str(s.get("plant", "")),
+        location=str(s.get("location", "")),
+        columns=max(0, int(s.get("columns", 0))),
     )

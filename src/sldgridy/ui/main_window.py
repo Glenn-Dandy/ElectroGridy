@@ -98,6 +98,7 @@ from sldgridy.ui.layers_dock import LayersDock
 from sldgridy.ui.library_dock import LibraryDock
 from sldgridy.ui.osnap_dialog import OsnapDialog
 from sldgridy.ui.osnap_menu import HoverMenuButton, OsnapMenu
+from sldgridy.ui.pages_dock import PagesDock
 from sldgridy.ui.point_menu import point_actions
 from sldgridy.ui.print_dialog import PrintDialog
 from sldgridy.ui.properties_dock import PropertiesDock
@@ -124,9 +125,13 @@ def wait_for_mouse_release() -> None:
         QApplication.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
 
 
-WORKSPACE_SLD, WORKSPACE_DRAWING = "sld", "drawing"
+WORKSPACE_SLD, WORKSPACE_DRAWING, WORKSPACE_MLD = "sld", "drawing", "mld"
 # Grid and snap spacing a workspace starts with (mm); changes are remembered per workspace.
-WORKSPACE_GRID = {WORKSPACE_SLD: (5.0, 2.5), WORKSPACE_DRAWING: (5.0, 2.5)}
+WORKSPACE_GRID = {
+    WORKSPACE_SLD: (5.0, 2.5),
+    WORKSPACE_DRAWING: (5.0, 2.5),
+    WORKSPACE_MLD: (5.0, 2.5),
+}
 
 OPEN_VIEW_KEY = "view/on_open"
 OPEN_EXTENTS, OPEN_LAST, OPEN_ORIGIN = "extents", "last", "origin"
@@ -643,6 +648,7 @@ class MainWindow(QMainWindow):
         # The workspace switch sits at the right end of the status bar (Florian's wish).
         self.workspace_box = QComboBox()
         self.workspace_box.addItem(self.tr("Schaltplan (SLD)"), WORKSPACE_SLD)
+        self.workspace_box.addItem(self.tr("Schaltplan (MLD)"), WORKSPACE_MLD)
         self.workspace_box.addItem(self.tr("Zeichnung"), WORKSPACE_DRAWING)
         self.workspace_box.setToolTip(
             self.tr(
@@ -711,6 +717,7 @@ class MainWindow(QMainWindow):
         self.layers_dock = LayersDock(self, self)
         self.properties_dock = PropertiesDock(self, self)
         self.library_dock = LibraryDock(self, self)
+        self.pages_dock = PagesDock(self, self)
         self.blocks.attach_properties(self.properties_dock)
         self.sheets.attach_properties(self.properties_dock)
         self.properties_dock.extra_type_names.update(
@@ -726,6 +733,8 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.layers_dock)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.properties_dock)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.library_dock)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.pages_dock)
+        self.pages_dock.hide()  # only in the multi-line workspace
         for dock in self.docks():
             install_title_bar(dock)
             self.docks_menu.addAction(dock.toggleViewAction())
@@ -736,7 +745,7 @@ class MainWindow(QMainWindow):
         self.resizeDocks([self.library_dock], [260], Qt.Orientation.Horizontal)
 
     def docks(self) -> list:
-        return [self.layers_dock, self.properties_dock, self.library_dock]
+        return [self.layers_dock, self.properties_dock, self.library_dock, self.pages_dock]
 
     def dock_all(self) -> None:
         for dock in self.docks():
@@ -748,12 +757,13 @@ class MainWindow(QMainWindow):
             self.layers_dock: Qt.DockWidgetArea.RightDockWidgetArea,
             self.properties_dock: Qt.DockWidgetArea.RightDockWidgetArea,
             self.library_dock: Qt.DockWidgetArea.LeftDockWidgetArea,
+            self.pages_dock: Qt.DockWidgetArea.LeftDockWidgetArea,
         }
         for dock, area in areas.items():
             dock.setFloating(False)
             self.removeDockWidget(dock)
             self.addDockWidget(area, dock)
-            dock.show()
+            dock.setVisible(dock is not self.pages_dock or self.workspace == WORKSPACE_MLD)
         self.resizeDocks([self.layers_dock], [480], Qt.Orientation.Horizontal)
         self.resizeDocks([self.library_dock], [260], Qt.Orientation.Horizontal)
 
@@ -1126,7 +1136,13 @@ class MainWindow(QMainWindow):
 
     def print_document(self) -> None:
         self.tools.cancel()
-        dialog = PrintDialog(self.document, self.sheets.current_sheet(), parent=self)
+        dialog = PrintDialog(
+            self.document,
+            self.sheets.current_sheet(),
+            parent=self,
+            layouts=self.sheets.layouts(),
+            pages=self.sheets.pages_mode,
+        )
         dialog.exec()
 
     def export(self, kind: str) -> None:
@@ -1135,9 +1151,9 @@ class MainWindow(QMainWindow):
         dialog = ExportDialog(kind, current is not None, self)
         if dialog.exec() != ExportDialog.DialogCode.Accepted:
             return
-        sheets = list(self.document.sheets) if dialog.all_sheets() else [current]
+        sheets = list(self.sheets.layouts()) if dialog.all_sheets() else [current]
         base = self.file_path.with_suffix("") if self.file_path else Path(self.last_dir()) / "plan"
-        if kind != PDF and len(sheets) == 1 and len(self.document.sheets) > 1:
+        if kind != PDF and len(sheets) == 1 and len(self.sheets.layouts()) > 1:
             base = base.with_name(f"{base.name}_{sheets[0].name}")
         filters = {
             PDF: self.tr("PDF (*.pdf)"),
@@ -1691,10 +1707,15 @@ class MainWindow(QMainWindow):
             self.canvas.set_grid_spacing(grid)
         if snap > 0:
             self.canvas.set_snap_spacing(snap)
-        sld = self.workspace == WORKSPACE_SLD
+        drawing = self.workspace == WORKSPACE_DRAWING
+        mld = self.workspace == WORKSPACE_MLD
         for action in (self.act_wire, self.act_busbar):
-            action.setVisible(sld)
-        self.act_module_field.setVisible(not sld)
+            action.setVisible(not drawing)
+        self.act_module_field.setVisible(drawing)
+        self.sheets.set_pages_mode(mld)
+        self.pages_dock.setVisible(mld)
+        if mld:
+            self.pages_dock.rebuild()
         self.library_dock.set_workspace(self.workspace)
         # Each workspace has its own layers; the current one must belong to it.
         if self.document.has_layer(self.current_layer) and not self.document.layer(

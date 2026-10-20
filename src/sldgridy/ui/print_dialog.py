@@ -57,20 +57,28 @@ class PrintDialog(QDialog):
         current: SheetLayout | None,
         printer: QPrinter | None = None,
         parent=None,
+        layouts: list[SheetLayout] | None = None,
+        pages: bool = False,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(self.tr("Drucken"))
         self.doc = doc
+        # Sheets of the circuit diagram and drawing, or the pages of the multi-line one.
+        self.layouts = list(doc.sheets if layouts is None else layouts)
+        self.pages = pages
         self.printer = printer or QPrinter(QPrinter.PrinterMode.HighResolution)
 
         # What to print.
-        self.rb_current = QRadioButton(self.tr("Aktuelles Blatt"))
-        self.rb_all = QRadioButton(self.tr("Alle Blätter"))
+        self.rb_current = QRadioButton(
+            self.tr("Aktuelle Seite") if pages else self.tr("Aktuelles Blatt")
+        )
+        self.rb_all = QRadioButton(self.tr("Alle Seiten") if pages else self.tr("Alle Blätter"))
         self.rb_selection = QRadioButton(self.tr("Auswahl:"))
         self.rb_model = QRadioButton(self.tr("Modell (Schnelldruck, auf Papier eingepasst)"))
         self.sheet_list = QListWidget()
-        for sheet in doc.sheets:
-            item = QListWidgetItem(sheet.name)
+        for sheet in self.layouts:
+            label = f"{doc.page_label(sheet.id)} {sheet.name}".strip() if pages else sheet.name
+            item = QListWidgetItem(label)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(Qt.CheckState.Unchecked)
             item.setData(Qt.ItemDataRole.UserRole, sheet.id)
@@ -89,6 +97,7 @@ class PrintDialog(QDialog):
         lw = QVBoxLayout(box_what)
         for w in (self.rb_current, self.rb_all, self.rb_selection, self.sheet_list, self.rb_model):
             lw.addWidget(w)
+        self.rb_model.setVisible(not pages)  # the multi-line diagram has no model
 
         # How.
         self.rb_one = QRadioButton(self.tr("1:1 (Blattformat = Papierformat)"))
@@ -166,13 +175,13 @@ class PrintDialog(QDialog):
         if self.rb_current.isChecked() and self._current is not None:
             return [self._current]
         if self.rb_all.isChecked():
-            return list(self.doc.sheets)
+            return list(self.layouts)
         ids = {
             self.sheet_list.item(i).data(Qt.ItemDataRole.UserRole)
             for i in range(self.sheet_list.count())
             if self.sheet_list.item(i).checkState() == Qt.CheckState.Checked
         }
-        return [s for s in self.doc.sheets if s.id in ids]
+        return [s for s in self.layouts if s.id in ids]
 
     def mode(self) -> Mode:
         if self.rb_fit.isChecked():

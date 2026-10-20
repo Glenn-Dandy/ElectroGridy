@@ -6,6 +6,7 @@ from factories import sample_entities
 from sldgridy.fileio import json_format
 from sldgridy.fileio.files import load_document, save_document
 from sldgridy.fileio.json_format import (
+    BASE_VERSION,
     FORMAT_VERSION,
     FileFormatError,
     document_from_dict,
@@ -41,7 +42,7 @@ def test_document_roundtrip_through_file(tmp_path):
     loaded = load_document(path)
     assert document_to_dict(loaded) == document_to_dict(doc)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["format_version"] == FORMAT_VERSION
+    assert data["format_version"] == BASE_VERSION  # no pages: readable by 1.2
     assert "Zeile 2 äöü" in path.read_text(encoding="utf-8")
 
 
@@ -90,7 +91,7 @@ def test_version_1_file_gets_title_block_and_viewport():
     assert sheet.title_block == "Schriftfeld" and "Schriftfeld" in doc.blocks
     (vp,) = sheet.viewports()
     assert (vp.p1.x, vp.p1.y, vp.p2.x, vp.p2.y) == (20, 10, 287, 410)
-    assert document_to_dict(doc)["format_version"] == FORMAT_VERSION
+    assert document_to_dict(doc)["format_version"] == BASE_VERSION
 
 
 def test_invalid_files_raise_format_error(tmp_path):

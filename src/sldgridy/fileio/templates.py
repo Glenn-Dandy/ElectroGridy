@@ -6,7 +6,7 @@ from typing import Any
 
 from sldgridy.fileio.files import write_json_atomic
 from sldgridy.fileio.json_format import (
-    FORMAT_VERSION,
+    BASE_VERSION,
     FileFormatError,
     block_from_dict,
     block_to_dict,
@@ -35,7 +35,7 @@ def frame_to_dict(
             if dep in blocks:
                 needed[dep] = blocks[dep]
     return {
-        "format_version": FORMAT_VERSION,
+        "format_version": BASE_VERSION,
         "type": "frame",
         "name": name,
         "paper": sheet.paper,
