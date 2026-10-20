@@ -179,6 +179,12 @@ def entity_to_dict(e: Entity) -> dict[str, Any]:
     return d
 
 
+def _choice(value: Any, allowed: tuple[str, ...]) -> str:
+    """Unknown values (from a newer version) fall back to the first choice."""
+    value = str(value)
+    return value if value in allowed else allowed[0]
+
+
 def _positive(value: Any) -> float:
     f = float(value)
     if not f > 0:
@@ -335,6 +341,10 @@ def block_to_dict(b: BlockDefinition) -> dict[str, Any]:
         d["category"] = b.category
     if b.description:
         d["description"] = b.description
+    if b.function:
+        d["function"] = b.function
+    if b.contact:
+        d["contact"] = b.contact
     d["entities"] = [entity_to_dict(e) for e in b.entities]
     return d
 
@@ -347,6 +357,8 @@ def block_from_dict(d: dict[str, Any]) -> BlockDefinition:
             entities=EntityContainer(entity_from_dict(e) for e in d.get("entities", [])),
             category=str(d.get("category", "")),
             description=str(d.get("description", "")),
+            function=_choice(d.get("function", ""), ("", "main", "aux")),
+            contact=_choice(d.get("contact", ""), ("", "no", "nc", "co")),
         )
     except (KeyError, TypeError, ValueError) as exc:
         if isinstance(exc, FileFormatError):

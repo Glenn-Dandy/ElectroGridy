@@ -135,15 +135,39 @@ class BlockPropertiesDialog(QDialog):
         self.category.addItems(sorted(set(categories) - {""}, key=str.casefold))
         self.category.setCurrentText(definition.category)
         self.description = QLineEdit(definition.description)
+        # Role in the multi-line diagram (cross references between functions of a device).
+        self.function = QComboBox()
+        self.function.addItem(self.tr("keine"), "")
+        self.function.addItem(self.tr("Hauptfunktion (z. B. Spule, Schalter)"), "main")
+        self.function.addItem(self.tr("Nebenfunktion (Kontakt)"), "aux")
+        self.function.setCurrentIndex(max(self.function.findData(definition.function), 0))
+        self.function.setToolTip(
+            self.tr(
+                "Schaltplan (MLD): Unter einer Hauptfunktion erscheinen die Kontakte mit "
+                "gleichem BMK, an jedem Kontakt die Stelle der Hauptfunktion."
+            )
+        )
+        self.contact = QComboBox()
+        self.contact.addItem(self.tr("Schließer"), "no")
+        self.contact.addItem(self.tr("Öffner"), "nc")
+        self.contact.addItem(self.tr("Wechsler"), "co")
+        self.contact.setCurrentIndex(max(self.contact.findData(definition.contact), 0))
+        self.function.currentIndexChanged.connect(self._update_contact)
         self.error = QLabel()
         self.error.setStyleSheet("color: #c00000")
         form = QFormLayout(self)
         form.addRow(self.tr("Name:"), self.name)
         form.addRow(self.tr("Kategorie:"), self.category)
         form.addRow(self.tr("Beschreibung:"), self.description)
+        form.addRow(self.tr("Funktion:"), self.function)
+        form.addRow(self.tr("Kontaktart:"), self.contact)
         form.addRow(self.error)
         form.addRow(_buttons(self))
+        self._update_contact()
         self.resize(max(self.sizeHint().width(), 380), self.sizeHint().height())
+
+    def _update_contact(self) -> None:
+        self.contact.setEnabled(self.function.currentData() == "aux")
 
     def values(self) -> tuple[str, str, str]:
         return (
@@ -151,6 +175,11 @@ class BlockPropertiesDialog(QDialog):
             self.category.currentText().strip(),
             self.description.text().strip(),
         )
+
+    def role(self) -> tuple[str, str]:
+        """Function and (for an aux function) contact type."""
+        function = self.function.currentData()
+        return function, self.contact.currentData() if function == "aux" else ""
 
     def accept(self) -> None:
         name = self.values()[0]

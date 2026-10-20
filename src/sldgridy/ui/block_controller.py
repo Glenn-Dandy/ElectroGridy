@@ -923,10 +923,13 @@ class BlockController(QObject):
             if dialog.exec() != BlockPropertiesDialog.DialogCode.Accepted:
                 return
             new_name, category, description = dialog.values()
-            if (new_name, category, description) == (
+            function, contact = dialog.role()
+            if (new_name, category, description, function, contact) == (
                 name,
                 definition.category,
                 definition.description,
+                definition.function,
+                definition.contact,
             ):
                 return
             self._doc_push(
@@ -937,6 +940,8 @@ class BlockController(QObject):
                     category,
                     description,
                     self.tr("Blockeigenschaften {name} ändern").format(name=name),
+                    function=function,
+                    contact=contact,
                 )
             )
             return
@@ -957,6 +962,7 @@ class BlockController(QObject):
         changed = by_name[name].copy(new_name)
         changed.category = category
         changed.description = description
+        changed.function, changed.contact = dialog.role()
         mapping = {name: new_name} if new_name != name else {}
         result = [changed if b.name == name else rename_references(b, mapping) for b in blocks]
         save_library(result, Path(path), title)

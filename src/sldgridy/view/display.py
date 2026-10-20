@@ -9,6 +9,7 @@ from PyQt6.QtCore import QCoreApplication, QPointF, QRectF, Qt
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 
 from sldgridy.model.blocks import BlockError, expand
+from sldgridy.model.devices import crossref_texts, crossrefs
 from sldgridy.model.dimensions import dimension_geometry
 from sldgridy.model.document import Document, SheetLayout
 from sldgridy.model.entities import (
@@ -51,19 +52,49 @@ def resolve_style(doc: Document, e: Entity, monochrome: bool = False) -> Style:
     return Style(color, doc.effective_lineweight(e), doc.effective_linetype(e))
 
 
-def _interruption_targets(doc: Document) -> dict[str, tuple[str, str]]:
-    """References of interruption points, cached on the document for one output run
-    (the key changes with any point or page order change)."""
-    key = tuple(
-        (p.id, p.plant, p.location, p.paper, p.orientation, p.columns)
-        + tuple((e.id, e.name, e.position) for e in p.entities if isinstance(e, InterruptionPoint))
-        for p in doc.pages
+def _page_key(doc: Document) -> tuple:
+    """Everything references on the pages depend on (pages, points, devices, roles)."""
+    return (
+        tuple(
+            (p.id, p.plant, p.location, p.paper, p.orientation, p.columns)
+            + tuple(
+                (e.id, e.name, e.position)
+                if isinstance(e, InterruptionPoint)
+                else (e.id, e.name, e.insert, e.attributes)
+                for e in p.entities
+                if isinstance(e, InterruptionPoint | BlockReference)
+            )
+            for p in doc.pages
+        ),
+        tuple((b.name, b.function, b.contact) for b in doc.blocks.values()),
     )
-    cached = getattr(doc, "_interruption_cache", None)
+
+
+def _page_cache(doc: Document) -> dict:
+    """References computed once per output run; the key changes with the content."""
+    key = _page_key(doc)
+    cached = getattr(doc, "_page_cache", None)
     if cached is None or cached[0] != key:
-        cached = (key, interruption_targets(doc))
-        doc._interruption_cache = cached  # noqa: SLF001 - plain cache attribute
+        letters = {
+            "no": QCoreApplication.translate("contact", "S"),
+            "nc": QCoreApplication.translate("contact", "Ö"),
+            "co": QCoreApplication.translate("contact", "W"),
+            "": "",
+        }
+        cached = (
+            key,
+            {"targets": interruption_targets(doc), "xrefs": crossrefs(doc, letters)},
+        )
+        doc._page_cache = cached  # noqa: SLF001 - plain cache attribute
     return cached[1]
+
+
+def _interruption_targets(doc: Document) -> dict[str, tuple[str, str]]:
+    return _page_cache(doc)["targets"]
+
+
+def _crossrefs(doc: Document) -> dict[str, list[str]]:
+    return _page_cache(doc)["xrefs"]
 
 
 def expand_for_display(doc: Document, e: Entity) -> list[Entity]:
@@ -81,6 +112,9 @@ def expand_for_display(doc: Document, e: Entity) -> list[Entity]:
             parts = expand(e, doc.blocks)
         except BlockError:
             return []
+        lines = _crossrefs(doc).get(e.id)
+        if lines:
+            parts = parts + crossref_texts(e, doc.blocks, lines)
         return [
             q
             for p in parts

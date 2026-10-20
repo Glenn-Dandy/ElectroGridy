@@ -64,7 +64,15 @@ class ChangeBlockInfoCommand(QUndoCommand):
     """
 
     def __init__(
-        self, doc: Document, old_name: str, name: str, category: str, description: str, text: str
+        self,
+        doc: Document,
+        old_name: str,
+        name: str,
+        category: str,
+        description: str,
+        text: str,
+        function: str | None = None,
+        contact: str | None = None,
     ) -> None:
         super().__init__(text)
         if name != old_name and name in doc.blocks:
@@ -74,6 +82,10 @@ class ChangeBlockInfoCommand(QUndoCommand):
         self._new = self._old.copy(name)
         self._new.category = category
         self._new.description = description
+        if function is not None:
+            self._new.function = function
+        if contact is not None:
+            self._new.contact = contact
 
     def _swap(self, remove: BlockDefinition, add: BlockDefinition) -> None:
         doc = self._doc

@@ -30,6 +30,11 @@ class BlockDefinition:
     entities: EntityContainer = field(default_factory=EntityContainer)
     category: str = ""
     description: str = ""
+    # Role in the multi-line diagram: "main" (coil, breaker: shows the contact mirror),
+    # "aux" (a contact of it: shows where the main function sits) or "" (none);
+    # ``contact`` of an aux function: "no" (normally open), "nc" (closed), "co" (change-over).
+    function: str = ""
+    contact: str = ""
 
     def attribute_definitions(self) -> list[AttributeDefinition]:
         return [e for e in self.entities if isinstance(e, AttributeDefinition)]
@@ -44,6 +49,8 @@ class BlockDefinition:
             entities=EntityContainer(list(self.entities)),
             category=self.category,
             description=self.description,
+            function=self.function,
+            contact=self.contact,
         )
 
 

@@ -213,3 +213,92 @@ def test_interruption_tool_and_jump(window, monkeypatch):
     window._edit_entity(b.id)
     assert sheets.current_sheet() is first
     assert window.selected_ids() == [a.id]
+
+
+# -- step 3: devices and cross references ----------------------------------------
+
+
+def roles_doc() -> Document:
+    from sldgridy.model.blocks import BlockDefinition
+    from sldgridy.model.container import EntityContainer
+    from sldgridy.model.entities import BlockReference, ConnectionPoint, Rectangle
+
+    doc = doc_with_pages()
+
+    def block(name, function, contact="", terminals=("A1", "A2")):
+        cps = [
+            ConnectionPoint(id=f"c{i}", name=t, position=Point(0, 10 * i))
+            for i, t in enumerate(terminals)
+        ]
+        return BlockDefinition(
+            name=name,
+            entities=EntityContainer([Rectangle(id="r", p1=Point(-2, 0), p2=Point(2, 10)), *cps]),
+            function=function,
+            contact=contact,
+        )
+
+    doc.blocks["Spule"] = block("Spule", "main")
+    doc.blocks["Schließer"] = block("Schließer", "aux", "no", ("13", "14"))
+    doc.blocks["Öffner"] = block("Öffner", "aux", "nc", ("21", "22"))
+    doc.blocks["Schütz SLD"] = block("Schütz SLD", "")
+
+    def ref(rid, name, bmk, x, y=60):
+        return BlockReference(id=rid, name=name, insert=Point(x, y), attributes=(("BMK", bmk),))
+
+    p = doc.pages
+    p[0].entities.add(ref("coil", "Spule", "-K1", 40))  # page /1, column 1
+    p[1].entities.add(ref("no", "Schließer", "-K1", 150))  # page /2, column 5
+    p[2].entities.add(ref("nc", "Öffner", "-K1", 280))  # =PV1 +WR /1, column 10
+    doc.model_space.add(ref("sld", "Schütz SLD", "-K1", 0, 0))
+    doc.model_space.add(ref("sld2", "Schütz SLD", "-K2", 0, 50))
+    doc.model_space.add(ref("sld3", "Schütz SLD", "-K2", 0, 80))
+    return doc
+
+
+def test_device_occurrences_and_cross_references():
+    from sldgridy.model.devices import crossref_texts, crossrefs, devices, problems
+
+    doc = roles_doc()
+    found = devices(doc)
+    assert list(found) == ["-K1", "-K2"]
+    assert [o.where for o in found["-K1"]] == ["model", "page", "page", "page"]
+    xr = crossrefs(doc)
+    assert xr["coil"] == ["S 13-14  /2.5", "Ö 21-22  =PV1 +WR /1.10"]
+    assert xr["no"] == ["/1.1"]
+    assert xr["nc"] == ["=PV1 +UV1 /1.1"]
+    assert "sld" not in xr  # the circuit diagram shows no mirror
+    assert problems(doc) == {"-K2": ["sld_twice"]}
+    texts = crossref_texts(doc.pages[0].entities.get("coil"), doc.blocks, xr["coil"])
+    assert [t.text for t in texts] == xr["coil"]
+    assert texts[0].position.y > 70  # under the symbol (it reaches down to 70)
+
+
+def test_block_role_is_saved():
+    from sldgridy.fileio.json_format import block_from_dict, block_to_dict
+
+    doc = roles_doc()
+    again = block_from_dict(block_to_dict(doc.blocks["Öffner"]))
+    assert (again.function, again.contact) == ("aux", "nc")
+    plain = block_to_dict(doc.blocks["Schütz SLD"])
+    assert "function" not in plain and "contact" not in plain
+
+
+def test_device_dock_rename_everywhere(window):
+    from sldgridy.model.devices import devices
+
+    window._set_document(roles_doc(), None)
+    dock = window.devices_dock
+    dock.show()
+    dock.rebuild()
+    assert dock.tree.topLevelItemCount() == 2
+    assert dock.rename("-K1", "-K5")
+    assert "-K5" in devices(window.document) and "-K1" not in devices(window.document)
+    assert window.crossref_lines()["coil"][0].startswith("S 13-14")
+    window.act_undo.trigger()  # one step for all places
+    assert "-K1" in devices(window.document)
+    # Jump to the contact on page 2 of =PV1 +UV1.
+    (occ,) = [o for o in devices(window.document)["-K1"] if o.entity_id == "no"]
+    window.go_to_occurrence(occ)
+    assert window.workspace == WORKSPACE_MLD
+    assert window.sheets.current_sheet() is window.document.pages[1]
+    assert window.selected_ids() == ["no"]

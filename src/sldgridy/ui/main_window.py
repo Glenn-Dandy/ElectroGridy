@@ -56,6 +56,7 @@ from sldgridy.fileio.json_format import FileFormatError
 from sldgridy.i18n import ui_locale
 from sldgridy.model.blocks import BlockDefinition, BlockError, expand, world_connections
 from sldgridy.model.container import EntityContainer
+from sldgridy.model.devices import crossref_texts, crossrefs
 from sldgridy.model.dimensions import dimension_geometry, format_value, measured_text, scale_at
 from sldgridy.model.document import Document
 from sldgridy.model.entities import (
@@ -108,6 +109,7 @@ from sldgridy.ui.about_dialog import AboutDialog, app_icon, issue_url, open_url
 from sldgridy.ui.autosave import AutoSaver, orphaned_backups, remove_backup
 from sldgridy.ui.block_controller import BlockController
 from sldgridy.ui.command_line import CommandLine
+from sldgridy.ui.devices_dock import DevicesDock
 from sldgridy.ui.dock_title import install_title_bar
 from sldgridy.ui.export_dialog import PDF, PNG, SVG, ExportDialog
 from sldgridy.ui.grid_dialog import GridDialog
@@ -162,6 +164,7 @@ class MainWindow(QMainWindow):
         self._locale = ui_locale()
         self.document = Document.new(self.tr("Blatt 1"), title_labels())
         self._interruptions: dict[str, tuple[str, str]] | None = None
+        self._crossrefs: dict[str, list[str]] | None = None
         self._interruption_refresh_pending = False
         self._watched_pages: dict[int, EntityContainer] = {}
         self.file_path: Path | None = None
@@ -375,6 +378,23 @@ class MainWindow(QMainWindow):
         )
         name = name.strip()
         return name if ok and name else None
+
+    def go_to_occurrence(self, occ) -> None:
+        """Show where a device occurrence sits: circuit diagram, sheet or page."""
+        if occ.where == "page":
+            self.set_workspace(WORKSPACE_MLD)
+            self.sheets.show_sheet(occ.layout_id)
+        else:
+            if self.workspace == WORKSPACE_MLD:
+                self.set_workspace(WORKSPACE_SLD)
+            if occ.where == "model":
+                self.activate_space(self.model_view)
+            else:
+                self.sheets.show_sheet(occ.layout_id)
+        if occ.entity_id in self.container:
+            self.scene.clearSelection()
+            self._sync.item(occ.entity_id).setSelected(True)
+            self.canvas.centerOn(QPointF(occ.position.x, occ.position.y))
 
     def go_to_partner(self, point_id: str) -> bool:
         """Show the page of the interruption point's partner, centred and selected."""
@@ -683,6 +703,7 @@ class MainWindow(QMainWindow):
 
         self.blocks.create_menu(bar)
         self.sheets.create_menu(bar)
+        self.project_menu = bar.addMenu(self.tr("&Projekt"))
 
         m = bar.addMenu(self.tr("&Ansicht"))
         m.addActions([self.act_zoom_in, self.act_zoom_out, self.act_zoom_extents])
@@ -774,6 +795,7 @@ class MainWindow(QMainWindow):
         self.properties_dock = PropertiesDock(self, self)
         self.library_dock = LibraryDock(self, self)
         self.pages_dock = PagesDock(self, self)
+        self.devices_dock = DevicesDock(self, self)
         self.blocks.attach_properties(self.properties_dock)
         self.sheets.attach_properties(self.properties_dock)
         self.properties_dock.extra_type_names.update(
@@ -796,17 +818,29 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.library_dock)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.pages_dock)
         self.pages_dock.hide()  # only in the multi-line workspace
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.devices_dock)
+        self.tabifyDockWidget(self.properties_dock, self.devices_dock)
+        self.devices_dock.hide()  # Projekt > Geräteliste
         for dock in self.docks():
             install_title_bar(dock)
             self.docks_menu.addAction(dock.toggleViewAction())
         self.docks_menu.addSeparator()
         self.docks_menu.addAction(self.tr("Alle Fenster &andocken"), self.dock_all)
         self.docks_menu.addAction(self.tr("Fensteranordnung &zurücksetzen"), self.reset_dock_layout)
+        devices = self.devices_dock.toggleViewAction()
+        devices.setText(self.tr("&Geräteliste"))
+        self.project_menu.addAction(devices)
         self.resizeDocks([self.layers_dock], [480], Qt.Orientation.Horizontal)
         self.resizeDocks([self.library_dock], [260], Qt.Orientation.Horizontal)
 
     def docks(self) -> list:
-        return [self.layers_dock, self.properties_dock, self.library_dock, self.pages_dock]
+        return [
+            self.layers_dock,
+            self.properties_dock,
+            self.library_dock,
+            self.pages_dock,
+            self.devices_dock,
+        ]
 
     def dock_all(self) -> None:
         for dock in self.docks():
@@ -819,12 +853,18 @@ class MainWindow(QMainWindow):
             self.properties_dock: Qt.DockWidgetArea.RightDockWidgetArea,
             self.library_dock: Qt.DockWidgetArea.LeftDockWidgetArea,
             self.pages_dock: Qt.DockWidgetArea.LeftDockWidgetArea,
+            self.devices_dock: Qt.DockWidgetArea.RightDockWidgetArea,
         }
         for dock, area in areas.items():
             dock.setFloating(False)
             self.removeDockWidget(dock)
             self.addDockWidget(area, dock)
-            dock.setVisible(dock is not self.pages_dock or self.workspace == WORKSPACE_MLD)
+            if dock is self.pages_dock:
+                dock.setVisible(self.workspace == WORKSPACE_MLD)
+            elif dock is self.devices_dock:
+                dock.hide()
+            else:
+                dock.show()
         self.resizeDocks([self.layers_dock], [480], Qt.Orientation.Horizontal)
         self.resizeDocks([self.library_dock], [260], Qt.Orientation.Horizontal)
 
@@ -907,10 +947,14 @@ class MainWindow(QMainWindow):
             target = self.interruption_targets().get(entity.id)
             return interruption_geometry(entity, target[0] if target else None)
         if isinstance(entity, BlockReference):
+            definitions = blocks if blocks is not None else self.document.blocks
             try:
-                parts = expand(entity, blocks if blocks is not None else self.document.blocks)
+                parts = expand(entity, definitions)
             except BlockError:
                 return []
+            xref = self.crossref_lines().get(entity.id)
+            if xref:
+                parts = parts + crossref_texts(entity, definitions, xref)
             return [
                 q
                 for p in parts
@@ -956,6 +1000,21 @@ class MainWindow(QMainWindow):
 
     # -- interruption points (multi-line pages) ---------------------------------
 
+    def contact_letters(self) -> dict[str, str]:
+        return {
+            "no": self.tr("S", "contact"),
+            "nc": self.tr("Ö", "contact"),
+            "co": self.tr("W", "contact"),
+            "": "",
+        }
+
+    def crossref_lines(self) -> dict[str, list[str]]:
+        """Contact mirror and main function references on the pages (cached like the
+        interruption points)."""
+        if self._crossrefs is None:
+            self._crossrefs = crossrefs(self.document, self.contact_letters())
+        return self._crossrefs
+
     def interruption_targets(self) -> dict[str, tuple[str, str]]:
         """Reference text and target page of every paired interruption point (cached
         until a page or the page order changes)."""
@@ -975,12 +1034,14 @@ class MainWindow(QMainWindow):
         self._watched_pages = {}
 
     def _on_page_changed(self, event: str, entity: Entity | None) -> None:
-        if event == "batch_end" or isinstance(entity, InterruptionPoint):
+        if event == "batch_end" or isinstance(entity, InterruptionPoint | BlockReference):
             self._interruptions_changed()
 
     def _interruptions_changed(self) -> None:
-        """Partners may have changed: references of all points are drawn anew, once."""
+        """Partners may have changed: references of all interruption points and the
+        cross references of devices on the pages are drawn anew, once."""
         self._interruptions = None
+        self._crossrefs = None
         if not self._interruption_refresh_pending:
             self._interruption_refresh_pending = True
             QTimer.singleShot(0, self._refresh_interruptions)
@@ -989,12 +1050,16 @@ class MainWindow(QMainWindow):
         self._interruption_refresh_pending = False
         for space in self.sheets.all_spaces():
             for item in space.sync.items():
-                if isinstance(item.entity, InterruptionPoint):
+                if isinstance(item.entity, InterruptionPoint | BlockReference):
                     item.refresh()
+        if hasattr(self, "devices_dock"):
+            self.devices_dock.schedule_rebuild()
 
     def _on_model_changed(self, event: str, _entity: Entity | None) -> None:
         if self.document.model_space.in_batch:
             return  # once at "batch_end"
+        if hasattr(self, "devices_dock"):
+            self.devices_dock.schedule_rebuild()
         if hasattr(self, "sheets"):
             self.sheets.refresh_viewports()
 
@@ -1014,6 +1079,7 @@ class MainWindow(QMainWindow):
         self.properties_dock.refresh()
 
     def _on_blocks_changed(self, _name: str) -> None:
+        self._crossrefs = None  # a block's role may have changed
         self._refresh_all_spaces()
         self.library_dock.refresh_document()
         self.properties_dock.refresh()
@@ -1040,6 +1106,7 @@ class MainWindow(QMainWindow):
         self._drop_space(old)
         self._unwatch_pages()
         self._interruptions = None
+        self._crossrefs = None
         self._subscribe_document()
         self._watch_pages()
         self.undo_stack.clear()
