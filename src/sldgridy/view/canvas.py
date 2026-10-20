@@ -948,6 +948,14 @@ class Canvas(QGraphicsView):
         key, text = event.key(), event.text()
         if key == Qt.Key.Key_Backspace and self.dynamic.has_input():
             self.dynamic.backspace()
+        elif (
+            key in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+            and self.dynamic.has_input()
+            and mode[0] == "factor"
+        ):
+            value = self.dynamic.value("factor")
+            if value is not None and self.controller.typed_value("factor", value):
+                self.dynamic.clear()
         elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self.dynamic.has_input():
             raw = self.map_to_scene_f(self._cursor_view) if self._cursor_view else QPointF()
             point = self.dynamic.constrain(mode[1], mpt(self._cursor_scene or raw))
@@ -961,6 +969,8 @@ class Canvas(QGraphicsView):
             pass
         else:
             return False
+        if mode[0] == "factor":
+            self.controller.typed_changed("factor", self.dynamic.value("factor"))
         if self._cursor_view is not None:
             self._update_cursor(self._cursor_view)
         return True
@@ -1260,6 +1270,8 @@ class Canvas(QGraphicsView):
             # The length sits on the line, the angle next to the start point.
             boxes["length"] = mid
             boxes["angle"] = a + QPointF(-dy / norm, dx / norm) * 26 + QPointF(dx, dy) / norm * 26
+        elif name == "factor":
+            boxes["factor"] = cur + QPointF(60, 26)
         elif name == "size" and anchor is not None:
             a = self.map_from_scene_f(qpt(anchor))
             boxes["width"] = QPointF((a.x() + cur.x()) / 2, cur.y() + 16)
@@ -1278,6 +1290,8 @@ class Canvas(QGraphicsView):
             label = shown[field]
             if field in ("x", "y"):
                 label = f"{field.upper()}  {label}"
+            elif field == "factor":
+                label = self.tr("Faktor  {value}").format(value=label)
             w = metrics.horizontalAdvance(label) + 12
             h = metrics.height() + 6
             rect = QRectF(center.x() - w / 2, center.y() - h / 2, w, h)

@@ -583,3 +583,41 @@ def test_polyline_snaps_to_its_own_start_and_closes(window):
     (poly,) = [e for e in window.document.model_space if isinstance(e, Polyline)]
     assert poly.closed and poly.points[0] == Point(0, 0) and len(poly.points) == 3
     window.act_undo.trigger()
+
+
+def test_scale_by_typed_factor(window):
+    from sldgridy.model.entities import Line as LineEntity
+
+    window.act_osnap.setChecked(False)
+    ms = window.document.model_space
+    ms.add(LineEntity(id="l", p1=Point(10, 10), p2=Point(30, 10)))
+    window._sync.item("l").setSelected(True)
+    window.act_scale.trigger()
+    window.canvas.setFocus()
+    click(window, 10, 10)  # base point
+    QTest.keyClicks(window.canvas, "2,5")
+    window.canvas.viewport().repaint()  # the factor box is drawn
+    QTest.keyClick(window.canvas, Qt.Key.Key_Return)
+    line = ms.get("l")
+    assert (line.p1, line.p2) == (Point(10, 10), Point(60, 10))
+    assert window.tools.active is None
+    window.act_undo.trigger()
+    assert ms.get("l").p2 == Point(30, 10)
+
+
+def test_scale_by_reference_and_new_length(window):
+    from sldgridy.model.entities import Line as LineEntity
+
+    window.act_osnap.setChecked(True)  # the reference point snaps onto the line end
+    ms = window.document.model_space
+    ms.add(LineEntity(id="l", p1=Point(0, 0), p2=Point(42, 0)))  # drawn 42, should be 50
+    window._sync.item("l").setSelected(True)
+    window.act_scale.trigger()
+    window.canvas.setFocus()
+    click(window, 0, 0)  # base
+    click(window, 42, 0)  # reference: the known length
+    QTest.mouseMove(window.canvas.viewport(), vp(window, 45, 0))
+    QTest.keyClicks(window.canvas, "50")
+    QTest.keyClick(window.canvas, Qt.Key.Key_Return)
+    assert ms.get("l").p2.x == pytest.approx(50)
+    window.act_undo.trigger()

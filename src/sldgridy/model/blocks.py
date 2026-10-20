@@ -18,6 +18,7 @@ from sldgridy.model.entities import (
 )
 from sldgridy.model.geometry import Point, mirror_point, rotate_quarter
 from sldgridy.model.layers import DEFAULT_LAYER
+from sldgridy.model.scale import scale_entity
 
 MAX_NESTING = 32
 
@@ -91,6 +92,8 @@ def would_create_cycle(
 def to_world(ref: BlockReference, base: Point, e: Entity) -> Entity:
     """Map a definition entity into drawing coordinates of ``ref``."""
     e = e.translated(-base.x, -base.y)
+    if ref.scale != 1.0:
+        e = scale_entity(e, Point(0.0, 0.0), ref.scale)
     if ref.mirrored_x:
         e = e.mirrored(Point(0.0, 0.0), horizontal=False)
     e = e.rotated(Point(0.0, 0.0), ref.rotation // 90)
@@ -109,6 +112,8 @@ def point_to_local(ref: BlockReference, base: Point, p: Point) -> Point:
     q = rotate_quarter(q, origin, -(ref.rotation // 90))
     if ref.mirrored_x:
         q = mirror_point(q, origin, horizontal=False)
+    if ref.scale != 1.0:
+        q = Point(q.x / ref.scale, q.y / ref.scale)
     return Point(round(q.x + base.x, 6), round(q.y + base.y, 6))
 
 

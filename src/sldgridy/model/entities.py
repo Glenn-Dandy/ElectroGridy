@@ -220,6 +220,8 @@ class BlockReference(Entity):
     # Extra connection points of this instance only ("docks"), in definition coordinates,
     # so wires attached anywhere on the symbol follow it.
     docks: tuple[Point, ...] = ()
+    # Uniform size factor of this instance (1: the definition's real size).
+    scale: float = 1.0
 
     def _mapped(self, fn, quarters):
         return replace(self, insert=fn(self.insert), rotation=(self.rotation + 90 * quarters) % 360)

@@ -688,5 +688,13 @@
  "Reihen von oben füllen; die letzte, angefangene Reihe sitzt mittig": "Fills rows from the top; the last, partial row is centred",
  "Anzahl:": "Number:",
  "Nur {n} von {wanted} Modulen haben Platz, {kwp} kWp": "Only {n} of {wanted} modules fit, {kwp} kWp",
- "Nächster Punkt (auf Linie, Kreis, Bogen)": "Nearest (on line, circle, arc)"
+ "Nächster Punkt (auf Linie, Kreis, Bogen)": "Nearest (on line, circle, arc)",
+ "S&kalieren": "Sc&ale",
+ "Skalieren": "Scale",
+ "Größe ändern: Basispunkt, dann Faktor eintippen oder Bezugspunkt und neue Länge": "Change size: base point, then type a factor or pick a reference point and the new length",
+ "Skalieren: Basispunkt angeben": "Scale: specify base point",
+ "Skalieren: Faktor eintippen und Enter, oder Bezugspunkt klicken": "Scale: type a factor and press Enter, or click a reference point",
+ "Skalieren: Neue Länge zeigen oder eintippen": "Scale: show or type the new length",
+ "Skaliert mit Faktor {factor}": "Scaled by factor {factor}",
+ "Faktor  {value}": "Factor  {value}"
 }

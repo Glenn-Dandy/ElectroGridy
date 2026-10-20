@@ -11,8 +11,13 @@ from dataclasses import dataclass, field
 
 from sldgridy.model.geometry import Point
 
-XY, POLAR, SIZE = "xy", "polar", "size"
-FIELDS = {XY: ("x", "y"), POLAR: ("length", "angle"), SIZE: ("width", "height")}
+XY, POLAR, SIZE, FACTOR = "xy", "polar", "size", "factor"
+FIELDS: dict[str, tuple[str, ...]] = {
+    XY: ("x", "y"),
+    POLAR: ("length", "angle"),
+    SIZE: ("width", "height"),
+    FACTOR: ("factor",),  # a plain number for the tool (scaling), not a point
+}
 INPUT_CHARS = "0123456789.,-"
 
 
@@ -59,7 +64,7 @@ class DynamicInput:
         self.active = 0
 
     @property
-    def names(self) -> tuple[str, str]:
+    def names(self) -> tuple[str, ...]:
         return FIELDS[self.mode]
 
     @property
@@ -89,6 +94,8 @@ class DynamicInput:
 
     def constrain(self, anchor: Point | None, cursor: Point) -> Point:
         """The point the fields and the mouse together describe."""
+        if self.mode == FACTOR:
+            return cursor
         if self.mode == XY or anchor is None:
             x, y = self.value("x"), self.value("y")
             return Point(cursor.x if x is None else x, cursor.y if y is None else y)
@@ -117,6 +124,9 @@ class DynamicInput:
 
     def shown(self, anchor: Point | None, point: Point, decimal_comma: bool) -> dict[str, str]:
         """Text of every field: what was typed, or the value at ``point``."""
+        if self.mode == FACTOR:
+            typed = self.texts.get("factor", "")
+            return {"factor": (typed.replace(".", ",") if decimal_comma else typed) or "1"}
         if self.mode == XY or anchor is None:
             values = {"x": point.x, "y": point.y}
         elif self.mode == SIZE:

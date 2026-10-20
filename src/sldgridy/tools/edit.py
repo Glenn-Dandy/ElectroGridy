@@ -6,9 +6,10 @@ from PyQt6.QtCore import QTimer
 
 from sldgridy.commands.entities import AddEntitiesCommand, ReplaceEntitiesCommand
 from sldgridy.model.entities import Busbar, Entity, JunctionMark, Wire, new_id
-from sldgridy.model.geometry import Point, quarters_towards
+from sldgridy.model.geometry import Point, distance, quarters_towards
 from sldgridy.model.grips import grip_kinds, grip_points, move_grip
 from sldgridy.model.rotate import quarter_turns, rotate_entity
+from sldgridy.model.scale import scale_entity
 from sldgridy.model.wires import follow_connections, follow_marks, follow_wires, new_contacts
 from sldgridy.tools.base import Tool, tr
 from sldgridy.tools.dynamic_input import angle_of
@@ -260,6 +261,83 @@ class RotateFreeTool(_SelectionTool):
         if self._base is None:
             return []
         return self._turned(self._angle(self.cursor))[1]
+
+
+class ScaleTool(_SelectionTool):
+    """Scale around a base point: type a factor (Enter), or click a reference point and
+    then show or type the new length of that distance (e.g. 4.2 m becomes 5 m)."""
+
+    def __init__(self, ctx) -> None:
+        super().__init__(ctx)
+        self._ref: Point | None = None
+        self._typed: float | None = None
+
+    @property
+    def name(self) -> str:
+        return tr("Skalieren")
+
+    def _point_prompt(self) -> str:
+        if self._base is None:
+            return tr("Skalieren: Basispunkt angeben")
+        if self._ref is None:
+            return tr("Skalieren: Faktor eintippen und Enter, oder Bezugspunkt klicken")
+        return tr("Skalieren: Neue Länge zeigen oder eintippen")
+
+    def dynamic_mode(self) -> tuple[str, Point | None]:
+        if self._base is None:
+            return ("xy", None)
+        if self._ref is None:
+            return ("factor", self._base)
+        return ("polar", self._base)
+
+    def _factor_at(self, p: Point | None) -> float | None:
+        if self._base is None or self._ref is None or p is None:
+            return None
+        ref = distance(self._base, self._ref)
+        new = distance(self._base, p)
+        return new / ref if ref > 1e-9 and new > 1e-9 else None
+
+    def _scaled(self, factor: float) -> list[Entity]:
+        assert self._base is not None
+        return [scale_entity(e, self._base, factor) for e in self._entities]
+
+    def _apply(self, factor: float) -> None:
+        if factor > 0 and abs(factor - 1.0) > 1e-12:
+            new = with_followers(self.ctx, self._entities, self._scaled(factor), separate=True)
+            self.ctx.push(ReplaceEntitiesCommand(self.ctx.container, new, tr("Skalieren")))
+            self.ctx.message(
+                tr("Skaliert mit Faktor {factor}").format(factor=f"{factor:.6g}".replace(".", ","))
+            )
+        self.done = True
+
+    def pick(self, p: Point) -> None:
+        if self._base is None:
+            self._base = p
+            return
+        if self._ref is None:
+            if p != self._base:
+                self._ref = p
+                self._typed = None
+            return
+        factor = self._factor_at(p)
+        if factor is not None:
+            self._apply(factor)
+
+    def typed_value(self, name: str, value: float) -> bool:
+        if name != "factor" or self._base is None or self._ref is not None or value <= 0:
+            return False
+        self._apply(value)
+        return True
+
+    def typed_changed(self, name: str, value: float | None) -> None:
+        if name == "factor":
+            self._typed = value if value is not None and value > 0 else None
+
+    def preview(self) -> list[Entity]:
+        if self._base is None:
+            return []
+        factor = self._typed if self._ref is None else self._factor_at(self.cursor)
+        return self._scaled(factor) if factor else []
 
 
 class MirrorTool(_SelectionTool):

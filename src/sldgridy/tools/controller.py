@@ -47,6 +47,17 @@ class ToolController(QObject):
             self._tool.pick(p)
             self._after_event()
 
+    def typed_value(self, name: str, value: float) -> bool:
+        if self._tool is None or self._tool.selecting or not self._tool.typed_value(name, value):
+            return False
+        self._after_event()
+        return True
+
+    def typed_changed(self, name: str, value: float | None) -> None:
+        if self._tool is not None:
+            self._tool.typed_changed(name, value)
+            self.changed.emit()
+
     def hover(self, p: Point) -> None:
         self._cursor = p
         if self._tool:

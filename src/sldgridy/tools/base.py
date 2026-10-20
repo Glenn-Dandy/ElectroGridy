@@ -75,6 +75,14 @@ class Tool:
         """Objects the object snap leaves out while this tool runs."""
         return set()
 
+    def typed_value(self, name: str, value: float) -> bool:
+        """A value typed at the cursor that is not a point (e.g. a scale factor), confirmed
+        with Enter. True if the tool used it."""
+        return False
+
+    def typed_changed(self, name: str, value: float | None) -> None:
+        """The value at the cursor changed while typing (for a live preview)."""
+
     def snap_entities(self) -> list[Entity]:
         """Objects not yet in the drawing the object snap should offer (e.g. the
         segments of a polyline being drawn, so it can be closed on its start)."""

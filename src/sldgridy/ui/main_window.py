@@ -83,6 +83,7 @@ from sldgridy.tools.edit import (
     PasteTool,
     RotateFreeTool,
     RotateTool,
+    ScaleTool,
 )
 from sldgridy.ui import clipboard
 from sldgridy.ui.about_dialog import AboutDialog, app_icon, issue_url, open_url
@@ -441,6 +442,12 @@ class MainWindow(QMainWindow):
             self.tr("Drehen (&beliebiger Winkel)"), RotateFreeTool
         )
         self.act_mirror = self._tool_action(self.tr("S&piegeln"), MirrorTool)
+        self.act_scale = self._tool_action(self.tr("S&kalieren"), ScaleTool)
+        self.act_scale.setToolTip(
+            self.tr(
+                "Größe ändern: Basispunkt, dann Faktor eintippen oder Bezugspunkt und neue Länge"
+            )
+        )
         self.act_explode = self._action(self.tr("&Auflösen"), self.blocks.explode_selection)
         self.modify_actions = [
             self.act_move,
@@ -448,6 +455,7 @@ class MainWindow(QMainWindow):
             self.act_rotate_free,
             self.act_rotate,
             self.act_mirror,
+            self.act_scale,
             self.act_explode,
         ]
 

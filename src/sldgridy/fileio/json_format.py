@@ -156,7 +156,16 @@ def entity_to_dict(e: Entity) -> dict[str, Any]:
             d["attributes"] = dict(e.attributes)
             if e.docks:
                 d["docks"] = [_pt(p) for p in e.docks]
+            if e.scale != 1.0:
+                d["scale"] = e.scale
     return d
+
+
+def _positive(value: Any) -> float:
+    f = float(value)
+    if not f > 0:
+        raise FileFormatError("block scale must be positive")
+    return f
 
 
 def _angle(value: Any) -> int | float:
@@ -285,6 +294,7 @@ def entity_from_dict(d: dict[str, Any]) -> Entity:
                 mirrored_x=bool(d.get("mirrored", False)),
                 attributes=tuple(sorted((str(k), str(v)) for k, v in attributes.items())),
                 docks=tuple(_to_pt(p) for p in d.get("docks", [])),
+                scale=_positive(d.get("scale", 1.0)),
                 **common,
             )
     raise FileFormatError(f"unknown entity type {kind!r}")
