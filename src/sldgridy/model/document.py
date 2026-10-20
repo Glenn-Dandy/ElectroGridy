@@ -47,6 +47,9 @@ class SheetLayout:
     plant: str = ""
     location: str = ""
     columns: int = 0
+    # Generated report page ("toc", "parts", "terminals", "cables"): replaced when the
+    # reports are created again.
+    report: str = ""
 
     @property
     def size(self) -> tuple[float, float]:

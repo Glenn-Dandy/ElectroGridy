@@ -139,6 +139,8 @@ def entity_to_dict(e: Entity) -> dict[str, Any]:
                     d["label_pos"] = e.label_pos
                 if e.label_pos == "free":
                     d["label_at"] = e.label_at
+            if e.cable:
+                d["cable"] = e.cable
         case Polyline():
             d["points"] = [_pt(p) for p in e.points]
             d["closed"] = e.closed
@@ -267,6 +269,7 @@ def entity_from_dict(d: dict[str, Any]) -> Entity:
                 if d.get("label_pos") in ("start", "end", "free")
                 else "auto",
                 label_at=float(d.get("label_at", 0.0)),
+                cable=str(d.get("cable", "")),
                 **common,
             )
         case "polyline":
@@ -357,7 +360,7 @@ def block_from_dict(d: dict[str, Any]) -> BlockDefinition:
             entities=EntityContainer(entity_from_dict(e) for e in d.get("entities", [])),
             category=str(d.get("category", "")),
             description=str(d.get("description", "")),
-            function=_choice(d.get("function", ""), ("", "main", "aux")),
+            function=_choice(d.get("function", ""), ("", "main", "aux", "terminal")),
             contact=_choice(d.get("contact", ""), ("", "no", "nc", "co")),
         )
     except (KeyError, TypeError, ValueError) as exc:
@@ -490,7 +493,7 @@ def sheet_to_dict(s: SheetLayout) -> dict[str, Any]:
         "fields": dict(s.fields),
         "entities": [entity_to_dict(e) for e in s.entities],
     }
-    for key in ("plant", "location", "columns"):  # pages only
+    for key in ("plant", "location", "columns", "report"):  # pages only
         if getattr(s, key):
             d[key] = getattr(s, key)
     return d
@@ -511,4 +514,5 @@ def sheet_from_dict(s: dict[str, Any]) -> SheetLayout:
         plant=str(s.get("plant", "")),
         location=str(s.get("location", "")),
         columns=max(0, int(s.get("columns", 0))),
+        report=str(s.get("report", "")),
     )

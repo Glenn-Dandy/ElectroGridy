@@ -122,6 +122,7 @@ from sldgridy.ui.pages_dock import PagesDock
 from sldgridy.ui.point_menu import point_actions
 from sldgridy.ui.print_dialog import PrintDialog
 from sldgridy.ui.properties_dock import PropertiesDock
+from sldgridy.ui.reports import ReportController
 from sldgridy.ui.sheet_controller import SheetController
 from sldgridy.ui.space import BLOCK, MODEL, SHEET, Space
 from sldgridy.ui.styles import MIXED, HeightCombo
@@ -204,6 +205,7 @@ class MainWindow(QMainWindow):
 
         self.blocks = BlockController(self)
         self.sheets = SheetController(self)
+        self.reports = ReportController(self)
         self.central_layout.insertWidget(1, self.sheets.tabs)
         self.model_view.extra["overlay"] = self.sheets.model_overlay
         self.canvas.extra_overlay = self.sheets.model_overlay
@@ -830,6 +832,19 @@ class MainWindow(QMainWindow):
         devices = self.devices_dock.toggleViewAction()
         devices.setText(self.tr("&Geräteliste"))
         self.project_menu.addAction(devices)
+        self.project_menu.addSeparator()
+        self.act_reports = self.project_menu.addAction(
+            self.tr("Auswertungen als &Seiten erzeugen"), self.reports.create_pages
+        )
+        self.act_reports.setToolTip(
+            self.tr(
+                "Inhaltsverzeichnis, Stückliste, Klemmenplan und Kabelliste als Seiten "
+                "hinter den Schaltplan (MLD); vorhandene Auswertungsseiten werden ersetzt"
+            )
+        )
+        self.project_menu.addAction(
+            self.tr("Auswertungen als &CSV exportieren …"), lambda: self.reports.export_csv()
+        )
         self.resizeDocks([self.layers_dock], [480], Qt.Orientation.Horizontal)
         self.resizeDocks([self.library_dock], [260], Qt.Orientation.Horizontal)
 
@@ -1766,9 +1781,26 @@ class MainWindow(QMainWindow):
         form.addRow(self.tr("Ausrichtung:"), align)
         form.addRow(self.tr("Größe:"), height)
         form.addRow(apply)
+        cable = QLineEdit()
+        self._mixed_line_edit(cable, self._common([w.cable for w in wires]), self.tr("z. B. -W1"))
+        cable.setToolTip(
+            self.tr(
+                "Kabel, zu dem die Leitung gehört (für die Kabelliste); "
+                "die Beschriftung gilt als Kabeltyp"
+            )
+        )
+        form.addRow(self.tr("Kabel:"), cable)
         layout.addWidget(box)
 
         shown_label = edit.text()
+        shown_cable = cable.text()
+
+        def set_cable() -> None:
+            if cable.isModified() or cable.text() != shown_cable:
+                value = cable.text().strip()
+                self._apply_to_all(ids, lambda w: replace(w, cable=value), self.tr("Kabel"))
+
+        cable.editingFinished.connect(set_cable)
 
         def set_text() -> None:
             if edit.isModified() or edit.text() != shown_label or len(wires) == 1:

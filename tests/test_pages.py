@@ -302,3 +302,101 @@ def test_device_dock_rename_everywhere(window):
     assert window.workspace == WORKSPACE_MLD
     assert window.sheets.current_sheet() is window.document.pages[1]
     assert window.selected_ids() == ["no"]
+
+
+# -- step 4: nets and reports ----------------------------------------------------
+
+
+def wired_doc() -> Document:
+    """-Q1 (page 1) -> wire -> interruption L1 ... L1 (page 2) -> terminal -X1:1 ->
+    cable -W1 (NYY-J 3x2,5) -> motor -M1."""
+    from sldgridy.model.blocks import BlockDefinition
+    from sldgridy.model.container import EntityContainer
+    from sldgridy.model.entities import BlockReference, ConnectionPoint, InterruptionPoint, Wire
+
+    doc = Document.new("Blatt 1")
+    doc.pages = [new_page("Einspeisung", "PV1", "UV1"), new_page("Abgang", "PV1", "UV1")]
+
+    def block(name, function="", terminals=("1", "2")):
+        cps = [
+            ConnectionPoint(id=f"c{i}", name=t, position=Point(0, 10 * i))
+            for i, t in enumerate(terminals)
+        ]
+        return BlockDefinition(name=name, entities=EntityContainer(cps), function=function)
+
+    doc.blocks["LS"] = block("LS", "main")
+    doc.blocks["Klemme"] = block("Klemme", "terminal")
+    doc.blocks["Motor"] = block("Motor", "main", ("U",))
+
+    def ref(rid, name, bmk, x, y, typ=""):
+        attrs = (("BMK", bmk),) + ((("TYP", typ),) if typ else ())
+        return BlockReference(id=rid, name=name, insert=Point(x, y), attributes=attrs)
+
+    p1, p2 = doc.pages
+    p1.entities.add(ref("q1", "LS", "-Q1", 50, 40, "B16"))  # pins at (50,40) and (50,50)
+    p1.entities.add(Wire(id="w1", points=(Point(50, 50), Point(50, 70), Point(270, 70))))
+    p1.entities.add(InterruptionPoint(id="i1", name="L1", position=Point(270, 70)))
+    p2.entities.add(InterruptionPoint(id="i2", name="L1", position=Point(30, 70), direction=180))
+    p2.entities.add(Wire(id="w2", points=(Point(30, 70), Point(100, 70), Point(100, 80))))
+    p2.entities.add(ref("x1", "Klemme", "-X1:1", 100, 80))  # pins (100,80), (100,90)
+    p2.entities.add(
+        Wire(id="w3", points=(Point(100, 90), Point(100, 120)), label="NYY-J 3x2,5", cable="-W1")
+    )
+    p2.entities.add(ref("m1", "Motor", "-M1", 100, 120, "1,5 kW"))
+    doc.model_space.add(ref("q1sld", "LS", "-Q1", 0, 0, "B16"))
+    return doc
+
+
+def test_nets_follow_wires_and_interruption_points():
+    from sldgridy.model.netlist import netlist
+
+    nl = netlist(wired_doc())
+    net = nl.net_of_pin("q1", "2")
+    names = {f"{p.bmk}:{p.name}" for p in nl.pins_of_net(net)}
+    assert names == {"-Q1:2", "-X1:1:1"}  # across the page via L1
+    assert {f"{p.bmk}:{p.name}" for p in nl.pins_of_net(nl.net_of_pin("m1", "U"))} == {
+        "-X1:1:2",
+        "-M1:U",
+    }
+
+
+def test_report_rows():
+    from sldgridy.model.reports import cable_rows, parts_rows, terminal_rows, toc_rows
+
+    doc = wired_doc()
+    assert toc_rows(doc) == [["=PV1 +UV1", "/1", "Einspeisung"], ["=PV1 +UV1", "/2", "Abgang"]]
+    assert parts_rows(doc) == [
+        ["1", "1", "LS", "", "B16", "-Q1"],
+        ["2", "1", "Motor", "", "1,5 kW", "-M1"],
+    ]
+    assert terminal_rows(doc) == [["-X1", "1", "-Q1:2", "-M1:U", "=PV1 +UV1 /2.3"]]
+    assert cable_rows(doc) == [["-W1", "NYY-J 3x2,5", "1", "-X1:1", "-M1", "=PV1 +UV1 /2.3"]]
+
+
+def test_report_pages_and_csv(window, tmp_path):
+    import csv
+
+    window._set_document(wired_doc(), None)
+    window.set_workspace(WORKSPACE_MLD)
+    kinds = window.reports.create_pages()
+    assert kinds == ["toc", "parts", "terminals", "cables"]
+    pages = window.document.pages
+    assert [p.report for p in pages] == ["", "", "toc", "parts", "terminals", "cables"]
+    assert pages[2].name == "Inhaltsverzeichnis"
+    texts = {e.text for e in pages[2].entities if hasattr(e, "text")}
+    assert {"Stückliste", "/4"} <= texts  # the contents list the reports too
+    # Creating them again replaces them; one undo removes all.
+    window.reports.create_pages()
+    assert len(window.document.pages) == 6
+    window.act_undo.trigger()
+    assert len(window.document.pages) == 6  # back to the first report set
+    files = window.reports.export_csv(tmp_path)
+    assert [f.name for f in files] == [
+        "inhalt.csv",
+        "stueckliste.csv",
+        "klemmenplan.csv",
+        "kabelliste.csv",
+    ]
+    with (tmp_path / "kabelliste.csv").open(encoding="utf-8-sig") as f:
+        rows = list(csv.reader(f, delimiter=";"))
+    assert rows[0][0] == "Kabel" and rows[1][:3] == ["-W1", "NYY-J 3x2,5", "1"]

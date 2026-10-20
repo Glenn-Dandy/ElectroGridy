@@ -268,6 +268,9 @@ class Wire(Entity):
     # "auto" (longest segment), "start", "end" or "free" at ``label_at`` mm along the wire.
     label_pos: str = "auto"
     label_at: float = 0.0
+    # Cable this conductor belongs to (e.g. "-W1"), for the cable list; the label is
+    # taken as the cable type.
+    cable: str = ""
 
     def _mapped(self, fn, quarters):
         return replace(self, points=tuple(fn(p) for p in self.points))

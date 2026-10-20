@@ -140,6 +140,7 @@ class BlockPropertiesDialog(QDialog):
         self.function.addItem(self.tr("keine"), "")
         self.function.addItem(self.tr("Hauptfunktion (z. B. Spule, Schalter)"), "main")
         self.function.addItem(self.tr("Nebenfunktion (Kontakt)"), "aux")
+        self.function.addItem(self.tr("Klemme (BMK wie -X1:3)"), "terminal")
         self.function.setCurrentIndex(max(self.function.findData(definition.function), 0))
         self.function.setToolTip(
             self.tr(
