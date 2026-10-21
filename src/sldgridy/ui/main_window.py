@@ -51,12 +51,13 @@ from PyQt6.QtWidgets import (
 
 from sldgridy import i18n, platform_choice, project
 from sldgridy.commands.entities import RemoveEntitiesCommand, ReplaceEntitiesCommand
+from sldgridy.commands.sheets import ChangeDocumentPropertiesCommand
 from sldgridy.fileio.files import DRAWING_SUFFIX, load_document, save_document
 from sldgridy.fileio.json_format import FileFormatError
 from sldgridy.i18n import ui_locale
 from sldgridy.model.blocks import BlockDefinition, BlockError, expand, world_connections
 from sldgridy.model.container import EntityContainer
-from sldgridy.model.devices import crossref_texts, crossrefs
+from sldgridy.model.devices import crossref_texts
 from sldgridy.model.dimensions import dimension_geometry, format_value, measured_text, scale_at
 from sldgridy.model.document import Document
 from sldgridy.model.entities import (
@@ -70,12 +71,7 @@ from sldgridy.model.entities import (
     Wire,
 )
 from sldgridy.model.geometry import Point
-from sldgridy.model.interruptions import (
-    interruption_geometry,
-    interruption_targets,
-    partner,
-    unpaired_names,
-)
+from sldgridy.model.interruptions import interruption_geometry, partner, unpaired_names
 from sldgridy.model.layers import DEFAULT_LAYER
 from sldgridy.model.snap import ALL_MODES, SnapHit, SnapMode
 from sldgridy.model.wires import label_anchor, label_text, project_on_path
@@ -124,11 +120,12 @@ from sldgridy.ui.print_dialog import PrintDialog
 from sldgridy.ui.properties_dock import PropertiesDock
 from sldgridy.ui.reports import ReportController
 from sldgridy.ui.sheet_controller import SheetController
+from sldgridy.ui.sheet_dialogs import ProjectDialog
 from sldgridy.ui.space import BLOCK, MODEL, SHEET, Space
 from sldgridy.ui.styles import MIXED, HeightCombo
 from sldgridy.ui.text_dialog import TextDialog
 from sldgridy.view.canvas import BACKGROUND_COLOR, EMPTY_EXTENTS, Canvas, select_items
-from sldgridy.view.display import title_labels
+from sldgridy.view.display import crossrefs_of, interruption_targets_of, title_labels
 from sldgridy.view.items import EntityItem
 from sldgridy.view.junctions import JunctionItem
 from sldgridy.view.render import Style
@@ -146,12 +143,11 @@ def wait_for_mouse_release() -> None:
         QApplication.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
 
 
-WORKSPACE_SLD, WORKSPACE_DRAWING, WORKSPACE_MLD = "sld", "drawing", "mld"
+WORKSPACE_SLD, WORKSPACE_DRAWING = "sld", "drawing"
 # Grid and snap spacing a workspace starts with (mm); changes are remembered per workspace.
 WORKSPACE_GRID = {
     WORKSPACE_SLD: (5.0, 2.5),
     WORKSPACE_DRAWING: (5.0, 2.5),
-    WORKSPACE_MLD: (5.0, 2.5),
 }
 
 OPEN_VIEW_KEY = "view/on_open"
@@ -164,8 +160,7 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self._locale = ui_locale()
         self.document = Document.new(self.tr("Blatt 1"), title_labels())
-        self._interruptions: dict[str, tuple[str, str]] | None = None
-        self._crossrefs: dict[str, list[str]] | None = None
+        self.document._revision = 0  # counts changes; generated content follows it
         self._interruption_refresh_pending = False
         self._watched_pages: dict[int, EntityContainer] = {}
         self.file_path: Path | None = None
@@ -294,6 +289,7 @@ class MainWindow(QMainWindow):
         self.space = space
         self.canvas.set_scene(space.scene)
         self.canvas.extra_overlay = space.extra.get("overlay")
+        self.canvas.paper_item = space.extra.get("paper")
         self.canvas.set_background(
             space.extra.get("background", BACKGROUND_COLOR), show_origin=space.kind != SHEET
         )
@@ -381,21 +377,26 @@ class MainWindow(QMainWindow):
         name = name.strip()
         return name if ok and name else None
 
+    def edit_project_data(self) -> None:
+        dialog = ProjectDialog(self.document.properties, self)
+        if dialog.exec() != ProjectDialog.DialogCode.Accepted:
+            return
+        properties = dialog.properties()
+        if properties != self.document.properties:
+            self.push(
+                ChangeDocumentPropertiesCommand(self.document, properties, self.tr("Projektdaten"))
+            )
+
     def go_to_occurrence(self, occ) -> None:
-        """Show where a device occurrence sits: circuit diagram, sheet or page."""
-        if occ.where == "page":
-            self.set_workspace(WORKSPACE_MLD)
-            self.sheets.show_sheet(occ.layout_id)
+        """Show where a device occurrence sits: in the model or on a page."""
+        if occ.where == "model":
+            self.activate_space(self.model_view)
         else:
-            if self.workspace == WORKSPACE_MLD:
-                self.set_workspace(WORKSPACE_SLD)
-            if occ.where == "model":
-                self.activate_space(self.model_view)
-            else:
-                self.sheets.show_sheet(occ.layout_id)
+            self.sheets.show_sheet(occ.layout_id)
         if occ.entity_id in self.container:
             self.scene.clearSelection()
             self._sync.item(occ.entity_id).setSelected(True)
+            self.canvas.end_initial_view()
             self.canvas.centerOn(QPointF(occ.position.x, occ.position.y))
 
     def go_to_partner(self, point_id: str) -> bool:
@@ -407,6 +408,7 @@ class MainWindow(QMainWindow):
         self.sheets.show_sheet(page_id)
         self.scene.clearSelection()
         self._sync.item(point.id).setSelected(True)
+        self.canvas.end_initial_view()
         self.canvas.centerOn(QPointF(point.position.x, point.position.y))
         return True
 
@@ -505,6 +507,7 @@ class MainWindow(QMainWindow):
         self.draw_actions = [
             self.act_wire,
             self.act_busbar,
+            self.act_interruption,
             self.act_line,
             self.act_polyline,
             self.act_rectangle,
@@ -514,7 +517,6 @@ class MainWindow(QMainWindow):
             self.act_dimension,
             self.act_dimension_aligned,
             self.act_dimension_angle,
-            self.act_interruption,
             self.act_module_field,
         ]
 
@@ -726,8 +728,7 @@ class MainWindow(QMainWindow):
     def _create_toolbars(self) -> None:
         # The workspace switch sits at the right end of the status bar (Florian's wish).
         self.workspace_box = QComboBox()
-        self.workspace_box.addItem(self.tr("Schaltplan (SLD)"), WORKSPACE_SLD)
-        self.workspace_box.addItem(self.tr("Schaltplan (MLD)"), WORKSPACE_MLD)
+        self.workspace_box.addItem(self.tr("Schaltplan"), WORKSPACE_SLD)
         self.workspace_box.addItem(self.tr("Zeichnung"), WORKSPACE_DRAWING)
         self.workspace_box.setToolTip(
             self.tr(
@@ -819,7 +820,8 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.properties_dock)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.library_dock)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.pages_dock)
-        self.pages_dock.hide()  # only in the multi-line workspace
+        self.tabifyDockWidget(self.library_dock, self.pages_dock)
+        self.pages_dock.hide()  # Seite > Seitenübersicht; the tabs list the pages anyway
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.devices_dock)
         self.tabifyDockWidget(self.properties_dock, self.devices_dock)
         self.devices_dock.hide()  # Projekt > Geräteliste
@@ -829,21 +831,29 @@ class MainWindow(QMainWindow):
         self.docks_menu.addSeparator()
         self.docks_menu.addAction(self.tr("Alle Fenster &andocken"), self.dock_all)
         self.docks_menu.addAction(self.tr("Fensteranordnung &zurücksetzen"), self.reset_dock_layout)
+        overview = self.pages_dock.toggleViewAction()
+        overview.setText(self.tr("Seiten&übersicht"))
+        self.sheets.menu.addSeparator()
+        self.sheets.menu.addAction(overview)
+        self.pages_dock.visibilityChanged.connect(
+            lambda visible: visible and self.pages_dock.rebuild()
+        )
         devices = self.devices_dock.toggleViewAction()
         devices.setText(self.tr("&Geräteliste"))
         self.project_menu.addAction(devices)
         self.project_menu.addSeparator()
+        self.project_menu.addAction(self.tr("&Projektdaten …"), self.edit_project_data)
         self.act_reports = self.project_menu.addAction(
-            self.tr("Auswertungen als &Seiten erzeugen"), self.reports.create_pages
+            self.tr("&Listenseiten ergänzen"), self.reports.complete_pages
         )
         self.act_reports.setToolTip(
             self.tr(
-                "Inhaltsverzeichnis, Stückliste, Klemmenplan und Kabelliste als Seiten "
-                "hinter den Schaltplan (MLD); vorhandene Auswertungsseiten werden ersetzt"
+                "Fehlende Seiten anlegen: Deckblatt, Inhaltsverzeichnis, Stückliste, "
+                "Klemmenplan, Kabelliste, und Folgeseiten, wo eine Liste nicht passt"
             )
         )
         self.project_menu.addAction(
-            self.tr("Auswertungen als &CSV exportieren …"), lambda: self.reports.export_csv()
+            self.tr("Listen als &CSV exportieren …"), lambda: self.reports.export_csv()
         )
         self.resizeDocks([self.layers_dock], [480], Qt.Orientation.Horizontal)
         self.resizeDocks([self.library_dock], [260], Qt.Orientation.Horizontal)
@@ -874,9 +884,7 @@ class MainWindow(QMainWindow):
             dock.setFloating(False)
             self.removeDockWidget(dock)
             self.addDockWidget(area, dock)
-            if dock is self.pages_dock:
-                dock.setVisible(self.workspace == WORKSPACE_MLD)
-            elif dock is self.devices_dock:
+            if dock in (self.devices_dock, self.pages_dock):
                 dock.hide()
             else:
                 dock.show()
@@ -1010,35 +1018,23 @@ class MainWindow(QMainWindow):
 
     def _on_sheets_changed(self) -> None:
         self.sheets.on_sheets_changed()
+        if hasattr(self, "pages_dock"):
+            self.pages_dock.rebuild()
         self._watch_pages()
-        self._interruptions_changed()
+        self._content_changed()
 
-    # -- interruption points (multi-line pages) ---------------------------------
-
-    def contact_letters(self) -> dict[str, str]:
-        return {
-            "no": self.tr("S", "contact"),
-            "nc": self.tr("Ö", "contact"),
-            "co": self.tr("W", "contact"),
-            "": "",
-        }
+    # -- generated content (references, contact mirrors, lists, cover) -------------
 
     def crossref_lines(self) -> dict[str, list[str]]:
-        """Contact mirror and main function references on the pages (cached like the
-        interruption points)."""
-        if self._crossrefs is None:
-            self._crossrefs = crossrefs(self.document, self.contact_letters())
-        return self._crossrefs
+        """Contact mirror and main function references on the pages."""
+        return crossrefs_of(self.document)
 
     def interruption_targets(self) -> dict[str, tuple[str, str]]:
-        """Reference text and target page of every paired interruption point (cached
-        until a page or the page order changes)."""
-        if self._interruptions is None:
-            self._interruptions = interruption_targets(self.document)
-        return self._interruptions
+        """Reference text and target page of every paired interruption point."""
+        return interruption_targets_of(self.document)
 
     def _watch_pages(self) -> None:
-        for page in self.document.pages:
+        for page in self.document.sheets:
             if id(page.entities) not in self._watched_pages:
                 self._watched_pages[id(page.entities)] = page.entities
                 page.entities.subscribe(self._on_page_changed)
@@ -1048,33 +1044,34 @@ class MainWindow(QMainWindow):
             container.unsubscribe(self._on_page_changed)
         self._watched_pages = {}
 
-    def _on_page_changed(self, event: str, entity: Entity | None) -> None:
-        if event == "batch_end" or isinstance(entity, InterruptionPoint | BlockReference):
-            self._interruptions_changed()
+    def _on_page_changed(self, event: str, _entity: Entity | None) -> None:
+        if event != "batch_start":
+            self._content_changed()
 
-    def _interruptions_changed(self) -> None:
-        """Partners may have changed: references of all interruption points and the
-        cross references of devices on the pages are drawn anew, once."""
-        self._interruptions = None
-        self._crossrefs = None
+    def _content_changed(self) -> None:
+        """Something changed: generated content is computed anew (once per change, see
+        ``display.page_cache``) and redrawn once the event loop is free."""
+        self.document._revision = getattr(self.document, "_revision", 0) + 1
         if not self._interruption_refresh_pending:
             self._interruption_refresh_pending = True
-            QTimer.singleShot(0, self._refresh_interruptions)
+            QTimer.singleShot(0, self._refresh_generated)
 
-    def _refresh_interruptions(self) -> None:
+    def _refresh_generated(self) -> None:
         self._interruption_refresh_pending = False
         for space in self.sheets.all_spaces():
             for item in space.sync.items():
                 if isinstance(item.entity, InterruptionPoint | BlockReference):
                     item.refresh()
+            space.extra["frame"].update()  # title block, cover and lists
         if hasattr(self, "devices_dock"):
             self.devices_dock.schedule_rebuild()
 
     def _on_model_changed(self, event: str, _entity: Entity | None) -> None:
+        if event != "batch_start":
+            self.document._revision = getattr(self.document, "_revision", 0) + 1
         if self.document.model_space.in_batch:
             return  # once at "batch_end"
-        if hasattr(self, "devices_dock"):
-            self.devices_dock.schedule_rebuild()
+        self._content_changed()
         if hasattr(self, "sheets"):
             self.sheets.refresh_viewports()
 
@@ -1094,7 +1091,7 @@ class MainWindow(QMainWindow):
         self.properties_dock.refresh()
 
     def _on_blocks_changed(self, _name: str) -> None:
-        self._crossrefs = None  # a block's role may have changed
+        self._content_changed()  # a block's role may have changed
         self._refresh_all_spaces()
         self.library_dock.refresh_document()
         self.properties_dock.refresh()
@@ -1116,12 +1113,12 @@ class MainWindow(QMainWindow):
         self.space = self.model_view
         self.canvas.set_scene(self.space.scene)
         self.canvas.extra_overlay = self.sheets.model_overlay
+        self.canvas.paper_item = None
         self.canvas.set_background(BACKGROUND_COLOR, show_origin=True)
         self.undo_group.setActiveStack(self.undo_stack)
         self._drop_space(old)
         self._unwatch_pages()
-        self._interruptions = None
-        self._crossrefs = None
+        document._revision = 0
         self._subscribe_document()
         self._watch_pages()
         self.undo_stack.clear()
@@ -1131,12 +1128,7 @@ class MainWindow(QMainWindow):
         self.properties_dock.refresh()
         self.library_dock.refresh_document()
         self._update_title()
-        if self.workspace == WORKSPACE_MLD:
-            # A drawing without pages is not changed just by opening it.
-            if document.pages:
-                self.sheets.show_sheet(document.pages[0].id)
-            else:
-                self.set_workspace(WORKSPACE_SLD)
+        self.pages_dock.rebuild()
         self.canvas.set_initial_view(self._opening_view)
 
     # -- view when a drawing is opened ----------------------------------------
@@ -1331,13 +1323,7 @@ class MainWindow(QMainWindow):
 
     def print_document(self) -> None:
         self.tools.cancel()
-        dialog = PrintDialog(
-            self.document,
-            self.sheets.current_sheet(),
-            parent=self,
-            layouts=self.sheets.layouts(),
-            pages=self.sheets.pages_mode,
-        )
+        dialog = PrintDialog(self.document, self.sheets.current_sheet(), parent=self)
         dialog.exec()
 
     def export(self, kind: str) -> None:
@@ -1346,9 +1332,9 @@ class MainWindow(QMainWindow):
         dialog = ExportDialog(kind, current is not None, self)
         if dialog.exec() != ExportDialog.DialogCode.Accepted:
             return
-        sheets = list(self.sheets.layouts()) if dialog.all_sheets() else [current]
+        sheets = list(self.document.sheets) if dialog.all_sheets() else [current]
         base = self.file_path.with_suffix("") if self.file_path else Path(self.last_dir()) / "plan"
-        if kind != PDF and len(sheets) == 1 and len(self.sheets.layouts()) > 1:
+        if kind != PDF and len(sheets) == 1 and len(self.document.sheets) > 1:
             base = base.with_name(f"{base.name}_{sheets[0].name}")
         filters = {
             PDF: self.tr("PDF (*.pdf)"),
@@ -1958,15 +1944,9 @@ class MainWindow(QMainWindow):
         if snap > 0:
             self.canvas.set_snap_spacing(snap)
         drawing = self.workspace == WORKSPACE_DRAWING
-        mld = self.workspace == WORKSPACE_MLD
-        for action in (self.act_wire, self.act_busbar):
+        for action in (self.act_wire, self.act_busbar, self.act_interruption):
             action.setVisible(not drawing)
         self.act_module_field.setVisible(drawing)
-        self.act_interruption.setVisible(mld)
-        self.sheets.set_pages_mode(mld)
-        self.pages_dock.setVisible(mld)
-        if mld:
-            self.pages_dock.rebuild()
         self.library_dock.set_workspace(self.workspace)
         # Each workspace has its own layers; the current one must belong to it.
         if self.document.has_layer(self.current_layer) and not self.document.layer(

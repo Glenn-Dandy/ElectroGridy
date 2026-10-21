@@ -1,10 +1,11 @@
 """Devices: everything carrying the same BMK is one device. Pure Python.
 
-A device can appear in the circuit diagram (SLD, model space), on sheets and on any
-number of multi-line pages. On pages its functions refer to each other: under a main
-function (coil, breaker) a contact mirror lists the auxiliary functions (contacts) with
-their terminals and place ("S 13-14  /3.4"), each contact shows where the main function
-sits ("/2.5"). The roles come from the block definitions (``function``, ``contact``).
+A device can appear in the model (overview diagram, drawings) and on any number of
+pages. On the pages its functions refer to each other: under a main function (coil,
+breaker) a contact mirror lists the auxiliary functions (contacts) with their terminals
+and place ("S 13-14  /3.4": page 3, column 4), each contact shows where the main
+function sits ("/2.5"). The roles come from the block definitions (``function``,
+``contact``).
 """
 
 import re
@@ -12,13 +13,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
 from sldgridy.model.blocks import BlockDefinition, point_to_world, symbol_bounds
-from sldgridy.model.document import Document, designation
+from sldgridy.model.document import Document
 from sldgridy.model.entities import BlockReference, Entity, Text
 from sldgridy.model.geometry import Point
 from sldgridy.model.sheet import column_at
 
 BMK = "BMK"
-MODEL, PAGE, SHEET = "model", "page", "sheet"
+MODEL, SHEET = "model", "sheet"
 # Letters of the contact types in the contact mirror; the UI passes translated ones.
 CONTACT_LETTERS = {"no": "S", "nc": "Ö", "co": "W", "": ""}
 XREF_HEIGHT = 2.0
@@ -30,8 +31,8 @@ class Occurrence:
     bmk: str
     entity_id: str
     block: str
-    where: str  # MODEL, PAGE or SHEET
-    layout_id: str | None  # page or sheet id
+    where: str  # MODEL or SHEET (a page)
+    layout_id: str | None  # page id
     position: Point
     function: str  # "main", "aux" or ""
     contact: str
@@ -50,9 +51,8 @@ def _natural(text: str) -> list:
 
 
 def occurrences(doc: Document) -> list[Occurrence]:
-    """Every block reference with a BMK, in the model, on sheets and on pages."""
+    """Every block reference with a BMK, in the model and on the pages."""
     places = [(MODEL, None, doc.model_space)]
-    places += [(PAGE, p.id, p.entities) for p in doc.pages]
     places += [(SHEET, s.id, s.entities) for s in doc.sheets]
     found = []
     for where, layout_id, container in places:
@@ -92,27 +92,24 @@ def devices(doc: Document) -> dict[str, list[Occurrence]]:
     return {k: groups[k] for k in sorted(groups, key=_natural)}
 
 
-def page_reference(doc: Document, from_page: str | None, occ: Occurrence) -> str:
-    """ "/3.4" (page and column), with plant and location in front when the target lies
-    in another group (or when there is no page to compare with)."""
-    page = doc.page(occ.layout_id)
-    w, h = page.size
-    column = column_at(w, h, page.columns, occ.position.x)
-    number = doc.page_number(page.id)[0]
-    ref = f"/{number}.{column}" if column else f"/{number}"
-    src = doc.page(from_page) if from_page else None
-    if src is None or (src.plant, src.location) != (page.plant, page.location):
-        prefix = designation(page.plant, page.location)
-        if prefix:
-            ref = f"{prefix} {ref}"
-    return ref
+def place(doc: Document, sheet_id: str, x: float) -> tuple[int, int | None]:
+    """Page number and column of a point on a page."""
+    sheet = doc.sheet(sheet_id)
+    w, h = sheet.size
+    return doc.page_number(sheet_id), column_at(w, h, sheet.columns, x)
+
+
+def page_reference(doc: Document, occ: Occurrence) -> str:
+    """ "/3.4": page 3, column 4 (just "/3" on pages without columns)."""
+    number, column = place(doc, occ.layout_id, occ.position.x)
+    return f"/{number}.{column}" if column is not None else f"/{number}"
 
 
 def crossrefs(doc: Document, letters: Mapping[str, str] = CONTACT_LETTERS) -> dict[str, list[str]]:
-    """Reference id -> text lines shown under it (pages only)."""
+    """Reference id -> text lines shown under it (functions on pages only)."""
     lines: dict[str, list[str]] = {}
     for group in devices(doc).values():
-        on_pages = [o for o in group if o.where == PAGE]
+        on_pages = [o for o in group if o.where == SHEET]
         mains = [o for o in on_pages if o.function == "main"]
         auxes = [o for o in on_pages if o.function == "aux"]
         for main in mains:
@@ -121,11 +118,11 @@ def crossrefs(doc: Document, letters: Mapping[str, str] = CONTACT_LETTERS) -> di
                 terminals = "-".join(aux.terminals)
                 letter = letters.get(aux.contact, "")
                 head = " ".join(t for t in (letter, terminals) if t)
-                mirror.append(f"{head}  {page_reference(doc, main.layout_id, aux)}".strip())
+                mirror.append(f"{head}  {page_reference(doc, aux)}".strip())
             if mirror:
                 lines[main.entity_id] = mirror
         for aux in auxes:
-            refs = [page_reference(doc, aux.layout_id, m) for m in mains]
+            refs = [page_reference(doc, m) for m in mains]
             if refs:
                 lines[aux.entity_id] = refs
     return lines
@@ -161,12 +158,12 @@ def crossref_texts(
 
 def problems(doc: Document) -> dict[str, list[str]]:
     """BMK -> problem codes: "main_twice" (several main functions on the pages),
-    "sld_twice" (more than once in the circuit diagram), "aux_alone" (contacts on the
-    pages without a main function)."""
+    "sld_twice" (more than once in the model), "aux_alone" (contacts on the pages
+    without a main function)."""
     found: dict[str, list[str]] = {}
     for bmk, group in devices(doc).items():
         codes = []
-        on_pages = [o for o in group if o.where == PAGE]
+        on_pages = [o for o in group if o.where == SHEET]
         mains = [o for o in on_pages if o.function == "main"]
         if len(mains) > 1:
             codes.append("main_twice")

@@ -20,7 +20,6 @@ from PyQt6.QtWidgets import (
 from sldgridy.commands.entities import ReplaceEntitiesCommand
 from sldgridy.model.devices import (
     MODEL,
-    PAGE,
     Occurrence,
     devices,
     page_reference,
@@ -74,10 +73,8 @@ class DevicesDock(QDockWidget):
 
     def place_text(self, occ: Occurrence) -> str:
         if occ.where == MODEL:
-            return self.tr("Schaltplan (SLD)")
-        if occ.where == PAGE:
-            return page_reference(self.doc, None, occ)
-        return self.doc.layout(occ.layout_id).name
+            return self.tr("Modell")
+        return page_reference(self.doc, occ)
 
     def function_text(self, occ: Occurrence) -> str:
         return {"main": self.tr("Hauptfunktion"), "aux": self.tr("Kontakt")}.get(occ.function, "")
@@ -169,4 +166,4 @@ class DevicesDock(QDockWidget):
     def _container(self, occ: Occurrence):
         if occ.where == MODEL:
             return self.doc.model_space
-        return self.doc.layout(occ.layout_id).entities
+        return self.doc.sheet(occ.layout_id).entities

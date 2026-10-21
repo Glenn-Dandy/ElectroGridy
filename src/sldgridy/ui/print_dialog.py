@@ -57,27 +57,21 @@ class PrintDialog(QDialog):
         current: SheetLayout | None,
         printer: QPrinter | None = None,
         parent=None,
-        layouts: list[SheetLayout] | None = None,
-        pages: bool = False,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(self.tr("Drucken"))
         self.doc = doc
-        # Sheets of the circuit diagram and drawing, or the pages of the multi-line one.
-        self.layouts = list(doc.sheets if layouts is None else layouts)
-        self.pages = pages
+        self.layouts = list(doc.sheets)
         self.printer = printer or QPrinter(QPrinter.PrinterMode.HighResolution)
 
         # What to print.
-        self.rb_current = QRadioButton(
-            self.tr("Aktuelle Seite") if pages else self.tr("Aktuelles Blatt")
-        )
-        self.rb_all = QRadioButton(self.tr("Alle Seiten") if pages else self.tr("Alle Blätter"))
+        self.rb_current = QRadioButton(self.tr("Aktuelle Seite"))
+        self.rb_all = QRadioButton(self.tr("Alle Seiten"))
         self.rb_selection = QRadioButton(self.tr("Auswahl:"))
         self.rb_model = QRadioButton(self.tr("Modell (Schnelldruck, auf Papier eingepasst)"))
         self.sheet_list = QListWidget()
         for sheet in self.layouts:
-            label = f"{doc.page_label(sheet.id)} {sheet.name}".strip() if pages else sheet.name
+            label = f"{doc.page_number(sheet.id)} {sheet.name}".strip()
             item = QListWidgetItem(label)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(Qt.CheckState.Unchecked)
@@ -97,7 +91,6 @@ class PrintDialog(QDialog):
         lw = QVBoxLayout(box_what)
         for w in (self.rb_current, self.rb_all, self.rb_selection, self.sheet_list, self.rb_model):
             lw.addWidget(w)
-        self.rb_model.setVisible(not pages)  # the multi-line diagram has no model
 
         # How.
         self.rb_one = QRadioButton(self.tr("1:1 (Blattformat = Papierformat)"))

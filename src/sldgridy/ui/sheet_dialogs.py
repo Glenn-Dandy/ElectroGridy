@@ -111,6 +111,27 @@ class FieldsDialog(QDialog):
         return {t: e.text() for t, e in self._sheet_edits.items() if e.text()}
 
 
+class ProjectDialog(QDialog):
+    """Data of the whole project: title block fields and the cover page."""
+
+    def __init__(self, properties: dict[str, str], parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(self.tr("Projektdaten"))
+        self._edits: dict[str, QLineEdit] = {}
+        form = QFormLayout(self)
+        for tag in DOCUMENT_FIELDS:
+            edit = QLineEdit(properties.get(tag, ""))
+            if tag == "ADRESSE":
+                edit.setPlaceholderText(self.tr("Straße, PLZ Ort (Komma trennt die Zeilen)"))
+            form.addRow(f"{_label(tag)}:", edit)
+            self._edits[tag] = edit
+        form.addRow(_buttons(self))
+        self.resize(480, self.sizeHint().height())
+
+    def properties(self) -> dict[str, str]:
+        return {t: e.text() for t, e in self._edits.items() if e.text()}
+
+
 class TemplateChooserDialog(QDialog):
     def __init__(self, templates: list[tuple[str, Path, bool]], parent=None) -> None:
         super().__init__(parent)

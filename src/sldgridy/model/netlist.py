@@ -143,9 +143,9 @@ def _add_area(
 
 
 def netlist(doc: Document) -> Netlist:
-    """Nets of the circuit diagram (model) and of all pages."""
+    """Nets of the model and of all pages."""
     nl = Netlist()
     _add_area(nl, "model", doc.model_space, doc.blocks)
-    for page in doc.pages:
+    for page in doc.sheets:
         _add_area(nl, page.id, page.entities, doc.blocks)
     return nl

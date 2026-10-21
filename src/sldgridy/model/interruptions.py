@@ -1,16 +1,14 @@
 """Interruption points: conductors continuing on another page. Pure Python.
 
-All points with the same name across the pages of the multi-line diagram belong
-together. In page order (then column, then top to bottom) each one refers to the next,
-the last one back to the first; so a pair refers to each other. The reference reads
-"/3.4" (page 3, column 4), with the plant and location in front when the target lies
-in another group ("=PV1 +UV2 /1.7").
+All points with the same name across the pages belong together. In page order (then
+column, then top to bottom) each one refers to the next, the last one back to the
+first; so a pair refers to each other. The reference reads "/3.4" (page 3, column 4).
 """
 
 import math
 from collections.abc import Iterable
 
-from sldgridy.model.document import Document, designation
+from sldgridy.model.document import Document
 from sldgridy.model.entities import Entity, InterruptionPoint, Line, Text
 from sldgridy.model.geometry import Point
 from sldgridy.model.sheet import column_at
@@ -20,26 +18,21 @@ GAP = 0.6  # × text height: between arrow and texts
 
 
 def _places(doc: Document) -> list[tuple[InterruptionPoint, str, int, int]]:
-    """Every interruption point with its page id, page index and column."""
+    """Every interruption point with its page id, page index and column (-1: none)."""
     out = []
-    for index, page in enumerate(doc.pages):
+    for index, page in enumerate(doc.sheets):
         w, h = page.size
         for e in page.entities:
             if isinstance(e, InterruptionPoint):
-                out.append((e, page.id, index, column_at(w, h, page.columns, e.position.x)))
+                column = column_at(w, h, page.columns, e.position.x)
+                out.append((e, page.id, index, -1 if column is None else column))
     return out
 
 
-def reference(doc: Document, from_page: str, to_page: str, column: int) -> str:
-    """ "/3.4", or with the designation when the target is in another plant/location."""
-    src, dst = doc.page(from_page), doc.page(to_page)
-    number = doc.page_number(to_page)[0]
-    ref = f"/{number}.{column}" if column else f"/{number}"
-    if (src.plant, src.location) != (dst.plant, dst.location):
-        prefix = designation(dst.plant, dst.location)
-        if prefix:
-            ref = f"{prefix} {ref}"
-    return ref
+def reference(doc: Document, to_page: str, column: int) -> str:
+    """ "/3.4" (page 3, column 4), "/3" on a page without columns."""
+    number = doc.page_number(to_page)
+    return f"/{number}.{column}" if column >= 0 else f"/{number}"
 
 
 def interruption_targets(doc: Document) -> dict[str, tuple[str, str]]:
@@ -55,9 +48,9 @@ def interruption_targets(doc: Document) -> dict[str, tuple[str, str]]:
         if len(places) < 2:
             continue
         places.sort(key=lambda p: (p[2], p[3], p[0].position.y, p[0].position.x))
-        for i, (point, page_id, _index, _column) in enumerate(places):
+        for i, (point, _page, _index, _column) in enumerate(places):
             target, target_page, _ti, target_column = places[(i + 1) % len(places)]
-            targets[point.id] = (reference(doc, page_id, target_page, target_column), target_page)
+            targets[point.id] = (reference(doc, target_page, target_column), target_page)
     return targets
 
 

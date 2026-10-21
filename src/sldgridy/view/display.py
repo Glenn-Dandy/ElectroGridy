@@ -3,7 +3,7 @@
 Shared by the scene items on screen and by printing and export.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from PyQt6.QtCore import QCoreApplication, QPointF, QRectF, Qt
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
@@ -11,7 +11,13 @@ from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 from sldgridy.model.blocks import BlockError, expand
 from sldgridy.model.devices import crossref_texts, crossrefs
 from sldgridy.model.dimensions import dimension_geometry
-from sldgridy.model.document import Document, SheetLayout
+from sldgridy.model.document import (
+    GENERATED_KINDS,
+    PAGE_KINDS,
+    SCHEMATIC_FRAME,
+    Document,
+    SheetLayout,
+)
 from sldgridy.model.entities import (
     BlockReference,
     Dimension,
@@ -21,13 +27,14 @@ from sldgridy.model.entities import (
     Wire,
 )
 from sldgridy.model.interruptions import interruption_geometry, interruption_targets
+from sldgridy.model.reports import generated_entities, report_rows
 from sldgridy.model.sheet import (
-    column_strip_entities,
-    designation_text,
     frame_entities,
+    schematic_frame_entities,
+    schematic_title_insert,
     title_block_reference,
 )
-from sldgridy.model.title_block import FIELD_LABELS
+from sldgridy.model.title_block import CAPTIONS, FIELD_LABELS
 from sldgridy.model.wires import junction_diameter, junctions, label_text
 from sldgridy.view.render import Style, entity_bounds, make_pen, paint_entity
 
@@ -53,10 +60,11 @@ def resolve_style(doc: Document, e: Entity, monochrome: bool = False) -> Style:
 
 
 def _page_key(doc: Document) -> tuple:
-    """Everything references on the pages depend on (pages, points, devices, roles)."""
+    """Content the generated parts depend on, for documents without a revision counter
+    (printing and export outside the user interface)."""
     return (
         tuple(
-            (p.id, p.plant, p.location, p.paper, p.orientation, p.columns)
+            (p.id, p.kind, p.plant, p.location, p.paper, p.orientation, p.columns, len(p.entities))
             + tuple(
                 (e.id, e.name, e.position)
                 if isinstance(e, InterruptionPoint)
@@ -64,37 +72,69 @@ def _page_key(doc: Document) -> tuple:
                 for e in p.entities
                 if isinstance(e, InterruptionPoint | BlockReference)
             )
-            for p in doc.pages
+            for p in doc.sheets
         ),
-        tuple((b.name, b.function, b.contact) for b in doc.blocks.values()),
+        tuple(
+            (e.id, e.name, e.insert, e.attributes)
+            for e in doc.model_space
+            if isinstance(e, BlockReference)
+        ),
+        len(doc.model_space),
+        tuple((b.name, b.function, b.contact, b.description) for b in doc.blocks.values()),
+        tuple(sorted(doc.properties.items())),
     )
 
 
-def _page_cache(doc: Document) -> dict:
-    """References computed once per output run; the key changes with the content."""
-    key = _page_key(doc)
+def page_cache(doc: Document) -> dict:
+    """Generated content computed once per change: the user interface counts changes in
+    ``doc._revision``; elsewhere a key from the content decides."""
+    revision = getattr(doc, "_revision", None)
+    key = ("revision", revision) if revision is not None else _page_key(doc)
     cached = getattr(doc, "_page_cache", None)
     if cached is None or cached[0] != key:
-        letters = {
-            "no": QCoreApplication.translate("contact", "S"),
-            "nc": QCoreApplication.translate("contact", "Ö"),
-            "co": QCoreApplication.translate("contact", "W"),
-            "": "",
-        }
-        cached = (
-            key,
-            {"targets": interruption_targets(doc), "xrefs": crossrefs(doc, letters)},
-        )
+        cached = (key, {})
         doc._page_cache = cached  # noqa: SLF001 - plain cache attribute
     return cached[1]
 
 
-def _interruption_targets(doc: Document) -> dict[str, tuple[str, str]]:
-    return _page_cache(doc)["targets"]
+def contact_letters() -> dict[str, str]:
+    return {
+        "no": QCoreApplication.translate("contact", "S"),
+        "nc": QCoreApplication.translate("contact", "Ö"),
+        "co": QCoreApplication.translate("contact", "W"),
+        "": "",
+    }
 
 
-def _crossrefs(doc: Document) -> dict[str, list[str]]:
-    return _page_cache(doc)["xrefs"]
+def interruption_targets_of(doc: Document) -> dict[str, tuple[str, str]]:
+    cache = page_cache(doc)
+    if "targets" not in cache:
+        cache["targets"] = interruption_targets(doc)
+    return cache["targets"]
+
+
+def crossrefs_of(doc: Document) -> dict[str, list[str]]:
+    cache = page_cache(doc)
+    if "xrefs" not in cache:
+        cache["xrefs"] = crossrefs(doc, contact_letters())
+    return cache["xrefs"]
+
+
+def report_rows_of(doc: Document, kind: str) -> list[list[str]]:
+    cache = page_cache(doc)
+    key = ("rows", kind)
+    if key not in cache:
+        cache[key] = report_rows(doc, kind, _tr_reports)
+    return cache[key]
+
+
+def _tr_reports(text: str) -> str:
+    return QCoreApplication.translate("reports", text)
+
+
+def kind_names() -> dict[str, str]:
+    """Page types in the active language."""
+    return {k: QCoreApplication.translate("pages", v) for k, v in PAGE_KINDS.items()}
 
 
 def expand_for_display(doc: Document, e: Entity) -> list[Entity]:
@@ -105,14 +145,14 @@ def expand_for_display(doc: Document, e: Entity) -> list[Entity]:
     if isinstance(e, Dimension):
         return dimension_geometry(e, _decimal_comma())
     if isinstance(e, InterruptionPoint):
-        target = _interruption_targets(doc).get(e.id)
+        target = interruption_targets_of(doc).get(e.id)
         return interruption_geometry(e, target[0] if target else None)
     if isinstance(e, BlockReference):
         try:
             parts = expand(e, doc.blocks)
         except BlockError:
             return []
-        lines = _crossrefs(doc).get(e.id)
+        lines = crossrefs_of(doc).get(e.id)
         if lines:
             parts = parts + crossref_texts(e, doc.blocks, lines)
         return [
@@ -204,7 +244,8 @@ def paint_viewport(
 def title_labels() -> dict[str, str]:
     """Cell captions of the standard title block in the active language."""
     return {
-        tag: QCoreApplication.translate("title_block", label) for tag, label in FIELD_LABELS.items()
+        tag: QCoreApplication.translate("title_block", label)
+        for tag, label in {**FIELD_LABELS, **CAPTIONS}.items()
     }
 
 
@@ -217,21 +258,37 @@ def title_block_parts(doc: Document, sheet: SheetLayout) -> list[Entity]:
         of=QCoreApplication.translate("display", "von"),
         landscape=QCoreApplication.translate("display", "quer"),
         portrait=QCoreApplication.translate("display", "hoch"),
+        kinds=kind_names(),
     )
     ref = title_block_reference(sheet.title_block, w, h, values)
+    if sheet.frame == SCHEMATIC_FRAME:
+        ref = replace(ref, insert=schematic_title_insert(w, h))
     try:
         return expand(ref, doc.blocks)
     except BlockError:
         return []
 
 
-def page_frame_parts(doc: Document, sheet: SheetLayout) -> list[Entity]:
-    """Column strip and designation of a multi-line diagram page (nothing for sheets)."""
+def frame_parts(doc: Document, sheet: SheetLayout, helpers: bool = False) -> list[Entity]:
+    """Frame lines (and band) plus the generated content of cover and list pages."""
     w, h = sheet.size
-    parts = column_strip_entities(w, h, sheet.columns)
-    if any(p.id == sheet.id for p in doc.pages):
-        parts.append(designation_text(w, h, doc.page_label(sheet.id)))
+    if sheet.frame == SCHEMATIC_FRAME:
+        parts = schematic_frame_entities(w, h, sheet.columns or 10)
+    else:
+        parts = frame_entities(w, h)
+    if sheet.kind in GENERATED_KINDS:
+        parts += generated_entities(
+            doc, sheet, lambda kind: report_rows_of(doc, kind), _tr_reports, helpers
+        )
     return parts
+
+
+def _style(part: Entity, options: OutputOptions, default_weight: float) -> Style:
+    return Style(
+        BLACK if options.monochrome or part.color is None else QColor(part.color),
+        part.lineweight if part.lineweight is not None else default_weight,
+        part.linetype or "continuous",
+    )
 
 
 def paint_frame(
@@ -241,13 +298,9 @@ def paint_frame(
     px_per_mm: float,
     options: OutputOptions,
 ) -> None:
-    """Border, centring marks and the title block (opaque) of a sheet."""
-    color = BLACK
-    w, h = sheet.size
-    for e in frame_entities(w, h):
-        paint_entity(painter, e, Style(color, e.lineweight or 0.7), px_per_mm, options.helpers)
-    for e in page_frame_parts(doc, sheet):
-        paint_entity(painter, e, Style(color, e.lineweight or 0.25), px_per_mm, options.helpers)
+    """Frame, generated content and the title block (opaque) of a page."""
+    for e in frame_parts(doc, sheet, options.helpers):
+        paint_entity(painter, e, _style(e, options, 0.25), px_per_mm, options.helpers)
     parts = title_block_parts(doc, sheet)
     if not parts:
         return
@@ -256,12 +309,7 @@ def paint_frame(
         bounds = bounds.united(entity_bounds(part, part.lineweight or 0.35))
     painter.fillRect(bounds, QColor("white"))
     for part in parts:
-        style = Style(
-            BLACK if options.monochrome or part.color is None else QColor(part.color),
-            part.lineweight if part.lineweight is not None else 0.25,
-            part.linetype or "continuous",
-        )
-        paint_entity(painter, part, style, px_per_mm, options.helpers)
+        paint_entity(painter, part, _style(part, options, 0.25), px_per_mm, options.helpers)
 
 
 def paint_sheet(

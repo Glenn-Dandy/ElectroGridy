@@ -40,7 +40,13 @@ class PaperItem(QGraphicsItem):
     def boundingRect(self) -> QRectF:
         return self._rect.adjusted(-2, -2, 4, 4)
 
-    def paint(self, painter: QPainter, option, widget=None) -> None:
+    @property
+    def rect(self) -> QRectF:
+        return self._rect
+
+    def paint_paper(self, painter: QPainter) -> None:
+        """Shadow, white paper and edge; drawn by the canvas as background so that the
+        grid shows on the paper too."""
         painter.fillRect(self._rect.translated(1.5, 1.5), SHADOW)
         painter.fillRect(self._rect, PAPER_COLOR)
         pen = QPen(PAPER_EDGE, 0)
@@ -48,6 +54,9 @@ class PaperItem(QGraphicsItem):
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRect(self._rect)
+
+    def paint(self, painter: QPainter, option, widget=None) -> None:
+        pass  # see paint_paper
 
 
 class FrameItem(QGraphicsItem):

@@ -4,55 +4,50 @@ from PyQt6.QtGui import QUndoCommand
 
 from sldgridy.commands.entities import ReplaceEntitiesCommand
 from sldgridy.model.container import EntityContainer
-from sldgridy.model.document import SHEETS, Document, SheetLayout
+from sldgridy.model.document import Document, SheetLayout
 from sldgridy.model.entities import Viewport
 
 VIEWPORT_NAVIGATION_ID = 6001
 
 
 class AddSheetCommand(QUndoCommand):
-    """Add a sheet, or with ``kind`` PAGES a page of the multi-line diagram."""
-
-    def __init__(
-        self, doc: Document, index: int, sheet: SheetLayout, text: str, kind: str = SHEETS
-    ) -> None:
+    def __init__(self, doc: Document, index: int, sheet: SheetLayout, text: str) -> None:
         super().__init__(text)
-        self._doc, self._index, self._sheet, self._kind = doc, index, sheet, kind
+        self._doc, self._index, self._sheet = doc, index, sheet
 
     def redo(self) -> None:
-        self._doc.insert_layout(self._kind, self._index, self._sheet)
+        self._doc.insert_sheet(self._index, self._sheet)
 
     def undo(self) -> None:
-        self._doc.remove_layout(self._kind, self._sheet.id)
+        self._doc.remove_sheet(self._sheet.id)
 
 
 class RemoveSheetCommand(QUndoCommand):
     def __init__(self, doc: Document, sheet_id: str, text: str) -> None:
         super().__init__(text)
-        self._kind = doc.kind_of(sheet_id)
-        if self._kind == SHEETS and len(doc.sheets) <= 1:
+        if len(doc.sheets) <= 1:
             raise ValueError("a drawing keeps at least one sheet")
         self._doc, self._id = doc, sheet_id
         self._removed: tuple[int, SheetLayout] | None = None
 
     def redo(self) -> None:
-        self._removed = self._doc.remove_layout(self._kind, self._id)
+        self._removed = self._doc.remove_sheet(self._id)
 
     def undo(self) -> None:
         assert self._removed is not None
-        self._doc.insert_layout(self._kind, *self._removed)
+        self._doc.insert_sheet(*self._removed)
 
 
 class MoveSheetCommand(QUndoCommand):
-    def __init__(self, doc: Document, old: int, new: int, text: str, kind: str = SHEETS) -> None:
+    def __init__(self, doc: Document, old: int, new: int, text: str) -> None:
         super().__init__(text)
-        self._doc, self._old, self._new, self._kind = doc, old, new, kind
+        self._doc, self._old, self._new = doc, old, new
 
     def redo(self) -> None:
-        self._doc.move_layout(self._kind, self._old, self._new)
+        self._doc.move_sheet(self._old, self._new)
 
     def undo(self) -> None:
-        self._doc.move_layout(self._kind, self._new, self._old)
+        self._doc.move_sheet(self._new, self._old)
 
 
 _SHEET_ATTRIBUTES = (
@@ -61,6 +56,8 @@ _SHEET_ATTRIBUTES = (
     "orientation",
     "title_block",
     "fields",
+    "kind",
+    "frame",
     "plant",
     "location",
     "columns",
@@ -68,8 +65,8 @@ _SHEET_ATTRIBUTES = (
 
 
 class ChangeSheetCommand(QUndoCommand):
-    """Change name, format, orientation, title block, field values or (pages) designation
-    and columns of a sheet or page."""
+    """Change name, format, orientation, title block, field values, type, frame, plant,
+    location or columns of a page."""
 
     def __init__(self, doc: Document, sheet_id: str, text: str, **changes) -> None:
         super().__init__(text)
@@ -77,14 +74,14 @@ class ChangeSheetCommand(QUndoCommand):
         if unknown:
             raise ValueError(f"unknown sheet attributes {unknown}")
         self._doc, self._id = doc, sheet_id
-        sheet = doc.layout(sheet_id)
+        sheet = doc.sheet(sheet_id)
         self._new = {k: (dict(v) if isinstance(v, dict) else v) for k, v in changes.items()}
         self._old = {
             k: (dict(getattr(sheet, k)) if k == "fields" else getattr(sheet, k)) for k in changes
         }
 
     def _apply(self, values: dict) -> None:
-        sheet = self._doc.layout(self._id)
+        sheet = self._doc.sheet(self._id)
         for k, v in values.items():
             setattr(sheet, k, dict(v) if isinstance(v, dict) else v)
         self._doc.sheets_changed()

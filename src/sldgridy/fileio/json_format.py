@@ -7,7 +7,13 @@ from typing import Any
 from sldgridy import __version__
 from sldgridy.model.blocks import BlockDefinition
 from sldgridy.model.container import EntityContainer
-from sldgridy.model.document import Document, ModelSpace, SheetLayout
+from sldgridy.model.document import (
+    PAGE_KINDS,
+    SCHEMATIC_FRAME,
+    Document,
+    ModelSpace,
+    SheetLayout,
+)
 from sldgridy.model.entities import (
     DIMENSION_ORIENTATIONS,
     Arc,
@@ -31,13 +37,18 @@ from sldgridy.model.entities import (
 from sldgridy.model.geometry import Point
 from sldgridy.model.layers import DEFAULT_LAYER, Layer
 from sldgridy.model.paper import Orientation, sheet_size
-from sldgridy.model.sheet import default_viewport
-from sldgridy.model.title_block import TITLE_BLOCK_NAME, title_block_definition
+from sldgridy.model.sheet import default_viewport, schematic_title_width
+from sldgridy.model.title_block import (
+    TITLE_BLOCK_NAME,
+    schematic_title_block_definition,
+    schematic_title_block_name,
+    title_block_definition,
+)
 
 # Newest version this program reads. Files are written with the lowest version that
 # holds their content, so older releases keep opening what they can show: libraries,
-# frame templates and drawings without multi-line pages stay version 2; drawings with
-# pages (version 3) need SLDGridy 1.3 or newer.
+# frame templates and drawings without page types or interruption points stay version
+# 2; the others (version 3) need SLDGridy 1.3 or newer.
 FORMAT_VERSION = 3
 BASE_VERSION = 2
 
@@ -62,9 +73,8 @@ def _migrate_1_to_2(data: dict) -> dict:
 
 
 def _migrate_2_to_3(data: dict) -> dict:
-    """Version 3 adds multi-line circuit diagram pages; older files have none."""
-    if data.get("type") not in ("library", "frame"):
-        data.setdefault("pages", [])
+    """Version 3 adds page types, the circuit diagram frame and interruption points;
+    older files have none of them."""
     return data
 
 
@@ -421,13 +431,27 @@ def _layer_from_dict(d: dict[str, Any]) -> Layer:
         locked=bool(d.get("locked", False)),
         printable=bool(d.get("printable", True)),
         # Layers from before workspaces belong to the circuit diagram, layer 0 to all.
-        workspace=str(d.get("workspace", "" if str(d["name"]) == "0" else "sld")),
+        workspace=_layer_workspace(d),
     )
+
+
+def _needs_version_3(doc: Document) -> bool:
+    if any(s.kind or s.frame for s in doc.sheets):
+        return True
+    return any(isinstance(e, InterruptionPoint) for c in doc.containers() for e in c)
+
+
+def _layer_workspace(d: dict[str, Any]) -> str:
+    """Layers from before workspaces belong to the circuit diagram, layer 0 to all;
+    those of the multi-line workspace of the development versions to the circuit
+    diagram as well."""
+    workspace = str(d.get("workspace", "" if str(d["name"]) == "0" else "sld"))
+    return "sld" if workspace == "mld" else workspace
 
 
 def document_to_dict(doc: Document) -> dict[str, Any]:
     d = {
-        "format_version": FORMAT_VERSION if doc.pages else BASE_VERSION,
+        "format_version": FORMAT_VERSION if _needs_version_3(doc) else BASE_VERSION,
         "application": f"SLDGridy {__version__}",
         "properties": dict(doc.properties),
         "layers": [_layer_to_dict(layer) for layer in doc.layers],
@@ -435,8 +459,6 @@ def document_to_dict(doc: Document) -> dict[str, Any]:
         "model": {"entities": [entity_to_dict(e) for e in doc.model_space]},
         "sheets": [sheet_to_dict(s) for s in doc.sheets],
     }
-    if doc.pages:
-        d["pages"] = [sheet_to_dict(p) for p in doc.pages]
     return d
 
 
@@ -469,14 +491,22 @@ def document_from_dict(data: dict[str, Any]) -> Document:
         sheets = [sheet_from_dict(s) for s in data["sheets"]]
         if not sheets:
             raise FileFormatError("a drawing needs at least one sheet")
-        pages = [sheet_from_dict(p) for p in data.get("pages", [])]
+        # Development versions 1.3.0.dev3 to dev6 kept pages in a list of their own.
+        dev_pages = [
+            _dev_page(sheet_from_dict(p), str(p.get("report", ""))) for p in data.get("pages", [])
+        ]
+        for page in dev_pages:  # with the title block of the new frame
+            width = schematic_title_width(*page.size)
+            page.title_block = schematic_title_block_name(width)
+            if page.title_block not in blocks:
+                blocks[page.title_block] = schematic_title_block_definition(width)
+        sheets += dev_pages
         properties = {str(k): str(v) for k, v in data.get("properties", {}).items()}
     except (KeyError, TypeError, ValueError) as exc:
         raise FileFormatError(f"invalid drawing data: {exc}") from exc
     return Document(
         model_space=model,
         sheets=sheets,
-        pages=pages,
         layers=layers,
         blocks=blocks,
         properties=properties,
@@ -493,10 +523,18 @@ def sheet_to_dict(s: SheetLayout) -> dict[str, Any]:
         "fields": dict(s.fields),
         "entities": [entity_to_dict(e) for e in s.entities],
     }
-    for key in ("plant", "location", "columns", "report"):  # pages only
+    for key in ("kind", "frame", "plant", "location", "columns"):  # set on pages only
         if getattr(s, key):
             d[key] = getattr(s, key)
     return d
+
+
+def _dev_page(page: SheetLayout, report: str) -> SheetLayout:
+    """A page of a development version: circuit diagram (or its list type), new frame."""
+    page.kind = report if report in PAGE_KINDS else "circuit"
+    page.frame = SCHEMATIC_FRAME
+    page.columns = page.columns or 10
+    return page
 
 
 def sheet_from_dict(s: dict[str, Any]) -> SheetLayout:
@@ -514,5 +552,6 @@ def sheet_from_dict(s: dict[str, Any]) -> SheetLayout:
         plant=str(s.get("plant", "")),
         location=str(s.get("location", "")),
         columns=max(0, int(s.get("columns", 0))),
-        report=str(s.get("report", "")),
+        kind=_choice(s.get("kind", ""), ("", *PAGE_KINDS)),
+        frame=_choice(s.get("frame", ""), ("", SCHEMATIC_FRAME)),
     )

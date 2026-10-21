@@ -219,12 +219,20 @@ def test_line_widths_in_a_viewport_are_paper_widths(qapp, monkeypatch):
     assert seen == [pytest.approx(25.0)]
 
 
-def test_pdf_of_multi_line_pages_is_a4_landscape(qapp, tmp_path):
-    from sldgridy.model.document import new_page
+def test_pdf_of_circuit_diagram_pages_is_a3_landscape(qapp, tmp_path):
+    from sldgridy.model.document import CIRCUIT, PARTS, new_page
+    from sldgridy.model.sheet import schematic_title_width
+    from sldgridy.model.title_block import schematic_title_block_definition
 
     doc = sample_doc()
-    doc.pages = [new_page("Einspeisung", "PV1", "UV1"), new_page("Zähler", "PV1", "UV1")]
-    path = tmp_path / "mld.pdf"
-    assert export_pdf(path, doc, doc.pages, OUT) == 2
-    assert pdf_pages(path) == [pytest.approx((297, 210), abs=0.5)] * 2
-    assert pdf_text_operators(path)  # designation and column numbers are text
+    pages = [new_page(CIRCUIT, "Einspeisung", "PV1", "UV1"), new_page(PARTS)]
+    width = schematic_title_width(*pages[0].size)
+    definition = schematic_title_block_definition(width)
+    doc.blocks[definition.name] = definition
+    for page in pages:
+        page.title_block = definition.name
+        doc.sheets.append(page)
+    path = tmp_path / "plan.pdf"
+    assert export_pdf(path, doc, pages, OUT) == 2
+    assert pdf_pages(path) == [pytest.approx((420, 297), abs=0.5)] * 2
+    assert pdf_text_operators(path)  # column numbers, title block and list are text

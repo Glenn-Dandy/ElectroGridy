@@ -62,69 +62,116 @@ def title_block_reference(
     )
 
 
-# -- column grid of pages (references like "/3.4": page 3, column 4) -----------
+# -- circuit diagram frame (Florian's template) ----------------------------------------
+# Margins 5 mm, top 15 mm (filing), a 5 mm band all round with the column numbers
+# 0 … n-1 (top and bottom) and row letters A … (left and right). References read
+# "/page.column".
+
+SCHEMATIC_TOP = 15.0
+SCHEMATIC_SIDE = 5.0
+BAND = 5.0
+ROW_HEIGHT = 44.5  # A3 landscape: six rows A … F
+BAND_TEXT = 2.5
+
+
+def schematic_outer(width: float, height: float) -> tuple[Point, Point]:
+    return Point(SCHEMATIC_SIDE, SCHEMATIC_TOP), Point(
+        width - SCHEMATIC_SIDE, height - SCHEMATIC_SIDE
+    )
+
+
+def schematic_inner(width: float, height: float) -> tuple[Point, Point]:
+    """Drawing area inside the numbered band."""
+    a, b = schematic_outer(width, height)
+    return Point(a.x + BAND, a.y + BAND), Point(b.x - BAND, b.y - BAND)
+
+
+def row_count(width: float, height: float) -> int:
+    a, b = schematic_inner(width, height)
+    return max(1, round((b.y - a.y) / ROW_HEIGHT))
 
 
 def column_edges(width: float, height: float, columns: int) -> list[float]:
-    """X positions of the column borders, ``columns + 1`` of them, inside the frame."""
-    a, b = frame_corners(width, height)
+    """X positions of the column borders, ``columns + 1`` of them."""
+    a, b = schematic_inner(width, height)
     step = (b.x - a.x) / columns
     return [a.x + i * step for i in range(columns + 1)]
 
 
-def column_at(width: float, height: float, columns: int, x: float) -> int:
-    """Column (1 … columns) a point at ``x`` lies in; outside the frame the nearest."""
+def column_at(width: float, height: float, columns: int, x: float) -> int | None:
+    """Column (0 … columns-1) a point at ``x`` lies in, the nearest outside the frame;
+    None without a column grid."""
     if columns <= 0:
-        return 0
+        return None
     edges = column_edges(width, height, columns)
     for i in range(columns):
         if x < edges[i + 1]:
-            return i + 1
-    return columns
+            return i
+    return columns - 1
 
 
-def column_strip_entities(width: float, height: float, columns: int) -> list[Entity]:
-    """Numbered strip along the top edge of the frame."""
-    if columns <= 0:
-        return []
-    a, _ = frame_corners(width, height)
-    edges = column_edges(width, height, columns)
-    bottom = a.y + COLUMN_STRIP
+def schematic_frame_entities(width: float, height: float, columns: int) -> list[Entity]:
+    """Outer and inner frame line, the band with column numbers and row letters."""
+    a, b = schematic_outer(width, height)
+    ia, ib = schematic_inner(width, height)
     out: list[Entity] = [
-        Line(id="cols", p1=Point(edges[0], bottom), p2=Point(edges[-1], bottom), lineweight=0.35)
+        Rectangle(id="outer", p1=a, p2=b, lineweight=0.5),
+        Rectangle(id="inner", p1=ia, p2=ib, lineweight=0.5),
     ]
-    for i in range(columns):
+    edges = column_edges(width, height, max(columns, 1))
+    n = max(columns, 1)
+    for i in range(n):
         if i:
+            for y0, y1 in ((a.y, ia.y), (ib.y, b.y)):
+                out.append(Line(id=f"c{i}_{y0}", p1=Point(edges[i], y0), p2=Point(edges[i], y1)))
+        cx = (edges[i] + edges[i + 1]) / 2
+        for y in (a.y + BAND / 2, ib.y + BAND / 2):
             out.append(
-                Line(
-                    id=f"col{i}",
-                    p1=Point(edges[i], a.y),
-                    p2=Point(edges[i], bottom),
-                    lineweight=0.35,
+                Text(
+                    id=f"cn{i}_{y}",
+                    position=Point(cx, y + BAND_TEXT / 2),
+                    text=str(i),
+                    height=BAND_TEXT,
+                    halign="center",
                 )
             )
-        out.append(
-            Text(
-                id=f"colnr{i}",
-                position=Point(
-                    (edges[i] + edges[i + 1]) / 2, bottom - (COLUMN_STRIP - COLUMN_TEXT) / 2
-                ),
-                text=str(i + 1),
-                height=COLUMN_TEXT,
-                halign="center",
+    rows = row_count(width, height)
+    step = (ib.y - ia.y) / rows
+    for j in range(rows):
+        top = ia.y + j * step
+        if j:
+            for x0, x1 in ((a.x, ia.x), (ib.x, b.x)):
+                out.append(Line(id=f"r{j}_{x0}", p1=Point(x0, top), p2=Point(x1, top)))
+        letter = chr(ord("A") + j) if j < 26 else str(j)
+        for x in (a.x + BAND / 2, ib.x + BAND / 2):
+            out.append(
+                Text(
+                    id=f"rn{j}_{x}",
+                    position=Point(x, top + step / 2 + BAND_TEXT / 2),
+                    text=letter,
+                    height=BAND_TEXT,
+                    halign="center",
+                )
             )
-        )
     return out
 
 
-def designation_text(width: float, height: float, label: str) -> Text:
-    """Page designation above the frame's top right corner."""
-    _, b = frame_corners(width, height)
-    a, _ = frame_corners(width, height)
-    return Text(
-        id="designation",
-        position=Point(b.x, a.y - 2.0),
-        text=label,
-        height=DESIGNATION_TEXT,
-        halign="right",
-    )
+def schematic_title_insert(width: float, height: float) -> Point:
+    """Bottom right corner of the drawing area: base point of the title block."""
+    return schematic_inner(width, height)[1]
+
+
+def schematic_title_width(width: float, height: float) -> float:
+    a, b = schematic_inner(width, height)
+    return round(b.x - a.x, 3)
+
+
+def schematic_viewport(width: float, height: float) -> Viewport:
+    """Viewport over the drawing area of the circuit diagram frame, above the title
+    block; model (0, 0) at its top left corner."""
+    from sldgridy.model.title_block import SCHEMATIC_TITLE_HEIGHT
+
+    a, b = schematic_inner(width, height)
+    b = Point(b.x, b.y - SCHEMATIC_TITLE_HEIGHT)
+    w, h = b.x - a.x, b.y - a.y
+    return Viewport(id=new_id(), p1=a, p2=b, center=Point(w / 2, h / 2), scale=1.0)

@@ -133,6 +133,8 @@ class Canvas(QGraphicsView):
         self.polar_increment = 15.0
         self._polar_ray: tuple[Point, float] | None = None
         self._preview_blocks: dict[tuple[Entity, float], QPicture] = {}
+        # The paper of the shown page (drawn as background, with the grid on it).
+        self.paper_item = None
         self._layer: QPixmap | None = None
         # Switched by Settings > Fast display (off until the user switches it on).
         self.layer_cache_enabled = False
@@ -640,6 +642,11 @@ class Canvas(QGraphicsView):
     def _end_initial_view(self) -> None:
         self._initial_view = None
 
+    def end_initial_view(self) -> None:
+        """A command chose the view (align, go to): keep it even if the window still
+        settles."""
+        self._initial_view = None
+
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         if self._initial_view is not None:
@@ -1018,7 +1025,15 @@ class Canvas(QGraphicsView):
 
     def drawBackground(self, painter: QPainter, rect: QRectF) -> None:
         painter.fillRect(rect, self.background_color)
-        if self._grid_visible:
+        paper = self.paper_item
+        if paper is not None:
+            paper.paint_paper(painter)
+            if self._grid_visible:
+                painter.save()
+                painter.setClipRect(paper.rect)
+                self._draw_grid(painter, rect.intersected(paper.rect))
+                painter.restore()
+        elif self._grid_visible:
             self._draw_grid(painter, rect)
         if self.show_origin:
             self._draw_origin(painter)

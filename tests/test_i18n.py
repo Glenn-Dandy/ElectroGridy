@@ -10,12 +10,25 @@ from sldgridy import i18n
 from sldgridy.fileio.files import load_library
 from sldgridy.fileio.paths import system_library_dir, system_template_dir
 from sldgridy.fileio.templates import load_frame
-from sldgridy.model.document import Document
-from sldgridy.model.title_block import FIELD_LABELS
+from sldgridy.model.document import PAGE_KINDS, Document
+from sldgridy.model.reports import COLUMNS, COVER_CAPTIONS
+from sldgridy.model.title_block import CAPTIONS, FIELD_LABELS
 
 SRC = pathlib.Path(__file__).parents[1] / "src" / "sldgridy"
 EN = i18n.load_table("en")
-EXTRA = {"von", "Z{row}/S{col}", "Zoll", "Fuß", *FIELD_LABELS.values()}
+# Texts kept in the model and translated through variables.
+MODEL_TEXTS = {
+    *FIELD_LABELS.values(),
+    *CAPTIONS.values(),
+    *PAGE_KINDS.values(),
+    *(caption for columns in COLUMNS.values() for caption, _ in columns),
+    *COVER_CAPTIONS,
+}
+EXTRA = {"von", "Z{row}/S{col}", "Zoll", "Fuß", *MODEL_TEXTS}
+
+
+def test_model_texts_are_translated():
+    assert sorted(t for t in MODEL_TEXTS if t not in EN) == []
 
 
 def source_texts() -> set[str]:

@@ -54,7 +54,16 @@ def test_drawing_on_sheet_goes_to_sheet(window):
     assert list(window.document.model_space) == []
 
 
-def test_new_duplicate_delete_sheet(window):
+def answer_new_page(window, monkeypatch, kind="drawing"):
+    from sldgridy.model.paper import Orientation
+    from sldgridy.ui.page_dialog import PageSpec
+
+    spec = PageSpec(kind, "", "", "", "A3", Orientation.LANDSCAPE, kind == "drawing")
+    monkeypatch.setattr(window.sheets, "_page_spec", lambda title, default, new: spec)
+
+
+def test_new_duplicate_delete_sheet(window, monkeypatch):
+    answer_new_page(window, monkeypatch)
     window.sheets.act_new.trigger()
     assert [s.name for s in window.document.sheets] == ["Blatt 1", "Blatt 2"]
     assert window.sheets.current_sheet().name == "Blatt 2"
@@ -134,7 +143,8 @@ def test_change_format_and_fields(window, monkeypatch):
     assert window.document.properties == {} and sheet.fields == {}
 
 
-def test_tab_move_reorders_sheets(window):
+def test_tab_move_reorders_sheets(window, monkeypatch):
+    answer_new_page(window, monkeypatch)
     window.sheets.act_new.trigger()
     names = [s.name for s in window.document.sheets]
     window.sheets._on_tab_moved(2, 1)
