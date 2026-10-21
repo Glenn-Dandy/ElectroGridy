@@ -91,6 +91,22 @@ jobs:
         run: |
           python packaging\windows\make_icon.py src\sldgridy\resources\icons\sldgridy.svg build\sldgridy.ico
           pyinstaller --noconfirm --windowed --name SLDGridy --icon build\sldgridy.ico --paths src --add-data "src\sldgridy\resources;sldgridy\resources" packaging\windows\sldgridy_main.py
+      - name: Start the built program
+        # Catches missing modules or files: the program must come up with its own
+        # window, not with an error message, and keep running.
+        run: |
+          foreach ($dir in "library", "templates", "symbols", "i18n", "fonts") {
+            if (-not (Test-Path "dist\SLDGridy\_internal\sldgridy\resources\$dir")) { throw "missing resources\$dir" }
+          }
+          $p = Start-Process dist\SLDGridy\SLDGridy.exe -PassThru
+          Start-Sleep -Seconds 20
+          $p.Refresh()
+          if ($p.HasExited) { throw "SLDGridy ended with exit code $($p.ExitCode)" }
+          $titles = (Get-Process -Id $p.Id).MainWindowTitle
+          Write-Output "Window: $titles"
+          Get-Content "$env:LOCALAPPDATA\sldgridy\crash.log" -ErrorAction SilentlyContinue
+          Stop-Process -Id $p.Id -Force
+          if ($titles -match "exception|error|fehler") { throw "error window: $titles" }
       - name: Build installer
         run: |
           $version = python -c "import sys; sys.path.insert(0, 'src'); import sldgridy; print(sldgridy.__version__)"
