@@ -147,8 +147,7 @@ def _shapes(curve) -> list[_Shape]:
 
     path = getattr(curve, "original_path", None)
     if not path:
-        # Older pdfminer (Ubuntu 24.04) keeps no path for rectangles drawn with "re".
-        return [_Shape([tuple(p) for p in curve.pts], isinstance(curve, LTRect), 0)]
+        return [_bare_shape(curve, isinstance(curve, LTRect))]
     shapes: list[_Shape] = []
     current: _Shape | None = None
     for op, *args in path:
@@ -173,6 +172,27 @@ def _shapes(curve) -> list[_Shape]:
         elif op == "h":
             current.closed = True
     return [s for s in shapes if len(s.points) >= 2]
+
+
+def _bare_shape(curve, rectangle: bool) -> _Shape:
+    """Older pdfminer (Ubuntu 24.04) keeps only the end points of a path. A closed
+    path through the four quarter points of its box is taken as a circle."""
+    pts = [tuple(p) for p in curve.pts]
+    closed = rectangle or (len(pts) > 3 and math.dist(pts[0], pts[-1]) < 1e-6)
+    ring = pts[:-1] if len(pts) > 1 and math.dist(pts[0], pts[-1]) < 1e-6 else pts
+    if not rectangle and len(ring) == 4:
+        xs, ys = [p[0] for p in ring], [p[1] for p in ring]
+        cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+        r = (max(xs) - min(xs)) / 2
+        quarters = {(round(cx + r, 3), round(cy, 3)), (round(cx - r, 3), round(cy, 3))}
+        quarters |= {(round(cx, 3), round(cy + r, 3)), (round(cx, 3), round(cy - r, 3))}
+        if r > 0 and {(round(x, 3), round(y, 3)) for x, y in ring} == quarters:
+            circle = [
+                (cx + r * math.cos(t * math.pi / 16), cy + r * math.sin(t * math.pi / 16))
+                for t in range(33)
+            ]
+            return _Shape(circle, True, 4)
+    return _Shape(pts, closed, 0)
 
 
 def _circle(shape: _Shape) -> tuple[tuple[float, float], float] | None:
