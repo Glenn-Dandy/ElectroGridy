@@ -32,12 +32,12 @@ from sldgridy.ui.main_window import MainWindow
 
 
 def doc_with_pages() -> Document:
-    """Blatt 1 (old drawing sheet), then three circuit diagram pages."""
+    """Blatt 1 (old drawing sheet), then three circuit diagram pages (A3)."""
     doc = Document.new("Blatt 1", kind=DOC_PROJECT)
     doc.sheets += [
-        new_page(CIRCUIT, "Einspeisung", "PV1", "UV1"),
-        new_page(CIRCUIT, "Zähler", "PV1", "UV1"),
-        new_page(CIRCUIT, "Wechselrichter", "PV1", "WR"),
+        new_page(CIRCUIT, "Einspeisung", "PV1", "UV1", paper="A3"),
+        new_page(CIRCUIT, "Zähler", "PV1", "UV1", paper="A3"),
+        new_page(CIRCUIT, "Wechselrichter", "PV1", "WR", paper="A3"),
     ]
     return doc
 
@@ -340,7 +340,10 @@ def wired_doc() -> Document:
     from sldgridy.model.entities import InterruptionPoint, Wire
 
     doc = Document.new("Blatt 1", kind=DOC_PROJECT)
-    doc.sheets += [new_page(CIRCUIT, "Einspeisung", "PV1"), new_page(CIRCUIT, "Abgang", "PV1")]
+    doc.sheets += [
+        new_page(CIRCUIT, "Einspeisung", "PV1", paper="A3"),
+        new_page(CIRCUIT, "Abgang", "PV1", paper="A3"),
+    ]
     doc.blocks["LS"] = block("LS", "main", terminals=("1", "2"))
     doc.blocks["Klemme"] = block("Klemme", "terminal", terminals=("1", "2"))
     doc.blocks["Motor"] = block("Motor", "main", terminals=("U",))
@@ -474,3 +477,19 @@ def test_rail_ends_refer_to_the_neighbouring_pages():
     alone.sheets[1].entities.add(ip("x", "N", 25, 30, 180))
     alone.sheets[1].entities.add(ip("y", "N", 390, 30, 0))
     assert interruption_targets(alone) == {}  # one rail on one page
+
+
+def test_new_project_is_a4_and_the_cover_fits():
+    from sldgridy.model.entities import Text
+    from sldgridy.model.paper import Orientation
+    from sldgridy.model.reports import cover_entities
+    from sldgridy.model.title_block import SCHEMATIC_TITLE_HEIGHT
+
+    doc = Document.new_project()
+    cover, page = doc.sheets
+    assert (page.paper, page.orientation) == ("A4", Orientation.LANDSCAPE)
+    assert row_count(*page.size) == 4
+    doc.properties.update({"ADRESSE": "Weg 1, 99087 Erfurt, Haus 2", "FIRMA": "FS"})
+    _a, b = schematic_inner(*cover.size)
+    texts = [e for e in cover_entities(doc, cover) if isinstance(e, Text)]
+    assert max(t.position.y for t in texts) < b.y - SCHEMATIC_TITLE_HEIGHT

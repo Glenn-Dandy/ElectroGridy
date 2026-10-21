@@ -137,7 +137,13 @@ from sldgridy.ui.start_dialog import StartDialog
 from sldgridy.ui.styles import MIXED, HeightCombo
 from sldgridy.ui.text_dialog import TextDialog
 from sldgridy.view.canvas import BACKGROUND_COLOR, EMPTY_EXTENTS, Canvas, select_items
-from sldgridy.view.display import crossrefs_of, interruption_targets_of, title_labels
+from sldgridy.view.display import (
+    crossrefs_of,
+    interruption_targets_of,
+    terminal_labels_of,
+    terminal_texts,
+    title_labels,
+)
 from sldgridy.view.items import EntityItem
 from sldgridy.view.junctions import JunctionItem
 from sldgridy.view.render import Style
@@ -995,6 +1001,9 @@ class MainWindow(QMainWindow):
                 parts = expand(entity, definitions)
             except BlockError:
                 return []
+            label = terminal_labels_of(self.document).get(entity.id)
+            if label is not None:
+                parts = terminal_texts(definitions, entity, parts, label)
             xref = self.crossref_lines().get(entity.id)
             if xref:
                 parts = parts + crossref_texts(entity, definitions, xref)

@@ -219,7 +219,7 @@ def test_line_widths_in_a_viewport_are_paper_widths(qapp, monkeypatch):
     assert seen == [pytest.approx(25.0)]
 
 
-def test_pdf_of_circuit_diagram_pages_is_a3_landscape(qapp, tmp_path):
+def test_pdf_of_circuit_diagram_pages_is_a4_landscape(qapp, tmp_path):
     from sldgridy.model.document import CIRCUIT, PARTS, new_page
     from sldgridy.model.sheet import schematic_title_width
     from sldgridy.model.title_block import schematic_title_block_definition
@@ -234,5 +234,5 @@ def test_pdf_of_circuit_diagram_pages_is_a3_landscape(qapp, tmp_path):
         doc.sheets.append(page)
     path = tmp_path / "plan.pdf"
     assert export_pdf(path, doc, pages, OUT) == 2
-    assert pdf_pages(path) == [pytest.approx((420, 297), abs=0.5)] * 2
+    assert pdf_pages(path) == [pytest.approx((297, 210), abs=0.5)] * 2
     assert pdf_text_operators(path)  # column numbers, title block and list are text

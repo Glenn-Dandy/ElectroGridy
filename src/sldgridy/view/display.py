@@ -3,12 +3,13 @@
 Shared by the scene items on screen and by printing and export.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
 from PyQt6.QtCore import QCoreApplication, QPointF, QRectF, Qt
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 
-from sldgridy.model.blocks import BlockError, expand
+from sldgridy.model.blocks import BlockDefinition, BlockError, bounds, expand
 from sldgridy.model.devices import crossref_texts, crossrefs
 from sldgridy.model.dimensions import dimension_geometry
 from sldgridy.model.document import (
@@ -23,9 +24,11 @@ from sldgridy.model.entities import (
     Dimension,
     Entity,
     InterruptionPoint,
+    Text,
     Viewport,
     Wire,
 )
+from sldgridy.model.geometry import Point
 from sldgridy.model.interruptions import interruption_geometry, interruption_targets
 from sldgridy.model.reports import generated_entities, report_rows
 from sldgridy.model.sheet import (
@@ -34,6 +37,7 @@ from sldgridy.model.sheet import (
     schematic_title_insert,
     title_block_reference,
 )
+from sldgridy.model.terminals import row_labels, terminal_center
 from sldgridy.model.title_block import CAPTIONS, FIELD_LABELS
 from sldgridy.model.wires import junction_diameter, junctions, label_text
 from sldgridy.view.render import Style, entity_bounds, make_pen, paint_entity
@@ -120,6 +124,59 @@ def crossrefs_of(doc: Document) -> dict[str, list[str]]:
     return cache["xrefs"]
 
 
+def terminal_labels_of(doc: Document) -> dict[str, tuple[str, str]]:
+    cache = page_cache(doc)
+    if "terminals" not in cache:
+        labels: dict[str, tuple[str, str]] = {}
+        for container in (doc.model_space, *(s.entities for s in doc.sheets)):
+            labels.update(row_labels(container, doc.blocks))
+        cache["terminals"] = labels
+    return cache["terminals"]
+
+
+TERMINAL_TEXT_GAP = 0.6  # mm between the terminal circle and its texts (poles 5 mm apart)
+
+
+def terminal_texts(
+    blocks: Mapping[str, BlockDefinition],
+    ref: BlockReference,
+    parts: list[Entity],
+    label: tuple[str, str],
+) -> list[Entity]:
+    """``parts`` with the BMK text replaced by the row label: the strip left of the
+    terminal, the number right of it, both horizontal."""
+    definition = blocks.get(ref.name)
+    if definition is None:
+        return parts
+    tags = {a.id for a in definition.attribute_definitions() if a.tag == "BMK"}
+    height = next((a.height for a in definition.attribute_definitions() if a.tag == "BMK"), 1.8)
+    kept = [q for q in parts if not (isinstance(q, Text) and q.id.split("~")[0] in tags)]
+    place = terminal_center(ref, blocks)
+    box = bounds(q for q in kept if not isinstance(q, Text))
+    if place is None or box is None:
+        return parts
+    center = place[0]
+    strip, number = label
+    style = {"layer": ref.layer, "color": ref.color}
+    for text, x, align in (
+        (strip, box[0] - TERMINAL_TEXT_GAP, "right"),
+        (number, box[2] + TERMINAL_TEXT_GAP, "left"),
+    ):
+        if text:
+            kept.append(
+                Text(
+                    id=f"{ref.id}:row{align}",
+                    position=Point(x, center.y),
+                    text=text,
+                    height=height,
+                    halign=align,
+                    valign="middle",
+                    **style,
+                )
+            )
+    return kept
+
+
 def report_rows_of(doc: Document, kind: str) -> list[list[str]]:
     cache = page_cache(doc)
     key = ("rows", kind)
@@ -152,6 +209,9 @@ def expand_for_display(doc: Document, e: Entity) -> list[Entity]:
             parts = expand(e, doc.blocks)
         except BlockError:
             return []
+        label = terminal_labels_of(doc).get(e.id)
+        if label is not None:
+            parts = terminal_texts(doc.blocks, e, parts, label)
         lines = crossrefs_of(doc).get(e.id)
         if lines:
             parts = parts + crossref_texts(e, doc.blocks, lines)

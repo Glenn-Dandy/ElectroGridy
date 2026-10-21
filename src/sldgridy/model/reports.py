@@ -33,6 +33,7 @@ TEXT = 2.5
 ROW = 5.0
 TITLE = 7.0
 MARGIN = 5.0
+COVER_HEIGHT = 267.0  # drawing area height of A3 landscape, the cover's design size
 OVERFLOW_COLOR = "#c62828"
 
 # Columns of the lists: caption and share of the table width.
@@ -293,44 +294,47 @@ COVER_CAPTIONS = (
 
 
 def cover_entities(doc: Document, page: SheetLayout, tr: Translate = str) -> list[Entity]:
-    """Cover page from the project data, laid out like a usual circuit diagram cover."""
+    """Cover page from the project data, laid out like a usual circuit diagram cover;
+    laid out for A3 landscape and scaled down on smaller pages (A4)."""
     w, h = page.size
     a, b = schematic_inner(w, h)
+    k = min(1.0, (b.y - a.y) / COVER_HEIGHT)
     p = doc.properties
-    left = a.x + 20
-    value_x = left + 85
+    left = a.x + 20 * k
+    value_x = left + 85 * k
+    big, normal = 10.0 * k, 5.0 * k
     out: list[Entity] = []
-    y = a.y + 30
+    y = a.y + 30 * k
     title = p.get("PROJEKT", "") or tr("Schaltplan")
-    out.append(_text(left, y, title, 10.0))
-    y += 18
-    out.append(_line(left - 10, y, b.x - 20, y, 0.5))
-    y += 14
+    out.append(_text(left, y, title, big))
+    y += 18 * k
+    out.append(_line(left - 10 * k, y, b.x - 20 * k, y, 0.5))
+    y += 14 * k
     for caption, value in (
         ("Kunde", p.get("KUNDE", "")),
         ("Auftragsnummer", p.get("AUFTRAG", "")),
         ("Anlagenbezeichnung", ", ".join(v for v in (p.get("ANLAGE"), p.get("ORT")) if v)),
     ):
-        out.append(_text(left, y, tr(caption) + ":", 5.0))
-        out.append(_text(value_x, y, value, 5.0))
-        y += 11
-    y += 3
-    out.append(_line(left - 10, y, b.x - 20, y, 0.5))
-    y += 14
+        out.append(_text(left, y, tr(caption) + ":", normal))
+        out.append(_text(value_x, y, value, normal))
+        y += 11 * k
+    y += 3 * k
+    out.append(_line(left - 10 * k, y, b.x - 20 * k, y, 0.5))
+    y += 14 * k
     address = [part.strip() for part in p.get("ADRESSE", "").split(",") if part.strip()]
-    out.append(_text(left, y, tr("Hersteller (Firma)") + ":", 5.0))
+    out.append(_text(left, y, tr("Hersteller (Firma)") + ":", normal))
     for i, value in enumerate([p.get("FIRMA", ""), *address]):
-        out.append(_text(value_x, y + i * 7, value, 5.0))
-    y += 7 * max(len(address) + 1, 1) + 8
+        out.append(_text(value_x, y + i * 7 * k, value, normal))
+    y += (7 * max(len(address) + 1, 1) + 8) * k
     for caption, value in (
         ("Schaltplanersteller", p.get("BEARBEITER", "")),
         ("Schaltplan Nr.", p.get("SCHALTPLANNR", "")),
         ("Baujahr", p.get("BAUJAHR", "")),
         ("Anzahl der Seiten", str(len(doc.sheets))),
     ):
-        out.append(_text(left, y, tr(caption) + ":", 5.0))
-        out.append(_text(value_x, y, value, 5.0))
-        y += 9
+        out.append(_text(left, y, tr(caption) + ":", normal))
+        out.append(_text(value_x, y, value, normal))
+        y += 9 * k
     return out
 
 

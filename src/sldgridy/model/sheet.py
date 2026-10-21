@@ -70,7 +70,7 @@ def title_block_reference(
 SCHEMATIC_TOP = 15.0
 SCHEMATIC_SIDE = 5.0
 BAND = 5.0
-ROW_HEIGHT = 44.5  # A3 landscape: six rows A … F
+ROW_HEIGHT = 44.5  # A4 landscape: four rows A … D, A3 landscape: six
 BAND_TEXT = 2.5
 
 

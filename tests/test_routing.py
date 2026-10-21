@@ -85,3 +85,94 @@ def test_connect_wires_all_poles_without_crossings():
     assert lanes[0] > lanes[1] > lanes[2]
     straight = connect(pins, start, pin_at(pins, P(20, 40)))
     assert len(straight) == 3
+
+
+def test_rail_arrows_point_the_way_the_conductor_flows():
+    from sldgridy.model.entities import InterruptionPoint, Line
+    from sldgridy.model.interruptions import interruption_geometry
+
+    def head(direction):
+        parts = interruption_geometry(
+            InterruptionPoint(id="i", name="L1", position=P(100, 50), direction=direction), None
+        )
+        wings = [e for e in parts if isinstance(e, Line) and "wing" in e.id]
+        return wings[0].p1, {(round(w.p2.x - w.p1.x, 3)) for w in wings}
+
+    # Right end: head at the tip beyond the conductor end, wings back to the left.
+    tip, dx = head(0)
+    assert tip == P(102.5, 50) and dx == {-1.768}
+    # Left end (coming from the previous page): head on the conductor end, pointing
+    # right as well.
+    tip, dx = head(180)
+    assert tip == P(100, 50) and dx == {-1.768}
+
+
+def terminal_block():
+    from sldgridy.model.entities import AttributeDefinition, Circle
+
+    return BlockDefinition(
+        name="Klemme",
+        function="terminal",
+        entities=(
+            Circle(id="c", center=P(0, 2.5), radius=1.0),
+            ConnectionPoint(id="a", name="1", position=P(0, 0), direction=90),
+            ConnectionPoint(id="b", name="2", position=P(0, 5), direction=270),
+            AttributeDefinition(id="att_bmk", tag="BMK", default="-X1:1", position=P(2.25, 2.5)),
+        ),
+    )
+
+
+def terminal(ref_id, bmk, x, y, rotation=0):
+    return BlockReference(
+        id=ref_id,
+        name="Klemme",
+        insert=P(x, y),
+        rotation=rotation,
+        attributes=(("BMK", bmk),),
+    )
+
+
+def test_terminals_on_one_line_are_labelled_as_a_row():
+    from sldgridy.model.terminals import row_labels
+
+    blocks = {"Klemme": terminal_block()}
+    entities = [
+        terminal("c", "-X1:3", 10, 50),
+        terminal("a", "-X1:1", 0, 50),
+        terminal("b", "-X1:2", 5, 50),
+        terminal("far", "-X1:4", 40, 50),  # same line, but further away
+        terminal("low", "-X1:5", 0, 80),  # another line
+        terminal("x2", "-X2:1", 15, 50),  # another strip
+        terminal("turned", "-X1:6", 0, 100, rotation=90),  # in a horizontal wire
+    ]
+    labels = row_labels(entities, blocks)
+    assert labels["a"] == ("-X1", "1")
+    assert labels["b"] == ("", "2") and labels["c"] == ("", "3")
+    assert labels["far"] == ("-X1", "4")
+    assert labels["low"] == ("-X1", "5")
+    assert labels["x2"] == ("-X2", "1")
+    assert "turned" not in labels
+
+
+def test_terminal_row_texts_replace_the_bmk(qapp):
+    from sldgridy.model.document import DOC_PROJECT, Document
+    from sldgridy.model.entities import Text
+    from sldgridy.view.display import expand_for_display
+
+    doc = Document.new_project()
+    doc.blocks["Klemme"] = terminal_block()
+    page = doc.sheets[1]
+    first, second = terminal("a", "-X1:1", 50, 50), terminal("b", "-X1:2", 55, 50)
+    page.entities.add(first)
+    page.entities.add(second)
+    assert doc.kind == DOC_PROJECT
+
+    def texts(ref):
+        return [
+            (e.text, e.halign, e.position.x)
+            for e in expand_for_display(doc, ref)
+            if isinstance(e, Text)
+        ]
+
+    assert texts(first) == [("-X1", "right", 48.4), ("1", "left", 51.6)]
+    assert texts(second) == [("2", "left", 56.6)]

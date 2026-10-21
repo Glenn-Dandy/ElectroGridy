@@ -6,6 +6,10 @@ over several pages) each end refers to the neighbouring page it runs to. The two
 of a rail on one page (left end pointing left, right end pointing right) refer to
 nothing until the rail continues elsewhere. The reference
 reads "/3.4" (page 3, column 4).
+
+The arrow always shows the way the conductor flows through the project: at a point
+leading on (right, down) it points out of the page, at a point coming from a previous
+page (left, up) it points into the page, so both ends of a rail point right.
 """
 
 import math
@@ -114,17 +118,20 @@ def unpaired_names(doc: Document) -> list[str]:
 
 
 def interruption_geometry(p: InterruptionPoint, ref: str | None) -> list[Entity]:
-    """Arrow pointing the way the conductor runs on, name and (if paired) reference."""
+    """Arrow on the stem leading out of the conductor end, name and (if paired)
+    reference beyond it. The arrow head points the way the conductor flows: outwards
+    where it leads on, back onto the conductor end where it comes from a previous page."""
     h = p.height
     a = math.radians(p.direction)
     ux, uy = math.cos(a), -math.sin(a)
     style = {"layer": p.layer, "color": p.color, "lineweight": p.lineweight}
     tip = Point(p.position.x + ux * ARROW * h, p.position.y + uy * ARROW * h)
     parts: list[Entity] = [Line(id=f"{p.id}:stem", p1=p.position, p2=tip, linetype=None, **style)]
+    head, pointing = (tip, p.direction) if _forward(p) else (p.position, p.direction + 180.0)
     for k, turn in enumerate((135.0, -135.0)):
-        r = math.radians(p.direction + turn)
-        wing = Point(tip.x + math.cos(r) * ARROW * h, tip.y - math.sin(r) * ARROW * h)
-        parts.append(Line(id=f"{p.id}:wing{k}", p1=tip, p2=wing, linetype=None, **style))
+        r = math.radians(pointing + turn)
+        wing = Point(head.x + math.cos(r) * ARROW * h, head.y - math.sin(r) * ARROW * h)
+        parts.append(Line(id=f"{p.id}:wing{k}", p1=head, p2=wing, linetype=None, **style))
     # One horizontal line of text (conductors lie 5 mm apart): name and reference,
     # beyond the tip of a horizontal arrow, right of a vertical one.
     if abs(ux) >= abs(uy):

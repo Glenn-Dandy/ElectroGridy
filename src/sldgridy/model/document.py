@@ -63,7 +63,7 @@ class SheetLayout:
         return [e for e in self.entities if isinstance(e, Viewport)]
 
 
-PAGE_FORMAT = "A3"
+PAGE_FORMAT = "A4"  # prints 1:1 on any office printer
 PAGE_COLUMNS = 10
 SCHEMATIC_FRAME = "schematic"
 
@@ -180,7 +180,7 @@ class Document:
     def new_project(
         cls, title_definition: Callable[[float], BlockDefinition] | None = None
     ) -> "Document":
-        """Empty circuit diagram project: a cover and a first circuit diagram page, A3,
+        """Empty circuit diagram project: a cover and a first circuit diagram page, A4,
         each with the circuit diagram title block (``title_definition`` makes it for a
         width, translated by the caller)."""
         make = title_definition or schematic_title_block_definition
