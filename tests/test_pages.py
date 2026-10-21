@@ -7,6 +7,7 @@ from sldgridy.fileio.json_format import (
     document_from_dict,
     document_to_dict,
 )
+from sldgridy.model.blocks import BlockDefinition
 from sldgridy.model.document import (
     CABLES,
     CIRCUIT,
@@ -17,7 +18,7 @@ from sldgridy.model.document import (
     Document,
     new_page,
 )
-from sldgridy.model.entities import Line
+from sldgridy.model.entities import AttributeDefinition, BlockReference, Line
 from sldgridy.model.geometry import Point
 from sldgridy.model.sheet import (
     column_at,
@@ -434,3 +435,23 @@ def test_complete_pages_and_csv(window, tmp_path):
     with (tmp_path / "kabelliste.csv").open(encoding="utf-8-sig") as f:
         rows = list(csv.reader(f, delimiter=";"))
     assert rows[0][0] == "Kabel" and rows[1][:3] == ["-W1", "NYY-J 3x2,5", "1"]
+
+
+def test_suggest_bmk_counts_up_and_contacts_take_the_last():
+    from sldgridy.model.devices import suggest_bmk
+
+    doc = Document()
+    assert suggest_bmk(doc, "-Q1") == "-Q1"
+    doc.blocks["S"] = BlockDefinition(
+        name="S",
+        entities=(AttributeDefinition(id="a", tag="BMK", default="-Q1", position=Point(0, 0)),),
+    )
+    for i, bmk in enumerate(("-Q1", "-Q3", "-X1:1", "-X1:2", "-X10:7")):
+        doc.model_space.add(
+            BlockReference(id=f"r{i}", name="S", insert=Point(0, 0), attributes=(("BMK", bmk),))
+        )
+    assert suggest_bmk(doc, "-Q1") == "-Q4"
+    assert suggest_bmk(doc, "-Q1", "aux") == "-Q3"
+    assert suggest_bmk(doc, "-X1:1") == "-X1:3"
+    assert suggest_bmk(doc, "-X1:PE") == "-X1:PE"
+    assert suggest_bmk(doc, "-K1") == "-K1"

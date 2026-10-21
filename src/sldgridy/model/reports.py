@@ -128,8 +128,13 @@ def _targets(nl: Netlist, pin: Pin) -> str:
     net = nl.net_of_pin(pin.entity_id, pin.name)
     if net is None:
         return ""
+    # A terminal's tag already names the point (-X1:3); its pins add nothing.
     others = sorted(
-        {f"{p.bmk}:{p.name}" for p in nl.pins_of_net(net) if p.entity_id != pin.entity_id},
+        {
+            p.bmk if ":" in p.bmk else f"{p.bmk}:{p.name}"
+            for p in nl.pins_of_net(net)
+            if p.entity_id != pin.entity_id
+        },
         key=_natural,
     )
     return ", ".join(others)

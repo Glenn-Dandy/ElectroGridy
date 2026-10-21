@@ -176,6 +176,28 @@ def problems(doc: Document) -> dict[str, list[str]]:
     return found
 
 
+_NUMBERED = re.compile(r"^(.*?)(\d+)$")
+
+
+def suggest_bmk(doc: Document, default: str, function: str = "") -> str:
+    """BMK proposed when a symbol is placed: the next free number after the ones used
+    (-Q2 after -Q1, terminal -X1:4 after -X1:3). A contact (aux) belongs to a coil that
+    is already there, so it gets the last number used. Defaults without a trailing
+    number (-X1:PE) stay as they are."""
+    match = _NUMBERED.match(default.strip())
+    if match is None:
+        return default
+    prefix = match.group(1)
+    used = []
+    for occ in occurrences(doc):
+        found = _NUMBERED.match(occ.bmk)
+        if found is not None and found.group(1) == prefix:
+            used.append(int(found.group(2)))
+    if not used:
+        return default
+    return f"{prefix}{max(used) if function == 'aux' else max(used) + 1}"
+
+
 def renamed(ref: BlockReference, bmk: str) -> BlockReference:
     attributes = dict(ref.attributes)
     attributes[BMK] = bmk

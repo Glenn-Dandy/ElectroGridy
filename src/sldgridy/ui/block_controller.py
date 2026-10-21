@@ -57,6 +57,7 @@ from sldgridy.model.blocks import (
     would_create_cycle,
 )
 from sldgridy.model.container import EntityContainer
+from sldgridy.model.devices import BMK, suggest_bmk
 from sldgridy.model.entities import (
     AttributeDefinition,
     BlockReference,
@@ -397,7 +398,11 @@ class BlockController(QObject):
             definition = blocks[ref.name]
             attdefs = definition.attribute_definitions()
             if attdefs:
-                dialog = AttributeValuesDialog(ref.name, attdefs, dict(ref.attributes), self.w)
+                values = dict(ref.attributes)
+                bmk = next((d for d in attdefs if d.tag == BMK), None)
+                if bmk is not None and not values.get(BMK):
+                    values[BMK] = suggest_bmk(self.doc, bmk.default, definition.function)
+                dialog = AttributeValuesDialog(ref.name, attdefs, values, self.w)
                 if dialog.exec() != AttributeValuesDialog.DialogCode.Accepted:
                     return
                 ref = replace(ref, attributes=tuple(sorted(dialog.values().items())))
