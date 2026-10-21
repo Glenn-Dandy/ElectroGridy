@@ -13,6 +13,7 @@ from sldgridy.model.entities import (
     Entity,
     Line,
     Polyline,
+    RasterImage,
     Rectangle,
     Text,
 )
@@ -162,7 +163,7 @@ def bounds(entities: Iterable[Entity]) -> tuple[float, float, float, float] | No
             pts = [e.p1, e.p2]
         elif isinstance(e, Polyline):
             pts = list(e.points)
-        elif isinstance(e, Rectangle):
+        elif isinstance(e, Rectangle | RasterImage):
             pts = [e.p1, e.p2]
         elif isinstance(e, Circle | Arc):
             r = e.radius

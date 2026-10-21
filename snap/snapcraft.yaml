@@ -52,6 +52,9 @@ parts:
       - python3-pyqt6
       - python3-pyqt6.qtsvg
       - libqt6svg6
+      - python3-pyqt6.qtpdf
+      - libqt6pdf6
+      - python3-pdfminer
       - qt6-wayland
       - qt6-qpa-plugins
       - libxcb-icccm4

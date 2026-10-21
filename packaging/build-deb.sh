@@ -68,7 +68,7 @@ Section: graphics
 Priority: optional
 Maintainer: Glenn-Dandy <kewl0@arcor.de>
 Installed-Size: $INSTALLED_SIZE
-Depends: python3 (>= 3.12), python3-pyqt6, python3-pyqt6.qtsvg
+Depends: python3 (>= 3.12), python3-pyqt6, python3-pyqt6.qtsvg, python3-pyqt6.qtpdf, python3-pdfminer
 Homepage: https://github.com/Glenn-Dandy/SLDGridy
 Description: CAD-style editor for single-line electrical diagrams
  SLDGridy draws single-line diagrams for photovoltaic systems,

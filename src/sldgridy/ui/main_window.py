@@ -479,6 +479,15 @@ class MainWindow(QMainWindow):
         self.act_save = self._action(self.tr("&Speichern"), self.save, sk.Save)
         self.act_save_as = self._action(self.tr("Speichern &unter …"), self.save_as, "Ctrl+Shift+S")
         self.act_quit = self._action(self.tr("&Beenden"), self.close, sk.Quit)
+        self.act_import_drawing = self._action(
+            self.tr("Schaltplan &importieren (PDF, Bild) …"), self.import_drawing
+        )
+        self.act_import_drawing.setToolTip(
+            self.tr(
+                "Seite wählen, Bereich markieren: als Linien und Texte (CAD-PDF), als Bild "
+                "oder vom Bild in Linien umgewandelt"
+            )
+        )
         self.act_print = self._action(self.tr("&Drucken …"), self.print_document, sk.Print)
         self.act_export_pdf = self._action(self.tr("&PDF …"), lambda: self.export(PDF))
         self.act_export_svg = self._action(self.tr("&SVG …"), lambda: self.export(SVG))
@@ -673,6 +682,8 @@ class MainWindow(QMainWindow):
         self.recent_menu = m.addMenu(self.tr("&Zuletzt geöffnet"))
         self.recent_menu.aboutToShow.connect(self._fill_recent_menu)
         m.addActions([self.act_save, self.act_save_as])
+        m.addSeparator()
+        m.addAction(self.act_import_drawing)
         m.addSeparator()
         m.addAction(self.act_print)
         export = m.addMenu(self.tr("&Exportieren"))
@@ -1568,6 +1579,48 @@ class MainWindow(QMainWindow):
             for e in entities
         ]
         self.start_tool(lambda ctx: PasteTool(ctx, entities, base))
+
+    def import_drawing(self, path: Path | None = None) -> None:
+        """A PDF page or a picture, or a region of it, placed with a click."""
+        from sldgridy.ui.picture_import import PICTURE_SUFFIXES, ImportDialog, pdf_available
+
+        if path is None:
+            patterns = " ".join(f"*{s}" for s in (".pdf", *PICTURE_SUFFIXES))
+            chosen, _ = QFileDialog.getOpenFileName(
+                self,
+                self.tr("Schaltplan importieren"),
+                self.last_dir(),
+                self.tr("PDF und Bilder ({patterns})").format(patterns=patterns),
+            )
+            if not chosen:
+                return
+            path = Path(chosen)
+        self.remember_dir(path)
+        if path.suffix.lower() == ".pdf" and not pdf_available():
+            QMessageBox.warning(
+                self,
+                self.tr("Schaltplan importieren"),
+                self.tr("Für PDF-Dateien fehlt das Paket python3-pyqt6.qtpdf."),
+            )
+            return
+        dialog = ImportDialog(path, self)
+        if not dialog.readable():
+            QMessageBox.warning(
+                self,
+                self.tr("Schaltplan importieren"),
+                self.tr("Die Datei konnte nicht gelesen werden."),
+            )
+            return
+        if dialog.exec() != ImportDialog.DialogCode.Accepted:
+            return
+        entities = dialog.entities()
+        if not entities:
+            self.message(self.tr("Im markierten Bereich wurde nichts gefunden"))
+            return
+        layer = self.current_layer
+        entities = [replace(e, layer=layer) for e in entities]
+        self.message(self.tr("{n} Objekte: linke obere Ecke setzen").format(n=len(entities)))
+        self.start_tool(lambda ctx: PasteTool(ctx, entities, Point(0, 0)))
 
     def _on_clean_changed(self, clean: bool) -> None:
         self.setWindowModified(not clean)

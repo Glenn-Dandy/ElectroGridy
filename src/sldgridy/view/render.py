@@ -10,6 +10,7 @@ from PyQt6.QtGui import (
     QFont,
     QFontDatabase,
     QFontMetricsF,
+    QImage,
     QPainter,
     QPainterPath,
     QPen,
@@ -27,6 +28,7 @@ from sldgridy.model.entities import (
     JunctionMark,
     Line,
     Polyline,
+    RasterImage,
     Rectangle,
     Text,
     Wire,
@@ -97,7 +99,7 @@ def entity_path(e: Entity) -> QPainterPath:
                 path.lineTo(qpt(p))
             if e.closed:
                 path.closeSubpath()
-        case Rectangle():
+        case Rectangle() | RasterImage():
             path.addRect(QRectF(qpt(e.p1), qpt(e.p2)).normalized())
         case Circle():
             path.addEllipse(qpt(e.center), e.radius, e.radius)
@@ -258,6 +260,27 @@ def connection_marker_path(c: ConnectionPoint) -> QPainterPath:
     return path
 
 
+@functools.lru_cache(maxsize=32)
+def decoded_image(data: bytes) -> QImage:
+    return QImage.fromData(data)
+
+
+def _paint_image(painter: QPainter, e: RasterImage) -> None:
+    """The picture in its rectangle: content mirrored first, then turned."""
+    image = decoded_image(e.data)
+    rect = QRectF(qpt(e.p1), qpt(e.p2)).normalized()
+    upright = e.rotation % 2 == 0
+    w, h = (rect.width(), rect.height()) if upright else (rect.height(), rect.width())
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+    painter.translate(rect.center())
+    painter.rotate(-90.0 * e.rotation)
+    if e.flipped:
+        painter.scale(-1.0, 1.0)
+    painter.drawImage(QRectF(-w / 2, -h / 2, w, h), image)
+    painter.restore()
+
+
 def paint_entity(
     painter: QPainter, e: Entity, style: Style, px_per_mm: float, helpers: bool = True
 ) -> None:
@@ -283,6 +306,9 @@ def paint_entity(
     if isinstance(e, Text):
         if px_per_mm <= 0 or e.height * px_per_mm >= MIN_SCREEN_TEXT_PX:
             _paint_text(painter, e, style.color)
+        return
+    if isinstance(e, RasterImage):
+        _paint_image(painter, e)
         return
     painter.setPen(make_pen(style.color, style.lineweight, px_per_mm, style.linetype))
     painter.setBrush(Qt.BrushStyle.NoBrush)

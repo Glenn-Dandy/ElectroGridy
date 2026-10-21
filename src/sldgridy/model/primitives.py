@@ -10,6 +10,7 @@ from sldgridy.model.entities import (
     Entity,
     Line,
     Polyline,
+    RasterImage,
     Rectangle,
     Viewport,
     Wire,
@@ -43,7 +44,7 @@ class ArcPrim:
 Primitive = Segment | ArcPrim
 
 
-def rect_corners(r: Rectangle | Viewport) -> list[Point]:
+def rect_corners(r: Rectangle | Viewport | RasterImage) -> list[Point]:
     return [r.p1, Point(r.p2.x, r.p1.y), r.p2, Point(r.p1.x, r.p2.y)]
 
 

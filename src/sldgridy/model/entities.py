@@ -2,7 +2,7 @@
 
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Self
 
 from sldgridy.model.geometry import Point, mirror_point, rotate_quarter
@@ -287,6 +287,37 @@ class Busbar(Entity):
 
     def _mapped(self, fn, quarters):
         return replace(self, p1=fn(self.p1), p2=fn(self.p2))
+
+
+@dataclass(frozen=True, kw_only=True)
+class RasterImage(Entity):
+    """A picture (photo, scan, rendered PDF page) filling the rectangle between the
+    corners ``p1`` and ``p2``. ``data`` is the encoded file (PNG or JPEG). The content
+    is first mirrored left to right (``flipped``), then turned by ``rotation``
+    quarter turns counter-clockwise."""
+
+    p1: Point
+    p2: Point
+    data: bytes = field(repr=False)
+    rotation: int = 0
+    flipped: bool = False
+
+    def _mapped(self, fn, quarters):
+        return replace(
+            self, p1=fn(self.p1), p2=fn(self.p2), rotation=(self.rotation + quarters) % 4
+        )
+
+    def mirrored(self, axis: Point, horizontal: bool) -> Self:
+        # A mirror at a vertical line flips the content left to right; at a horizontal
+        # line it is that plus a half turn.
+        turn = 2 if horizontal else 0
+        return replace(
+            self,
+            p1=mirror_point(self.p1, axis, horizontal),
+            p2=mirror_point(self.p2, axis, horizontal),
+            rotation=(turn - self.rotation) % 4,
+            flipped=not self.flipped,
+        )
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -29,6 +29,7 @@ from sldgridy.model.entities import (
     Entity,
     Line,
     Polyline,
+    RasterImage,
     Rectangle,
     Text,
 )
@@ -53,6 +54,7 @@ def type_names() -> dict[type, str]:
         Line: tr("Linie"),
         Polyline: tr("Polylinie"),
         Rectangle: tr("Rechteck"),
+        RasterImage: tr("Bild"),
         Circle: tr("Kreis"),
         Arc: tr("Bogen"),
         Text: tr("Text"),

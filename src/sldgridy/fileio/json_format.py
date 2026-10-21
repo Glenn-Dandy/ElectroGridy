@@ -1,5 +1,7 @@
 """Conversion between the document model and the versioned JSON structure."""
 
+import base64
+import binascii
 import copy
 from collections.abc import Callable
 from typing import Any
@@ -32,6 +34,7 @@ from sldgridy.model.entities import (
     JunctionMark,
     Line,
     Polyline,
+    RasterImage,
     Rectangle,
     Text,
     Viewport,
@@ -108,6 +111,7 @@ _TYPE_NAMES: dict[type, str] = {
     Line: "line",
     Polyline: "polyline",
     Rectangle: "rectangle",
+    RasterImage: "image",
     Circle: "circle",
     Arc: "arc",
     Text: "text",
@@ -132,6 +136,13 @@ def entity_to_dict(e: Entity) -> dict[str, Any]:
     match e:
         case Line() | Rectangle() | Busbar():
             d["p1"], d["p2"] = _pt(e.p1), _pt(e.p2)
+        case RasterImage():
+            d["p1"], d["p2"] = _pt(e.p1), _pt(e.p2)
+            d["data"] = base64.b64encode(e.data).decode("ascii")
+            if e.rotation:
+                d["rotation"] = e.rotation
+            if e.flipped:
+                d["flipped"] = True
         case Dimension():
             d["p1"], d["p2"], d["position"] = _pt(e.p1), _pt(e.p2), _pt(e.position)
             d["orientation"], d["height"] = e.orientation, e.height
@@ -230,6 +241,19 @@ def entity_from_dict(d: dict[str, Any]) -> Entity:
             return Line(p1=_to_pt(d["p1"]), p2=_to_pt(d["p2"]), **common)
         case "rectangle":
             return Rectangle(p1=_to_pt(d["p1"]), p2=_to_pt(d["p2"]), **common)
+        case "image":
+            try:
+                data = base64.b64decode(str(d["data"]), validate=True)
+            except (binascii.Error, ValueError) as exc:
+                raise FileFormatError(f"image {d.get('id')!r}: invalid data") from exc
+            return RasterImage(
+                p1=_to_pt(d["p1"]),
+                p2=_to_pt(d["p2"]),
+                data=data,
+                rotation=int(d.get("rotation", 0)) % 4,
+                flipped=bool(d.get("flipped", False)),
+                **common,
+            )
         case "interruption":
             return InterruptionPoint(
                 name=str(d["name"]),
@@ -445,7 +469,7 @@ def _layer_from_dict(d: dict[str, Any]) -> Layer:
 def _needs_version_3(doc: Document) -> bool:
     if doc.kind != DOC_SLD or any(s.kind or s.frame for s in doc.sheets):
         return True
-    return any(isinstance(e, InterruptionPoint) for c in doc.containers() for e in c)
+    return any(isinstance(e, InterruptionPoint | RasterImage) for c in doc.containers() for e in c)
 
 
 def _layer_workspace(d: dict[str, Any]) -> str:

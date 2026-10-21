@@ -19,6 +19,7 @@ from sldgridy.model.entities import (
     JunctionMark,
     Line,
     Polyline,
+    RasterImage,
     Rectangle,
     Text,
     Viewport,
@@ -43,7 +44,7 @@ def scale_entity(e: Entity, center: Point, factor: float) -> Entity:
         return scale_point(p, center, factor)
 
     match e:
-        case Line() | Busbar() | Rectangle():
+        case Line() | Busbar() | Rectangle() | RasterImage():
             return replace(e, p1=s(e.p1), p2=s(e.p2))
         case Viewport():
             # The frame on the sheet grows; what it shows of the model stays.
