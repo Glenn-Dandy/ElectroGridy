@@ -5,8 +5,18 @@ import math
 from dataclasses import dataclass
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
-from PyQt6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPainterPath, QPen, QTransform
+from PyQt6.QtGui import (
+    QColor,
+    QFont,
+    QFontDatabase,
+    QFontMetricsF,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QTransform,
+)
 
+from sldgridy.fileio.paths import fonts_dir
 from sldgridy.model.entities import (
     Arc,
     AttributeDefinition,
@@ -36,6 +46,15 @@ SEPARATION_COLOR = QColor("#e65100")
 JUNCTION_MARK_RADIUS = 0.9  # mm
 CONNECTION_RADIUS = 0.8  # mm
 CONNECTION_TICK = 2.0  # mm
+
+
+def ensure_text_font() -> None:
+    """Load the shipped DejaVu Sans where the system has none (Windows), so that texts
+    keep their width on every system. Needs a QGuiApplication."""
+    if TEXT_FONT_FAMILY in QFontDatabase.families():
+        return
+    for path in sorted(fonts_dir().glob("*.ttf")):
+        QFontDatabase.addApplicationFont(str(path))
 
 
 # ISO 128-20 patterns in multiples of the line width d: dashed 12d/3d,

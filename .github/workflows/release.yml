@@ -1,17 +1,21 @@
 name: Release packages
 
 # Publishing a GitHub release builds the packages:
-#   pre-release vX.Y.Z-devN -> .deb attached (no snap)
-#   release vX.Y.Z          -> .deb attached, snap published to "stable"
+#   pre-release vX.Y.Z-devN -> .deb and Windows installer attached (no snap)
+#   release vX.Y.Z          -> .deb and Windows installer attached, snap published to "stable"
+# Started by hand (workflow_dispatch) only the Windows installer is built, as a
+# workflow artifact.
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   deb:
+    if: ${{ github.event_name == 'release' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -35,7 +39,7 @@ jobs:
 
   snap:
     # Only real releases go to the Snap Store, and straight to stable.
-    if: ${{ !github.event.release.prerelease }}
+    if: ${{ github.event_name == 'release' && !github.event.release.prerelease }}
     runs-on: ubuntu-24.04
     needs: deb
     steps:
@@ -50,3 +54,59 @@ jobs:
         with:
           snap: ${{ steps.build.outputs.snap }}
           release: stable
+
+  windows:
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python packages
+        run: python -m pip install --disable-pip-version-check PyQt6==6.9.1 pyinstaller==6.14.2 pillow==11.3.0 pytest==8.4.1
+      - name: Fonts and README for the package
+        # Windows has no DejaVu Sans; the program loads the shipped copy (same text
+        # widths as on Linux).
+        run: |
+          New-Item -ItemType Directory -Force build | Out-Null
+          Invoke-WebRequest https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.zip -OutFile build\dejavu.zip
+          Expand-Archive build\dejavu.zip build\dejavu
+          $src = "build\dejavu\dejavu-fonts-ttf-2.37"
+          $fonts = "src\sldgridy\resources\fonts"
+          New-Item -ItemType Directory -Force $fonts | Out-Null
+          Copy-Item "$src\ttf\DejaVuSans.ttf", "$src\ttf\DejaVuSans-Bold.ttf" $fonts
+          Copy-Item "$src\LICENSE" "$fonts\LICENSE-DejaVu.txt"
+          Copy-Item README.md src\sldgridy\resources\README.md
+      - name: Tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PYTHONPATH: src;tests
+        run: python -m pytest -q -p no:cacheprovider
+      - name: Build program
+        run: |
+          python packaging\windows\make_icon.py src\sldgridy\resources\icons\sldgridy.svg build\sldgridy.ico
+          pyinstaller --noconfirm --windowed --name SLDGridy --icon build\sldgridy.ico --paths src --add-data "src\sldgridy\resources;sldgridy\resources" packaging\windows\sldgridy_main.py
+      - name: Build installer
+        run: |
+          $version = python -c "import sys; sys.path.insert(0, 'src'); import sldgridy; print(sldgridy.__version__)"
+          $numeric = ($version -split '\.')[0..2] -join '.'
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          & $iscc "/DAppVersion=$version" "/DNumericVersion=$numeric" packaging\windows\sldgridy.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Attach installer to the release
+        if: ${{ github.event_name == 'release' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" (Get-Item dist\SLDGridy-*-setup.exe).FullName --clobber
+      - name: Keep installer as workflow artifact
+        if: ${{ github.event_name != 'release' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/SLDGridy-*-setup.exe

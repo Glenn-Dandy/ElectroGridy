@@ -12,3 +12,7 @@ dist/
 parts/
 stage/
 prime/
+
+# Windows build (fonts and README are copied in by the release workflow)
+src/sldgridy/resources/fonts/
+src/sldgridy/resources/README.md

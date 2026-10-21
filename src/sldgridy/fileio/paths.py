@@ -1,13 +1,19 @@
 """Locations of shipped and user data."""
 
 import os
+import sys
 from pathlib import Path
 
 _MODULE_DIR = Path(__file__).resolve().parent.parent
+_WINDOWS = sys.platform == "win32"
 
 
 def user_data_dir() -> Path:
-    base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+    base = (
+        os.environ.get("XDG_DATA_HOME")
+        or (os.environ.get("APPDATA") if _WINDOWS else None)
+        or str(Path.home() / ".local" / "share")
+    )
     return Path(base) / "sldgridy"
 
 
@@ -20,7 +26,11 @@ def user_template_dir() -> Path:
 
 
 def cache_dir() -> Path:
-    base = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
+    base = (
+        os.environ.get("XDG_CACHE_HOME")
+        or (os.environ.get("LOCALAPPDATA") if _WINDOWS else None)
+        or str(Path.home() / ".cache")
+    )
     return Path(base) / "sldgridy"
 
 
@@ -39,6 +49,11 @@ def system_library_dir() -> Path:
 
 def system_template_dir() -> Path:
     return _shipped("templates")
+
+
+def fonts_dir() -> Path:
+    """Fonts shipped where the system may lack them (Windows: DejaVu Sans)."""
+    return _MODULE_DIR / "resources" / "fonts"
 
 
 def symbols_dir() -> Path:

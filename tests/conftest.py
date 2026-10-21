@@ -20,4 +20,7 @@ def qapp(tmp_path_factory):
     app = QApplication.instance() or QApplication([])
     app.setOrganizationName("sldgridy-test")
     app.setApplicationName("sldgridy-test")
+    from sldgridy.view.render import ensure_text_font
+
+    ensure_text_font()
     yield app

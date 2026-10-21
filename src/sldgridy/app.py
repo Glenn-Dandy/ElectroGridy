@@ -12,6 +12,7 @@ from sldgridy import __version__, i18n, memwatch, platform_choice
 from sldgridy.fileio.paths import cache_dir
 from sldgridy.ui.main_window import APP_NAME, MainWindow
 from sldgridy.ui.start_dialog import show_on_start
+from sldgridy.view.render import ensure_text_font
 
 
 def create_application(argv: list[str]) -> QApplication:
@@ -21,6 +22,7 @@ def create_application(argv: list[str]) -> QApplication:
     app.setApplicationDisplayName(APP_NAME)
     app.setApplicationVersion(__version__)
     app.setDesktopFileName("sldgridy")
+    ensure_text_font()
     i18n.install(app, i18n.configured_language())
     return app
 

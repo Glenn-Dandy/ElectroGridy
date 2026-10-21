@@ -2,6 +2,7 @@
 
 import hashlib
 import math
+import sys
 from collections.abc import Mapping
 from dataclasses import replace
 from functools import partial
@@ -724,6 +725,8 @@ class MainWindow(QMainWindow):
             self.tr("Aktuell: {name}").format(name=QApplication.platformName())
         )
         info.setEnabled(False)
+        # Wayland or X11 is a choice on Linux only.
+        platform_menu.menuAction().setVisible(sys.platform.startswith("linux"))
         open_menu = display_menu.addMenu(self.tr("Beim Öffnen &zeigen"))
         group = QActionGroup(self)
         current = str(QSettings().value(OPEN_VIEW_KEY, OPEN_EXTENTS))
