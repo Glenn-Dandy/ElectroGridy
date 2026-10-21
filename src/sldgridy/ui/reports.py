@@ -12,7 +12,7 @@ from sldgridy.commands.blocks import AddBlockCommand
 from sldgridy.commands.sheets import AddSheetCommand
 from sldgridy.model.document import CABLES, COVER, PAGE_FORMAT, PARTS, TERMINALS, TOC, Document
 from sldgridy.model.paper import Orientation
-from sldgridy.model.reports import COLUMNS, report_rows, table_area
+from sldgridy.model.reports import COLUMNS, pages_needed, report_rows, table_area
 from sldgridy.ui.page_dialog import PageSpec
 
 if TYPE_CHECKING:
@@ -72,8 +72,7 @@ class ReportController(QObject):
                 self._add(kind, len(self.doc.sheets))
                 added.append(kind)
                 have = [len(self.doc.sheets) - 1]
-            per_page = table_area(self.doc.sheets[have[0]]).rows
-            needed = max(1, -(-rows // per_page))
+            needed = pages_needed(self.doc, kind, rows)
             for _ in range(needed - len(have)):
                 last = max(i for i, p in enumerate(self.doc.sheets) if p.kind == kind)
                 self._add(kind, last + 1)

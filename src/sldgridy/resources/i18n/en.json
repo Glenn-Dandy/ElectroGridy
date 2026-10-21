@@ -756,8 +756,6 @@
  "Seite": "Page",
  "Stückliste": "Parts list",
  "Von": "From",
- "Ziel innen": "Internal target",
- "Ziel außen": "External target",
  "z. B. -W1": "e.g. -W1",
  "&Listenseiten ergänzen": "Complete &list pages",
  "&Projektdaten …": "&Project data …",
@@ -905,5 +903,17 @@
  "Klemme PE": "Terminal PE",
  "Klemmen": "Terminals",
  "Reihenklemme; BMK mit Leiste und Nummer, z. B. -X1:1": "Terminal block; tag with strip and number, e.g. -X1:1",
- "Schutzleiterklemme; BMK mit Leiste und Nummer, z. B. -X1:PE": "Protective earth terminal; tag with strip and number, e.g. -X1:PE"
+ "Schutzleiterklemme; BMK mit Leiste und Nummer, z. B. -X1:PE": "Protective earth terminal; tag with strip and number, e.g. -X1:PE",
+ "Ziel 1": "Target 1",
+ "Ziel 2": "Target 2",
+ "Kabel Ziel 1": "Cable target 1",
+ "Kabel Ziel 2": "Cable target 2",
+ "Bemerkung": "Note",
+ "Es fehlen {n} Seiten: weitere Seite dieses Typs anlegen": "{n} pages missing: add another page of this type",
+ "Ader": "Core",
+ "Ader:": "Core:",
+ "z. B. bl, PE, 3": "e.g. bl, PE, 3",
+ "Ader des Kabels (Farbe oder Nummer), steht im Klemmenplan": "Core of the cable (colour or number), shown in the terminal plan",
+ "Klemmenfarbe für den Klemmenplan (z. B. N für blau)": "Terminal colour for the terminal plan (e.g. N for blue)",
+ "Bemerkung im Klemmenplan": "Note in the terminal plan"
 }

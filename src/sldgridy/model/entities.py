@@ -271,6 +271,8 @@ class Wire(Entity):
     # Cable this conductor belongs to (e.g. "-W1"), for the cable list; the label is
     # taken as the cable type.
     cable: str = ""
+    # Core of that cable (colour or number, e.g. "bl", "PE", "3"), for the terminal plan.
+    core: str = ""
 
     def _mapped(self, fn, quarters):
         return replace(self, points=tuple(fn(p) for p in self.points))

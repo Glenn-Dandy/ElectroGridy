@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QCoreApplication
 
-from sldgridy.commands.blocks import AddBlockCommand
+from sldgridy.commands.blocks import AddBlockCommand, ReplaceBlockCommand
 from sldgridy.commands.entities import (
     AddEntitiesCommand,
     RemoveEntitiesCommand,
@@ -168,7 +168,11 @@ def set_terminal(w: "MainWindow", p: Point, wires: list[Wire]) -> None:
         return
     w.last_terminal_strip = strip
     name = TERMINAL_PE if pe else TERMINAL
-    definition = w.document.blocks.get(name) or terminal_definitions().get(name)
+    shipped = terminal_definitions().get(name)
+    own = w.document.blocks.get(name)
+    # A terminal from an older version lacks attributes the terminal plan reads.
+    upgrade = own is not None and shipped is not None and _missing_tags(own, shipped)
+    definition = shipped if upgrade or own is None else own
     if definition is None:
         w.message(tr("Klemmensymbol nicht gefunden"))
         return
@@ -182,11 +186,18 @@ def set_terminal(w: "MainWindow", p: Point, wires: list[Wire]) -> None:
     w.begin_macro(tr("Klemme {bmk} setzen").format(bmk=f"{strip}:{number}"))
     if name not in w.document.blocks:
         w.push(AddBlockCommand(w.document, definition, ""))
+    elif upgrade:
+        w.push(ReplaceBlockCommand(w.document, definition, ""))
     w.push(AddEntitiesCommand(container, [ref], ""))
     if removed:
         w.push(RemoveEntitiesCommand(container, removed, ""))
         w.push(AddEntitiesCommand(container, added, ""))
     w.end_macro()
+
+
+def _missing_tags(own: BlockDefinition, shipped: BlockDefinition) -> bool:
+    have = {a.tag for a in own.attribute_definitions()}
+    return any(a.tag not in have for a in shipped.attribute_definitions())
 
 
 def terminal_definitions() -> dict[str, BlockDefinition]:

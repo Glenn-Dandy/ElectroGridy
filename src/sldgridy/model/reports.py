@@ -25,6 +25,13 @@ from sldgridy.model.entities import Entity, Line, Text
 from sldgridy.model.geometry import Point
 from sldgridy.model.netlist import Netlist, Pin, netlist
 from sldgridy.model.sheet import schematic_inner
+from sldgridy.model.terminal_plan import (
+    StripPlan,
+    plan_page_entities,
+    plan_pages,
+    plan_rows,
+    terminal_plan,
+)
 from sldgridy.model.title_block import SCHEMATIC_TITLE_HEIGHT
 
 Translate = Callable[[str], str]
@@ -55,13 +62,19 @@ COLUMNS: dict[str, list[tuple[str, float]]] = {
         ("Blatt", 0.5),
         ("Pfad", 0.5),
     ],
+    # The terminal plan has its own form (model/terminal_plan.py); these are the
+    # columns of its CSV export.
     TERMINALS: [
         ("Leiste", 0.8),
         ("Klemme", 0.6),
-        ("Ziel innen", 2.6),
-        ("Ziel außen", 2.6),
+        ("Farbe", 0.5),
+        ("Ziel 1", 2.6),
+        ("Ziel 2", 2.6),
+        ("Kabel Ziel 1", 1.0),
+        ("Kabel Ziel 2", 1.0),
         ("Blatt", 0.5),
         ("Pfad", 0.5),
+        ("Bemerkung", 1.5),
     ],
     CABLES: [
         ("Kabel", 0.8),
@@ -142,25 +155,8 @@ def _targets(nl: Netlist, pin: Pin) -> str:
 
 
 def terminal_rows(doc: Document, nl: Netlist | None = None) -> list[list[str]]:
-    """Strip, terminal, what is connected on either side, page and column.
-    A terminal is a block with the role "terminal"; its tag reads "-X1:3"."""
-    nl = nl or netlist(doc)
-    pins_by_entity: dict[str, list[Pin]] = {}
-    for pin, _node in nl.pins:
-        pins_by_entity.setdefault(pin.entity_id, []).append(pin)
-    rows = []
-    for bmk, group in devices(doc).items():
-        for occ in group:
-            if occ.function != "terminal":
-                continue
-            strip, _, number = bmk.partition(":")
-            pins = pins_by_entity.get(occ.entity_id, [])
-            sides = [_targets(nl, p) for p in pins[:2]] + ["", ""]
-            area = occ.layout_id if occ.where == SHEET else MODEL
-            page, column = _where(doc, area, occ.position.x)
-            rows.append([strip, number, sides[0], sides[1], page, column])
-    rows.sort(key=lambda r: (_natural(r[0]), _natural(r[1])))
-    return rows
+    """The terminal plan as rows (CSV export); the page has its own form."""
+    return plan_rows(terminal_plan(doc, nl))
 
 
 def cable_rows(doc: Document, nl: Netlist | None = None) -> list[list[str]]:
@@ -344,11 +340,15 @@ def generated_entities(
     rows_of: Callable[[str], list[list[str]]],
     tr: Translate = str,
     helpers: bool = False,
+    plans_of: Callable[[], list[StripPlan]] | None = None,
 ) -> list[Entity]:
     """Content of a generated page. Lists continue over the pages of the same type in
     page order; ``helpers`` adds a (screen only) note when rows do not fit."""
     if page.kind == COVER:
         return cover_entities(doc, page, tr)
+    if page.kind == TERMINALS:
+        plans = plans_of() if plans_of is not None else terminal_plan(doc)
+        return _terminal_page(doc, page, plans, tr, helpers)
     if page.kind not in COLUMNS:
         return []
     same = [p for p in doc.sheets if p.kind == page.kind]
@@ -377,8 +377,34 @@ def generated_entities(
     return out
 
 
+def _terminal_page(
+    doc: Document, page: SheetLayout, plans: list[StripPlan], tr: Translate, helpers: bool
+) -> list[Entity]:
+    """A page of the terminal plan: each strip starts on a new page."""
+    same = [p for p in doc.sheets if p.kind == TERMINALS]
+    index = [p.id for p in same].index(page.id)
+    pages = plan_pages(plans)
+    plan, first = pages[index] if index < len(pages) else (None, 0)
+    out = plan_page_entities(page, plan, first, tr)
+    if helpers and len(pages) > len(same) and index == len(same) - 1:
+        missing = len(pages) - len(same)
+        a, _b = schematic_inner(*page.size)
+        out.append(
+            _text(
+                a.x + MARGIN,
+                a.y + MARGIN + TEXT,
+                tr("Es fehlen {n} Seiten: weitere Seite dieses Typs anlegen").format(n=missing),
+                TEXT,
+                OVERFLOW_COLOR,
+            )
+        )
+    return out
+
+
 def pages_needed(doc: Document, kind: str, rows: int) -> int:
     """How many pages of a list type the rows need."""
+    if kind == TERMINALS:
+        return len(plan_pages(terminal_plan(doc)))
     probe = next((p for p in doc.sheets if p.kind == kind), None)
     if probe is None:
         return 1

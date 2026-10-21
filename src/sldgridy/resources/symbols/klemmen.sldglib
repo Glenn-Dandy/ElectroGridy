@@ -88,6 +88,34 @@
      "visible": true,
      "halign": "center",
      "valign": "middle"
+    },
+    {
+     "type": "attdef",
+     "id": "att_farbe",
+     "layer": "0",
+     "tag": "FARBE",
+     "prompt": "Klemmenfarbe für den Klemmenplan (z. B. N für blau)",
+     "default": "",
+     "position": [
+      2.25,
+      4.5
+     ],
+     "height": 1.8,
+     "visible": false
+    },
+    {
+     "type": "attdef",
+     "id": "att_bemerkung",
+     "layer": "0",
+     "tag": "BEMERKUNG",
+     "prompt": "Bemerkung im Klemmenplan",
+     "default": "",
+     "position": [
+      2.25,
+      6.5
+     ],
+     "height": 1.8,
+     "visible": false
     }
    ]
   },
@@ -201,6 +229,34 @@
      "visible": true,
      "halign": "center",
      "valign": "middle"
+    },
+    {
+     "type": "attdef",
+     "id": "att_farbe",
+     "layer": "0",
+     "tag": "FARBE",
+     "prompt": "Klemmenfarbe für den Klemmenplan (z. B. N für blau)",
+     "default": "",
+     "position": [
+      2.25,
+      4.5
+     ],
+     "height": 1.8,
+     "visible": false
+    },
+    {
+     "type": "attdef",
+     "id": "att_bemerkung",
+     "layer": "0",
+     "tag": "BEMERKUNG",
+     "prompt": "Bemerkung im Klemmenplan",
+     "default": "",
+     "position": [
+      2.25,
+      6.5
+     ],
+     "height": 1.8,
+     "visible": false
     }
    ]
   }

@@ -414,7 +414,8 @@ def test_list_rows():
         ["-Q1", "Hager", "B16", "Leitungsschutzschalter", "2", "0"],
         ["-X1:1", "", "", "Klemme", "3", "2"],
     ]
-    assert terminal_rows(doc) == [["-X1", "1", "-Q1:2", "-M1:U", "3", "2"]]
+    # Target 1 is the side with the cable.
+    assert terminal_rows(doc) == [["-X1", "1", "", "-M1:U", "-Q1:2", "-W1", "", "3", "2", ""]]
     assert cable_rows(doc) == [["-W1", "NYY-J 3x2,5", "1", "-X1:1", "-M1", "3"]]
 
 
@@ -445,6 +446,85 @@ def test_generated_pages_follow_the_project():
     assert any("3" in t and "Zeilen" in t for t in shown)
     printed = [e.text for e in generated_entities(doc, parts, rows_of) if isinstance(e, Text)]
     assert not any("Zeilen" in t for t in printed)
+
+
+def strip_doc() -> Document:
+    """A 24 V rail feeding -X1:1..3 (each on to a device), two PE terminals and -X1:6
+    with cable -W1 (core bl) to -Y4."""
+    from sldgridy.model.entities import Wire
+
+    doc = Document.new("Blatt 1", kind=DOC_PROJECT)
+    doc.sheets.append(new_page(CIRCUIT, "Steuerung", paper="A3"))
+    page = doc.sheets[1]
+    doc.blocks["Klemme"] = block("Klemme", "terminal", terminals=("1", "2"))
+    doc.blocks["Klemme PE"] = block("Klemme PE", "terminal", terminals=("1", "2"))
+    doc.blocks["Gerät"] = block("Gerät", "main", terminals=("1",))
+    page.entities.add(ref("g1", "Gerät", "-G1", 20, 60))
+    page.entities.add(Wire(id="rail", points=(Point(20, 60), Point(300, 60))))
+    for n, x in ((1, 50), (2, 100), (3, 150)):
+        page.entities.add(Wire(id=f"a{n}", points=(Point(x, 60), Point(x, 80))))
+        page.entities.add(ref(f"x{n}", "Klemme", f"-X1:{n}", x, 80))
+        page.entities.add(Wire(id=f"b{n}", points=(Point(x, 90), Point(x, 110))))
+        page.entities.add(ref(f"y{n}", "Gerät", f"-Y{n}", x, 110))
+    page.entities.add(ref("pe4", "Klemme PE", "-X1:4", 200, 80))
+    page.entities.add(ref("pe5", "Klemme PE", "-X1:5", 220, 80))
+    page.entities.add(ref("x6", "Klemme", "-X1:6", 250, 80))
+    page.entities.add(
+        Wire(
+            id="c6",
+            points=(Point(250, 90), Point(250, 110)),
+            cable="-W1",
+            core="bl",
+            label="ÖLFLEX 3G1,5",
+        )
+    )
+    page.entities.add(ref("y4", "Gerät", "-Y4", 250, 110))
+    return doc
+
+
+def test_terminal_plan_targets_bridges_and_cables():
+    from sldgridy.model.terminal_plan import plan_pages, terminal_plan
+
+    (plan,) = terminal_plan(strip_doc())
+    assert plan.strip == "-X1"
+    rows = {r.number: r for r in plan.rows}
+    # Each terminal shows its nearest device, not the whole rail; the source a bridged
+    # run shares only once.
+    assert [(rows[n].target1, rows[n].target2) for n in "123"] == [
+        ("-G1:1", "-Y1:1"),
+        ("", "-Y2:1"),
+        ("", "-Y3:1"),
+    ]
+    assert plan.bridges == [(0, 2)]  # 1 to 3 on one rail
+    assert plan.pe_rows == [3, 4] and rows["4"].color == "PE"
+    # The cable side is target 1.
+    assert (rows["6"].target1, rows["6"].cores1) == ("-Y4:1", {"-W1": "bl"})
+    assert plan.cables1 == [("-W1", "ÖLFLEX 3G1,5")] and plan.cables2 == []
+    assert [first for _p, first in plan_pages([plan] * 2)] == [0, 0]
+    many = plan.rows * 8  # 48 rows: three pages
+    assert len(plan_pages([type(plan)("-X2", many, [], [], [], [])])) == 3
+
+
+def test_terminal_plan_page_follows_the_form():
+    from sldgridy.model.entities import Circle, Text
+    from sldgridy.model.reports import generated_entities, pages_needed, report_rows
+
+    doc = strip_doc()
+    page = new_page(TERMINALS, paper="A3")
+    doc.sheets.append(page)
+    parts = generated_entities(doc, page, lambda kind: report_rows(doc, kind))
+    texts = {e.text for e in parts if isinstance(e, Text)}
+    assert {"Klemmleiste:", "-X1", "Ziel 1", "Ziel 2", "Farbe", "-W1", "bl", "-Y4:1"} <= texts
+    assert {"ÖLFLEX 3G1,5", "PE", "6", "Blatt", "Pfad"} <= texts
+    circles = [e for e in parts if isinstance(e, Circle)]
+    # Six terminals; 1 to 3 and the PE pair bridged (inner dot), one junction dot each.
+    assert len([c for c in circles if c.radius > 1]) == 6
+    assert len([c for c in circles if 0.4 < c.radius < 1]) == 5
+    assert pages_needed(doc, TERMINALS, 0) == 1
+    # Within the inner frame, above the title block.
+    a, b = schematic_inner(*page.size)
+    ys = [y for e in parts if hasattr(e, "p1") for y in (e.p1.y, e.p2.y)]
+    assert min(ys) >= a.y - 1e-6 and max(ys) <= b.y - 20 + 1e-6
 
 
 def test_complete_pages_and_csv(window, tmp_path):

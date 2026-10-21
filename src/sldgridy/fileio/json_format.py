@@ -155,6 +155,8 @@ def entity_to_dict(e: Entity) -> dict[str, Any]:
                     d["label_at"] = e.label_at
             if e.cable:
                 d["cable"] = e.cable
+            if e.core:
+                d["core"] = e.core
         case Polyline():
             d["points"] = [_pt(p) for p in e.points]
             d["closed"] = e.closed
@@ -284,6 +286,7 @@ def entity_from_dict(d: dict[str, Any]) -> Entity:
                 else "auto",
                 label_at=float(d.get("label_at", 0.0)),
                 cable=str(d.get("cable", "")),
+                core=str(d.get("core", "")),
                 **common,
             )
         case "polyline":

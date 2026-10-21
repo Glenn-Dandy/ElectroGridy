@@ -1893,17 +1893,30 @@ class MainWindow(QMainWindow):
             )
         )
         form.addRow(self.tr("Kabel:"), cable)
+        core = QLineEdit()
+        self._mixed_line_edit(
+            core, self._common([w.core for w in wires]), self.tr("z. B. bl, PE, 3")
+        )
+        core.setToolTip(self.tr("Ader des Kabels (Farbe oder Nummer), steht im Klemmenplan"))
+        form.addRow(self.tr("Ader:"), core)
         layout.addWidget(box)
 
         shown_label = edit.text()
         shown_cable = cable.text()
+        shown_core = core.text()
 
         def set_cable() -> None:
             if cable.isModified() or cable.text() != shown_cable:
                 value = cable.text().strip()
                 self._apply_to_all(ids, lambda w: replace(w, cable=value), self.tr("Kabel"))
 
+        def set_core() -> None:
+            if core.isModified() or core.text() != shown_core:
+                value = core.text().strip()
+                self._apply_to_all(ids, lambda w: replace(w, core=value), self.tr("Ader"))
+
         cable.editingFinished.connect(set_cable)
+        core.editingFinished.connect(set_core)
 
         def set_text() -> None:
             if edit.isModified() or edit.text() != shown_label or len(wires) == 1:

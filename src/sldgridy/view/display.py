@@ -37,6 +37,7 @@ from sldgridy.model.sheet import (
     schematic_title_insert,
     title_block_reference,
 )
+from sldgridy.model.terminal_plan import terminal_plan
 from sldgridy.model.terminals import row_labels, terminal_center
 from sldgridy.model.title_block import CAPTIONS, FIELD_LABELS
 from sldgridy.model.wires import junction_diameter, junctions, label_text
@@ -175,6 +176,13 @@ def terminal_texts(
                 )
             )
     return kept
+
+
+def terminal_plan_of(doc: Document) -> list:
+    cache = page_cache(doc)
+    if "terminal_plan" not in cache:
+        cache["terminal_plan"] = terminal_plan(doc)
+    return cache["terminal_plan"]
 
 
 def report_rows_of(doc: Document, kind: str) -> list[list[str]]:
@@ -338,7 +346,12 @@ def frame_parts(doc: Document, sheet: SheetLayout, helpers: bool = False) -> lis
         parts = frame_entities(w, h)
     if sheet.kind in GENERATED_KINDS:
         parts += generated_entities(
-            doc, sheet, lambda kind: report_rows_of(doc, kind), _tr_reports, helpers
+            doc,
+            sheet,
+            lambda kind: report_rows_of(doc, kind),
+            _tr_reports,
+            helpers,
+            lambda: terminal_plan_of(doc),
         )
     return parts
 
