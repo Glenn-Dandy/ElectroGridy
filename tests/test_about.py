@@ -12,10 +12,14 @@ def test_parse_and_compare_versions():
     release = {
         "tag_name": "v99.0.0",
         "html_url": "https://example/r",
-        "assets": [{"name": "sldgridy_99.0.0_all.deb", "browser_download_url": "https://x/d.deb"}],
+        "assets": [
+            {"name": "SLDGridy-99.0.0-setup.exe", "browser_download_url": "https://x/s.exe"},
+            {"name": "sldgridy_99.0.0_all.deb", "browser_download_url": "https://x/d.deb"},
+        ],
     }
-    r = evaluate("1.0.3", release)
+    r = evaluate("1.0.3", release, "_all.deb")
     assert r.ok and r.available and r.version == "99.0.0" and r.download_url == "https://x/d.deb"
+    assert evaluate("1.0.3", release, "-setup.exe").download_url == "https://x/s.exe"
     assert not evaluate("1.0.3", {"tag_name": "v1.0.3"}).available
     assert not evaluate("1.0.3", {"tag_name": "nightly"}).ok
 

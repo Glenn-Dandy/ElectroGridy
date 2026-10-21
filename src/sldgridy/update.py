@@ -2,12 +2,15 @@
 
 import json
 import re
+import sys
 import urllib.request
 from dataclasses import dataclass
 
 from sldgridy.project import API_LATEST, LATEST_RELEASE_URL
 
 TIMEOUT = 10  # seconds
+# The release asset offered for download: the installer on Windows, else the .deb.
+PACKAGE_SUFFIX = "-setup.exe" if sys.platform == "win32" else "_all.deb"
 
 
 @dataclass(frozen=True)
@@ -32,7 +35,7 @@ def parse_version(text: str) -> tuple[int, ...]:
     return (*base, 0, int(dev)) if dev is not None else (*base, 1)
 
 
-def evaluate(current: str, release: dict) -> UpdateResult:
+def evaluate(current: str, release: dict, suffix: str = PACKAGE_SUFFIX) -> UpdateResult:
     """Compare the running version with a GitHub release JSON object."""
     tag = str(release.get("tag_name", ""))
     latest = parse_version(tag)
@@ -41,7 +44,7 @@ def evaluate(current: str, release: dict) -> UpdateResult:
     download = None
     for asset in release.get("assets", []):
         name = str(asset.get("name", ""))
-        if name.endswith("_all.deb"):
+        if name.endswith(suffix):
             download = asset.get("browser_download_url")
             break
     return UpdateResult(

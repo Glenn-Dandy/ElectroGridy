@@ -11,9 +11,9 @@
 
 ## English
 
-CAD-style editor for single-line electrical diagrams on Linux: photovoltaic systems, transformer stations and low-voltage distribution. Drawing in real millimetres with model space and sheet layouts, grid and object snap, layers, blocks with attributes and connection points, a symbol library to DIN EN 60617, and printing up to A0.
+CAD-style editor for single-line electrical diagrams on Linux and Windows: photovoltaic systems, transformer stations and low-voltage distribution. Drawing in real millimetres with model space and sheet layouts, grid and object snap, layers, blocks with attributes and connection points, a symbol library to DIN EN 60617, and printing up to A0.
 
-The user interface is available in **English and German** (Settings > Sprache / Language); the Settings menu also holds “Fast display”, the window system (Wayland or X11) and what to show when a drawing is opened (whole drawing, last view of the file, or sheet 1 from the origin).
+The user interface is available in **English and German** (Settings > Sprache / Language); the Settings menu also holds “Fast display”, on Linux the window system (Wayland or X11) and what to show when a drawing is opened (whole drawing, last view of the file, or sheet 1 from the origin).
 
 License: GPL-3.0-or-later. Target system: Ubuntu 24.04 LTS and 26.04 LTS (X11 and Wayland).
 
@@ -32,6 +32,8 @@ sudo apt install ./sldgridy_<version>_all.deb
 ```
 
 SLDGridy then appears in the application menu and `.sldg` files open with a double click. Remove it with `sudo apt remove sldgridy`.
+
+**Windows** (10 and 11, 64 bit): download `SLDGridy-<version>-setup.exe` from the [releases](https://github.com/Glenn-Dandy/SLDGridy/releases/latest) and run it. The installer is not signed, so Windows first shows “Windows protected your PC”: click “More info”, then “Run anyway”. It adds SLDGridy to the start menu and opens `.sldg` files with a double click. Uninstall under Settings > Apps.
 
 The snap keeps its own settings and symbols under `~/snap/sldgridy/`.
 
@@ -170,9 +172,9 @@ GPL-3.0-or-later, see [LICENSE](LICENSE). © Glenn-Dandy
 
 ## Deutsch
 
-Einpolige Übersichtsschaltpläne (Single-Line-Diagramme) für Photovoltaikanlagen, Transformatorstationen und Niederspannungsverteilungen unter Linux, gezeichnet wie in einem CAD-Programm: maßhaltig in Millimetern, mit Modell und Zeichnungsrahmen, Raster und Objektfang, Ebenen, Blöcken mit Attributen und Anschlusspunkten, einer Symbolbibliothek nach DIN EN 60617 und Drucken bis A0.
+Einpolige Übersichtsschaltpläne (Single-Line-Diagramme) für Photovoltaikanlagen, Transformatorstationen und Niederspannungsverteilungen unter Linux und Windows, gezeichnet wie in einem CAD-Programm: maßhaltig in Millimetern, mit Modell und Zeichnungsrahmen, Raster und Objektfang, Ebenen, Blöcken mit Attributen und Anschlusspunkten, einer Symbolbibliothek nach DIN EN 60617 und Drucken bis A0.
 
-Die Oberfläche gibt es auf **Deutsch und Englisch** (Einstellungen > Sprache / Language); im Menü Einstellungen stehen außerdem „Schnelle Darstellung“, das Fenstersystem (Wayland oder X11) und was beim Öffnen einer Zeichnung gezeigt wird (ganze Zeichnung, letzte Ansicht der Datei oder Blatt 1 ab Nullpunkt).
+Die Oberfläche gibt es auf **Deutsch und Englisch** (Einstellungen > Sprache / Language); im Menü Einstellungen stehen außerdem „Schnelle Darstellung“, unter Linux das Fenstersystem (Wayland oder X11) und was beim Öffnen einer Zeichnung gezeigt wird (ganze Zeichnung, letzte Ansicht der Datei oder Blatt 1 ab Nullpunkt).
 
 Lizenz: GPL-3.0-or-later. Zielsystem: Ubuntu 24.04 LTS und 26.04 LTS (X11 und Wayland).
 
@@ -191,6 +193,8 @@ sudo apt install ./sldgridy_<version>_all.deb
 ```
 
 Danach steht „SLDGridy“ im Anwendungsmenü, und `.sldg`-Dateien öffnen sich per Doppelklick. Deinstallation mit `sudo apt remove sldgridy`.
+
+**Windows** (10 und 11, 64 Bit): `SLDGridy-<version>-setup.exe` aus den [Releases](https://github.com/Glenn-Dandy/SLDGridy/releases/latest) herunterladen und ausführen. Das Installationsprogramm ist nicht signiert, deshalb meldet Windows zuerst „Der Computer wurde durch Windows geschützt“: auf „Weitere Informationen“ und dann „Trotzdem ausführen“ klicken. Danach steht SLDGridy im Startmenü, und `.sldg`-Dateien öffnen sich per Doppelklick. Deinstallation unter Einstellungen > Apps.
 
 Das Snap hat eigene Einstellungen und Symbole unter `~/snap/sldgridy/`.
 
