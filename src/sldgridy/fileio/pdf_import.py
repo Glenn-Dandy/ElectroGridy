@@ -179,7 +179,9 @@ def _bare_shape(curve, rectangle: bool) -> _Shape:
     path through the four quarter points of its box is taken as a circle."""
     pts = [tuple(p) for p in curve.pts]
     closed = rectangle or (len(pts) > 3 and math.dist(pts[0], pts[-1]) < 1e-6)
-    ring = pts[:-1] if len(pts) > 1 and math.dist(pts[0], pts[-1]) < 1e-6 else pts
+    ring = [p for i, p in enumerate(pts) if i == 0 or math.dist(p, pts[i - 1]) >= 1e-6]
+    if len(ring) > 1 and math.dist(ring[0], ring[-1]) < 1e-6:
+        ring.pop()
     if not rectangle and len(ring) == 4:
         xs, ys = [p[0] for p in ring], [p[1] for p in ring]
         cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
