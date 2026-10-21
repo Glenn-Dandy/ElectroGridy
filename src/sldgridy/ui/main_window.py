@@ -525,7 +525,8 @@ class MainWindow(QMainWindow):
         self.act_interruption = self._tool_action(self.tr("&Unterbrechungspunkt"), InterruptionTool)
         self.act_interruption.setToolTip(
             self.tr(
-                "Leitung geht auf einer anderen Seite weiter: Stelle, Richtung, Name. "
+                "Leitung geht auf einer anderen Seite weiter: Leitungsende anklicken, Name. "
+                "Abseits einer Leitung: Stelle, Richtung, Name. "
                 "Gleichnamige Punkte zeigen gegenseitig ihre Seite und Spalte."
             )
         )

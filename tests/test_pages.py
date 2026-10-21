@@ -248,6 +248,30 @@ def test_interruption_tool_and_jump(window, monkeypatch):
     assert window.selected_ids() == [a.id]
 
 
+def test_interruption_point_on_a_wire_end_takes_one_click(window, monkeypatch):
+    from sldgridy.model.entities import InterruptionPoint, Wire
+
+    answer(window, monkeypatch, CIRCUIT, "Eins")
+    window.sheets.new_sheet()
+    page = window.sheets.current_sheet()
+    page.entities.add(Wire(id="w", points=(Point(100, 80), Point(200, 80), Point(200, 120))))
+    monkeypatch.setattr(window, "ask_interruption_name", lambda: "K1")
+    window.act_interruption.trigger()
+    for end in (Point(100, 80), Point(200, 120)):
+        window.tools.hover(end)
+        (preview,) = window.tools.preview()
+        window.tools.pick(end)
+    window.tools.cancel()
+    points = sorted(
+        (e for e in page.entities if isinstance(e, InterruptionPoint)), key=lambda e: e.position.x
+    )
+    assert [(e.position, e.direction) for e in points] == [
+        (Point(100, 80), 180),
+        (Point(200, 120), 270),
+    ]
+    assert preview.direction == 270
+
+
 # -- step 3: devices and cross references ----------------------------------------------
 
 
@@ -482,6 +506,13 @@ def test_rail_ends_refer_to_the_neighbouring_pages():
     alone.sheets[1].entities.add(ip("x", "N", 25, 30, 180))
     alone.sheets[1].entities.add(ip("y", "N", 390, 30, 0))
     assert interruption_targets(alone) == {}  # one rail on one page
+    # A conductor leaving on the right and coming back further down on the left of the
+    # same page is a pair, not a rail.
+    jump = doc_with_pages()
+    jump.sheets[1].entities.add(ip("o", "K1", 300, 30, 0))
+    jump.sheets[1].entities.add(ip("i", "K1", 50, 80, 180))
+    targets = interruption_targets(jump)
+    assert (targets["o"][0], targets["i"][0]) == ("/2.0", "/2.7")
 
 
 def test_new_project_is_a3_and_the_cover_fits_a3_and_a4():

@@ -3,8 +3,8 @@
 All points with the same name across the pages belong together, in page order (then
 column, then top to bottom). A pair refers to each other; in a longer chain (a rail
 over several pages) each end refers to the neighbouring page it runs to. The two ends
-of a rail on one page (left end pointing left, right end pointing right) refer to
-nothing until the rail continues elsewhere. The reference
+of a rail on one page (on one line, left end pointing left, right end pointing right)
+refer to nothing until the rail continues elsewhere. The reference
 reads "/3.4" (page 3, column 4).
 
 The arrow always shows the way the conductor flows through the project: at a point
@@ -16,9 +16,10 @@ import math
 from collections.abc import Iterable
 
 from sldgridy.model.document import Document
-from sldgridy.model.entities import Entity, InterruptionPoint, Line, Text
+from sldgridy.model.entities import Busbar, Entity, InterruptionPoint, Line, Text, Wire
 from sldgridy.model.geometry import Point
 from sldgridy.model.sheet import column_at
+from sldgridy.model.wires import on_segment, same, segments
 
 ARROW = 1.0  # × text height: length of the arrow wings
 GAP = 0.6  # × text height: between arrow and texts
@@ -50,8 +51,16 @@ def _target(places: list, i: int) -> int | None:
     n = len(places)
     forward = [_forward(p[0]) for p in places]
     if n == 2:
-        # A pair refers to each other, except the two ends of one rail on one page.
-        rail = places[0][1] == places[1][1] and not forward[0] and forward[1]
+        # A pair refers to each other, except the two ends of one rail on one page: on
+        # one line, the left end pointing left, the right end pointing right.
+        (a, page_a, *_), (b, page_b, *_) = places
+        rail = (
+            page_a == page_b
+            and not forward[0]
+            and forward[1]
+            and abs(a.position.y - b.position.y) < 1e-6
+            and a.position.x < b.position.x
+        )
         return None if rail else 1 - i
     j = i + 1 if forward[i] else i - 1
     return j if 0 <= j < n else None
@@ -115,6 +124,40 @@ def unpaired_names(doc: Document) -> list[str]:
             order.append(name)
         counts[name] = counts.get(name, 0) + 1
     return [n for n in order if counts[n] == 1]
+
+
+def axis_direction(dx: float, dy: float) -> float:
+    """0 (right), 90 (up), 180 (left) or 270 (down), whichever is nearest to the vector."""
+    if abs(dx) >= abs(dy):
+        return 0.0 if dx >= 0 else 180.0
+    return 270.0 if dy > 0 else 90.0
+
+
+def outward_direction(entities: Iterable[Entity], p: Point) -> float | None:
+    """Direction leading out of the one conductor (wire, line, bus bar) that ends at
+    ``p``: where the stem and the texts of an interruption point placed there belong, so
+    that they never lie on the conductor. None if no conductor or several end there, or
+    one runs through."""
+    inner: list[Point] = []
+    for e in entities:
+        if isinstance(e, Wire):
+            pairs = segments(e.points)
+        elif isinstance(e, Line | Busbar):
+            pairs = [(e.p1, e.p2)]
+        else:
+            continue
+        for a, b in pairs:
+            if same(a, b):
+                continue
+            if same(p, a):
+                inner.append(b)
+            elif same(p, b):
+                inner.append(a)
+            elif on_segment(p, a, b):
+                return None
+    if len(inner) != 1:
+        return None
+    return axis_direction(p.x - inner[0].x, p.y - inner[0].y)
 
 
 def interruption_geometry(p: InterruptionPoint, ref: str | None) -> list[Entity]:

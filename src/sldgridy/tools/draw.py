@@ -20,6 +20,7 @@ from sldgridy.model.entities import (
     new_id,
 )
 from sldgridy.model.geometry import Point, angle_deg, distance, ortho
+from sldgridy.model.interruptions import axis_direction, outward_direction
 from sldgridy.model.routing import Pin, connect, pin_at, pins_of, rails
 from sldgridy.model.snap import edges_of
 from sldgridy.model.wires import elbow, simplify
@@ -595,8 +596,9 @@ class AngularDimensionTool(DimensionTool):
 
 
 class InterruptionTool(_DrawTool):
-    """Interruption point: position, then the way the conductor runs on (right, left, up
-    or down), then its name. Stays active for the next one."""
+    """Interruption point: a click on a conductor end, then its name; the stem and texts
+    lead out of the conductor. Elsewhere the position, then the way the conductor leaves
+    the page (right, left, up or down). Stays active for the next one."""
 
     def __init__(self, ctx) -> None:
         super().__init__(ctx)
@@ -604,26 +606,30 @@ class InterruptionTool(_DrawTool):
 
     def prompt(self) -> str:
         if self._position is None:
-            return tr("Unterbrechungspunkt: Stelle angeben")
-        return tr("Unterbrechungspunkt: Richtung zeigen, in die die Leitung weiterläuft")
+            return tr("Unterbrechungspunkt: Leitungsende oder Stelle angeben")
+        return tr("Unterbrechungspunkt: Richtung weg von der Leitung zeigen")
 
     def base_point(self) -> Point | None:
         return self._position
 
     def _direction(self, p: Point) -> float:
         assert self._position is not None
-        dx, dy = p.x - self._position.x, p.y - self._position.y
-        if abs(dx) >= abs(dy):
-            return 0.0 if dx >= 0 else 180.0
-        return 270.0 if dy > 0 else 90.0
+        return axis_direction(p.x - self._position.x, p.y - self._position.y)
 
     def pick(self, p: Point) -> None:
         if self._position is None:
-            self._position = p
+            direction = outward_direction(self.ctx.container, p)
+            if direction is None:
+                self._position = p
+            else:
+                self._place(p, direction)
             return
         if p == self._position:
             return
-        direction = self._direction(p)
+        position, self._position = self._position, None
+        self._place(position, axis_direction(p.x - position.x, p.y - position.y))
+
+    def _place(self, position: Point, direction: float) -> None:
         ask = getattr(self.ctx, "ask_interruption_name", None)
         name = ask() if ask is not None else "L1"
         if name:
@@ -631,24 +637,32 @@ class InterruptionTool(_DrawTool):
                 InterruptionPoint(
                     id=new_id(),
                     layer=self.ctx.current_layer,
-                    position=self._position,
+                    position=position,
                     name=name,
                     direction=direction,
                 ),
                 tr("Unterbrechungspunkt"),
             )
-        self._position = None
 
     def preview(self) -> list[Entity]:
-        if self._position is None or self.cursor is None or self.cursor == self._position:
+        if self.cursor is None:
+            return []
+        if self._position is None:
+            # On a conductor end: the point as a click would place it.
+            position, direction = self.cursor, outward_direction(self.ctx.container, self.cursor)
+        elif self.cursor != self._position:
+            position, direction = self._position, self._direction(self.cursor)
+        else:
+            return []
+        if direction is None:
             return []
         return [
             InterruptionPoint(
                 id=PREVIEW_ID,
                 layer=self.ctx.current_layer,
-                position=self._position,
+                position=position,
                 name="?",
-                direction=self._direction(self.cursor),
+                direction=direction,
             )
         ]
 

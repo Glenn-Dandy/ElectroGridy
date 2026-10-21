@@ -107,6 +107,28 @@ def test_rail_arrows_point_the_way_the_conductor_flows():
     assert tip == P(100, 50) and dx == {-1.768}
 
 
+def test_interruption_point_at_a_conductor_end_leads_out_of_it():
+    from sldgridy.model.entities import InterruptionPoint, Line, Text
+    from sldgridy.model.interruptions import interruption_geometry, outward_direction
+
+    wire = Wire(id="w", points=(P(100, 60), P(200, 60), P(200, 100)))
+    entities = [wire, Line(id="l", p1=P(50, 20), p2=P(50, 40))]
+    # Stem and texts go where the conductor leaves the page, never onto it.
+    assert outward_direction(entities, P(100, 60)) == 180
+    assert outward_direction(entities, P(200, 100)) == 270
+    assert outward_direction(entities, P(50, 20)) == 90
+    # A corner, the middle of a wire, nothing there or two conductors ending: ask.
+    assert outward_direction(entities, P(200, 60)) is None
+    assert outward_direction(entities, P(150, 60)) is None
+    assert outward_direction(entities, P(10, 10)) is None
+    branch = Wire(id="v", points=(P(100, 60), P(100, 80)))
+    assert outward_direction([*entities, branch], P(100, 60)) is None
+    # Coming from another page on the left: the texts stand left of the conductor end.
+    point = InterruptionPoint(id="i", name="K1", position=P(100, 60), direction=180)
+    (text,) = [e for e in interruption_geometry(point, "/2.6") if isinstance(e, Text)]
+    assert text.halign == "right" and text.position.x < 100
+
+
 def terminal_block():
     from sldgridy.model.entities import AttributeDefinition, Circle
 
