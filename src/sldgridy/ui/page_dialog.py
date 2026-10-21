@@ -61,11 +61,13 @@ class PageDialog(QDialog):
         locations: list[str],
         new: bool = True,
         parent=None,
+        kinds: list[str] | None = None,
+        viewport: bool = True,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(title)
         self.kind = QComboBox()
-        for kind in PAGE_KINDS:
+        for kind in kinds or PAGE_KINDS:
             self.kind.addItem(kind_name(kind), kind)
         self.kind.setCurrentIndex(max(self.kind.findData(spec.kind or DRAWING), 0))
         self.name = QLineEdit(spec.name)
@@ -84,6 +86,7 @@ class PageDialog(QDialog):
         self.orientation.setCurrentIndex(0 if spec.orientation is Orientation.LANDSCAPE else 1)
         self.viewport = QCheckBox(self.tr("Modell zeigen (Ansichtsfenster)"))
         self.viewport.setChecked(spec.viewport)
+        self._viewport_offered = viewport
         self.hint = QLabel()
         self.hint.setWordWrap(True)
         form = QFormLayout(self)
@@ -94,7 +97,8 @@ class PageDialog(QDialog):
         if new:
             form.addRow(self.tr("Format:"), self.paper)
             form.addRow(self.tr("Ausrichtung:"), self.orientation)
-            form.addRow(self.viewport)
+            if viewport:
+                form.addRow(self.viewport)
         form.addRow(self.hint)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -113,14 +117,14 @@ class PageDialog(QDialog):
             self.hint.setText(
                 self.tr("Der Inhalt dieser Seite entsteht aus dem Projekt und bleibt aktuell.")
             )
-        elif kind in (CIRCUIT, ENCLOSURE):
+        elif kind in (CIRCUIT, ENCLOSURE) or not self._viewport_offered:
             self.hint.setText(self.tr("Auf dieser Seite wird direkt gezeichnet."))
         else:
             self.hint.setText(
                 self.tr("Direkt zeichnen oder das Modell über ein Ansichtsfenster zeigen.")
             )
         if adjust and self._new:
-            self.viewport.setChecked(kind in VIEWPORT_KINDS)
+            self.viewport.setChecked(kind in VIEWPORT_KINDS and self._viewport_offered)
             if kind != DRAWING and self.paper.currentData() == "A0":
                 self.paper.setCurrentIndex(self.paper.findData(PAGE_FORMAT))
         self.viewport.setEnabled(kind not in GENERATED_KINDS)
@@ -139,5 +143,7 @@ class PageDialog(QDialog):
             location=self._clean(self.location.currentText(), "+"),
             paper=self.paper.currentData(),
             orientation=self.orientation.currentData(),
-            viewport=self.viewport.isChecked() and kind not in GENERATED_KINDS,
+            viewport=self._viewport_offered
+            and self.viewport.isChecked()
+            and kind not in GENERATED_KINDS,
         )

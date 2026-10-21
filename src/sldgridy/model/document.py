@@ -15,11 +15,13 @@ from sldgridy.model.container import EntityContainer
 from sldgridy.model.entities import Entity, Viewport, new_id
 from sldgridy.model.layers import DEFAULT_LAYER, Layer
 from sldgridy.model.paper import DEFAULT_FORMAT, DEFAULT_ORIENTATION, Orientation, sheet_size
-from sldgridy.model.sheet import default_viewport
+from sldgridy.model.sheet import default_viewport, schematic_title_width
 from sldgridy.model.title_block import (
     DOCUMENT_FIELDS,
     SHEET_FIELDS,
     TITLE_BLOCK_NAME,
+    schematic_title_block_definition,
+    schematic_title_block_name,
     title_block_definition,
 )
 
@@ -88,6 +90,18 @@ PAGE_KINDS = {
 # Pages whose content is generated from the project (and kept up to date).
 GENERATED_KINDS = (COVER, TOC, TERMINALS, CABLES, PARTS)
 
+# What a file is, chosen when it is created: a single-line overview diagram (model and
+# drawing sheets), a circuit diagram project (numbered pages in the circuit diagram
+# frame, lists, cross references) or a scaled drawing (roof layout).
+DOC_SLD, DOC_PROJECT, DOC_DRAWING = "sld", "project", "drawing"
+DOC_KINDS = {
+    DOC_SLD: "Übersichtsschaltplan",
+    DOC_PROJECT: "Schaltplanprojekt",
+    DOC_DRAWING: "Zeichnung",
+}
+# Page types offered in a project (drawings belong into a drawing file).
+PROJECT_PAGE_KINDS = tuple(k for k in PAGE_KINDS if k != DRAWING)
+
 
 def new_page(
     kind: str = CIRCUIT,
@@ -139,6 +153,7 @@ class Document:
     blocks: dict[str, BlockDefinition] = field(default_factory=dict)
     # Drawing-wide title block values (PROJEKT, FIRMA, BEARBEITER).
     properties: dict[str, str] = field(default_factory=dict)
+    kind: str = DOC_SLD
     _sheet_listeners: list[Callable[[], None]] = field(
         default_factory=list, repr=False, compare=False
     )
@@ -150,11 +165,36 @@ class Document:
     )
 
     @classmethod
-    def new(cls, first_sheet_name: str, title_labels: dict[str, str] | None = None) -> "Document":
+    def new(
+        cls,
+        first_sheet_name: str,
+        title_labels: dict[str, str] | None = None,
+        kind: str = DOC_SLD,
+    ) -> "Document":
         """Create an empty drawing with one A0 landscape sheet and the standard title block."""
-        doc = cls(sheets=[new_sheet(first_sheet_name)])
+        doc = cls(sheets=[new_sheet(first_sheet_name)], kind=kind)
         doc.blocks[TITLE_BLOCK_NAME] = title_block_definition(title_labels)
         return doc
+
+    @classmethod
+    def new_project(
+        cls, title_definition: Callable[[float], BlockDefinition] | None = None
+    ) -> "Document":
+        """Empty circuit diagram project: a cover and a first circuit diagram page, A3,
+        each with the circuit diagram title block (``title_definition`` makes it for a
+        width, translated by the caller)."""
+        make = title_definition or schematic_title_block_definition
+        doc = cls(sheets=[new_page(COVER), new_page(CIRCUIT)], kind=DOC_PROJECT)
+        for page in doc.sheets:
+            width = schematic_title_width(*page.size)
+            page.title_block = schematic_title_block_name(width)
+            if page.title_block not in doc.blocks:
+                doc.blocks[page.title_block] = make(width)
+        return doc
+
+    @property
+    def is_project(self) -> bool:
+        return self.kind == DOC_PROJECT
 
     # -- sheets -------------------------------------------------------------
 

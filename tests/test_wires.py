@@ -269,7 +269,7 @@ def test_measuring_relays_and_pv_category():
 
 def test_further_symbols_library():
     title, defs = load_library(system_library_dir() / "weitere_symbole.sldglib")
-    assert title == "Weitere SLD-Symbole (nicht nach DIN EN 60617)"
+    assert title == "SLD: Weitere Symbole (nicht nach DIN EN 60617)"
     by = {d.name: d for d in defs}
     shu = by["Selektiver Hauptschalter netzunabhängig"]
     sha = by["Selektiver Hauptschalter netzabhängig"]

@@ -1,8 +1,11 @@
 """Interruption points: conductors continuing on another page. Pure Python.
 
-All points with the same name across the pages belong together. In page order (then
-column, then top to bottom) each one refers to the next, the last one back to the
-first; so a pair refers to each other. The reference reads "/3.4" (page 3, column 4).
+All points with the same name across the pages belong together, in page order (then
+column, then top to bottom). A pair refers to each other; in a longer chain (a rail
+over several pages) each end refers to the neighbouring page it runs to. The two ends
+of a rail on one page (left end pointing left, right end pointing right) refer to
+nothing until the rail continues elsewhere. The reference
+reads "/3.4" (page 3, column 4).
 """
 
 import math
@@ -35,6 +38,26 @@ def reference(doc: Document, to_page: str, column: int) -> str:
     return f"/{number}.{column}" if column >= 0 else f"/{number}"
 
 
+def _target(places: list, i: int) -> int | None:
+    """Index of the point ``places[i]`` refers to. Two points refer to each other. With
+    more (a rail running over several pages) a point pointing on (right, down) refers to
+    the next one, a point pointing back (left, up) to the previous one; the ends of the
+    chain refer to nothing."""
+    n = len(places)
+    forward = [_forward(p[0]) for p in places]
+    if n == 2:
+        # A pair refers to each other, except the two ends of one rail on one page.
+        rail = places[0][1] == places[1][1] and not forward[0] and forward[1]
+        return None if rail else 1 - i
+    j = i + 1 if forward[i] else i - 1
+    return j if 0 <= j < n else None
+
+
+def _forward(point: InterruptionPoint) -> bool:
+    """Pointing on (right or down) rather than back (left or up)."""
+    return not 90.0 <= point.direction % 360 <= 180.0
+
+
 def interruption_targets(doc: Document) -> dict[str, tuple[str, str]]:
     """Point id -> (reference text, id of the page it refers to); unpaired points are
     left out."""
@@ -49,7 +72,10 @@ def interruption_targets(doc: Document) -> dict[str, tuple[str, str]]:
             continue
         places.sort(key=lambda p: (p[2], p[3], p[0].position.y, p[0].position.x))
         for i, (point, _page, _index, _column) in enumerate(places):
-            target, target_page, _ti, target_column = places[(i + 1) % len(places)]
+            j = _target(places, i)
+            if j is None:
+                continue
+            target, target_page, _ti, target_column = places[j]
             targets[point.id] = (reference(doc, target_page, target_column), target_page)
     return targets
 
@@ -68,7 +94,10 @@ def partner(doc: Document, point_id: str) -> tuple[str, InterruptionPoint] | Non
     if len(same) < 2:
         return None
     i = [p[0].id for p in same].index(point_id)
-    target = same[(i + 1) % len(same)]
+    j = _target(same, i)
+    if j is None:
+        return None
+    target = same[j]
     return target[1], target[0]
 
 

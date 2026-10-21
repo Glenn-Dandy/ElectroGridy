@@ -8,9 +8,9 @@ from PyQt6.QtCore import QCoreApplication
 
 from sldgridy import i18n
 from sldgridy.fileio.files import load_library
-from sldgridy.fileio.paths import system_library_dir, system_template_dir
+from sldgridy.fileio.paths import symbols_dir, system_library_dir, system_template_dir
 from sldgridy.fileio.templates import load_frame
-from sldgridy.model.document import PAGE_KINDS, Document
+from sldgridy.model.document import DOC_KINDS, PAGE_KINDS, Document
 from sldgridy.model.reports import COLUMNS, COVER_CAPTIONS
 from sldgridy.model.title_block import CAPTIONS, FIELD_LABELS
 
@@ -21,6 +21,7 @@ MODEL_TEXTS = {
     *FIELD_LABELS.values(),
     *CAPTIONS.values(),
     *PAGE_KINDS.values(),
+    *DOC_KINDS.values(),
     *(caption for columns in COLUMNS.values() for caption, _ in columns),
     *COVER_CAPTIONS,
 }
@@ -73,7 +74,7 @@ def test_no_unused_translations_for_ui_strings():
 
 def library_texts() -> set[str]:
     texts: set[str] = set()
-    for path in system_library_dir().glob("*.sldglib"):
+    for path in [*system_library_dir().glob("*.sldglib"), *symbols_dir().glob("*.sldglib")]:
         title, defs = load_library(path)
         texts.add(title)
         for d in defs:

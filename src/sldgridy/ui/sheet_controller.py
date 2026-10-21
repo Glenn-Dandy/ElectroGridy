@@ -47,6 +47,7 @@ from sldgridy.model.document import (
     DRAWING,
     GENERATED_KINDS,
     PAGE_FORMAT,
+    PROJECT_PAGE_KINDS,
     SCHEMATIC_FRAME,
     SheetLayout,
     new_page,
@@ -240,6 +241,41 @@ class SheetController(QObject):
         self.menu = m
         self._update_actions()
 
+    def apply_document_kind(self) -> None:
+        """A project has numbered pages with a type; overview diagrams and drawings have
+        sheets in the drawing frame that show the model."""
+        project = self.doc.is_project
+        self.menu.setTitle(self.tr("Sei&te") if project else self.tr("Bla&tt"))
+        self.act_new.setText(self.tr("&Neue Seite …") if project else self.tr("&Neues Blatt"))
+        self.act_rename.setText(
+            self.tr("Seite &bearbeiten …") if project else self.tr("&Umbenennen …")
+        )
+        for action in (
+            self.act_from_template,
+            self.act_save_template,
+            self.act_viewport,
+            self.act_outlines,
+        ):
+            action.setVisible(not project)
+        self.align_menu.menuAction().setVisible(not project)
+        self.rebuild_tabs()
+
+    def has_model_tab(self) -> bool:
+        """Projects are drawn on their pages; the model shows only if it has content
+        (files of the development versions)."""
+        return not self.doc.is_project or len(self.doc.model_space) > 0
+
+    def _offset(self) -> int:
+        return 1 if self.has_model_tab() else 0
+
+    def show_first_page(self) -> None:
+        """The first page to draw on (not a generated list)."""
+        pages = self.doc.sheets
+        first = next((s for s in pages if s.kind not in GENERATED_KINDS), None)
+        first = first or (pages[0] if pages else None)
+        if first is not None:
+            self.show_sheet(first.id)
+
     def _update_actions(self) -> None:
         on_sheet = self.current_sheet() is not None
         for action in self.sheet_only:
@@ -253,14 +289,19 @@ class SheetController(QObject):
         if index != self.tabs.currentIndex():
             self.tabs.setCurrentIndex(index)
         menu = QMenu(self.tabs)
-        if index == 0:
+        on_model = self.tabs.tabData(index) is None
+        if on_model and not self.doc.is_project:
             self._fill_align_menu(menu)
             menu.addSeparator()
-        menu.addActions([self.act_new, self.act_from_template])
-        if index > 0:
+        menu.addAction(self.act_new)
+        if not self.doc.is_project:
+            menu.addAction(self.act_from_template)
+        if not on_model:
             menu.addSeparator()
             menu.addActions([self.act_rename, self.act_duplicate, self.act_delete, self.act_format])
-            menu.addActions([self.act_fields, self.act_save_template])
+            menu.addAction(self.act_fields)
+            if not self.doc.is_project:
+                menu.addAction(self.act_save_template)
         menu.exec(self.tabs.mapToGlobal(pos))
 
     # -- aligning the model view on a sheet ----------------------------------
@@ -297,7 +338,13 @@ class SheetController(QObject):
 
     def _on_tab_clicked(self, index: int) -> None:
         # A click on the model tab while the model is shown offers the sheets.
-        if index == 0 and self.tabs.currentIndex() == 0 and self.doc.sheets:
+        if (
+            index == 0
+            and self.tabs.currentIndex() == 0
+            and self.tabs.tabData(0) is None
+            and self.doc.sheets
+            and not self.doc.is_project
+        ):
             QTimer.singleShot(0, self._show_align_popup)
 
     def _show_align_popup(self) -> None:
@@ -317,8 +364,8 @@ class SheetController(QObject):
 
     def tab_text(self, sheet: SheetLayout) -> str:
         """ "3 Stromlaufplan Einspeisung": number, type, description."""
-        if not sheet.kind:
-            return sheet.name  # sheets from before page types keep their name
+        if not sheet.kind or not self.doc.is_project:
+            return sheet.name  # sheets of overview diagrams and drawings have a name
         number = self.doc.page_number(sheet.id)
         label = " ".join(t for t in (kind_name(sheet.kind), sheet.name) if t)
         return f"{number} {label}"
@@ -329,14 +376,16 @@ class SheetController(QObject):
         try:
             while self.tabs.count():
                 self.tabs.removeTab(0)
-            self.tabs.addTab(self.tr("Modell"))
-            self.tabs.setTabData(0, None)
+            offset = self._offset()
+            if offset:
+                self.tabs.addTab(self.tr("Modell"))
+                self.tabs.setTabData(0, None)
             for sheet in self.doc.sheets:
                 i = self.tabs.addTab(self.tab_text(sheet))
                 self.tabs.setTabData(i, sheet.id)
-            index = 0
+            index = 0 if offset else -1
             if current is not None and any(s.id == current.id for s in self.doc.sheets):
-                index = self.doc.sheet_index(current.id) + 1
+                index = self.doc.sheet_index(current.id) + offset
             self.tabs.setCurrentIndex(index)
         finally:
             self._updating_tabs = False
@@ -356,16 +405,23 @@ class SheetController(QObject):
     def _on_tab_moved(self, old: int, new: int) -> None:
         if self._updating_tabs:
             return
-        if old == 0 or new == 0:
+        offset = self._offset()
+        if offset and (old == 0 or new == 0):
             self.rebuild_tabs()  # the model tab stays first
             return
-        self.w.push(MoveSheetCommand(self.doc, old - 1, new - 1, self.tr("Seite verschieben")))
+        self.w.push(
+            MoveSheetCommand(self.doc, old - offset, new - offset, self.tr("Seite verschieben"))
+        )
 
     def select_tab_for(self, space: Space) -> None:
         sheet = space.extra.get("sheet")
         if hasattr(self.w, "pages_dock"):
             self.w.pages_dock.select_page(sheet.id if sheet is not None else None)
-        index = 0 if sheet is None else self.doc.sheet_index(sheet.id) + 1
+        offset = self._offset()
+        if sheet is None:
+            index = 0 if offset else -1
+        else:
+            index = self.doc.sheet_index(sheet.id) + offset
         if self.tabs.currentIndex() != index:
             self._updating_tabs = True
             self.tabs.setCurrentIndex(index)
@@ -433,6 +489,8 @@ class SheetController(QObject):
             space = self.spaces.pop(sid)
             if self.w.space is space:
                 self.w.activate_space(self.w.model_view)
+                if not self.has_model_tab() and self.doc.sheets:
+                    self.show_sheet(self.doc.sheets[0].id)
             self.w._drop_space(space)
         for sid, space in self.spaces.items():
             space.extra["sheet"] = self.doc.sheet(sid)
@@ -644,7 +702,10 @@ class SheetController(QObject):
     def _page_spec(self, title: str, spec: PageSpec, new: bool) -> PageSpec | None:
         plants = sorted({p.plant for p in self.doc.sheets if p.plant})
         locations = sorted({p.location for p in self.doc.sheets if p.location})
-        dialog = PageDialog(title, spec, plants, locations, new, self.w)
+        kinds = list(PROJECT_PAGE_KINDS)
+        if spec.kind in ("", DRAWING):
+            kinds.append(DRAWING)  # pages of the development versions
+        dialog = PageDialog(title, spec, plants, locations, new, self.w, kinds, viewport=False)
         if dialog.exec() != PageDialog.DialogCode.Accepted:
             return None
         return dialog.spec()
@@ -683,6 +744,15 @@ class SheetController(QObject):
             self.w.message(self.tr("Zuerst den Blockeditor schließen"))
             return
         current = self.current_sheet()
+        if not self.doc.is_project:
+            # Like the current (or first) sheet: format, orientation and title block.
+            template = current or (self.doc.sheets[0] if self.doc.sheets else None)
+            sheet = new_sheet(self._next_name())
+            if template is not None:
+                sheet = new_sheet(self._next_name(), template.paper, template.orientation)
+                sheet.title_block = template.title_block
+            self._add_sheet(sheet)
+            return
         default = PageSpec(
             kind=current.kind if current is not None and current.kind else CIRCUIT,
             name="",
@@ -717,6 +787,9 @@ class SheetController(QObject):
         """Edit type, description, plant and location of the current page."""
         current = self.current_sheet()
         if current is None:
+            return
+        if not self.doc.is_project:
+            self._rename_plain(current)
             return
         spec = PageSpec(
             kind=current.kind or DRAWING,
@@ -765,6 +838,20 @@ class SheetController(QObject):
             self.w.push(AddBlockCommand(self.doc, definition, ""))
         self.w.push(ChangeSheetCommand(self.doc, current.id, "", **changes))
         self.w.end_macro()
+
+    def _rename_plain(self, current: SheetLayout) -> None:
+        name, ok = QInputDialog.getText(
+            self.w, self.tr("Blatt umbenennen"), self.tr("Name:"), text=current.name
+        )
+        name = name.strip()
+        if not ok or not name or name == current.name:
+            return
+        if any(s.name == name for s in self.doc.sheets):
+            self.w.message(self.tr("Ein Blatt mit diesem Namen gibt es schon"))
+            return
+        self.w.push(
+            ChangeSheetCommand(self.doc, current.id, self.tr("Blatt umbenennen"), name=name)
+        )
 
     def delete_sheet(self) -> None:
         current = self.current_sheet()

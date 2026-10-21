@@ -8,6 +8,10 @@ from sldgridy import __version__
 from sldgridy.model.blocks import BlockDefinition
 from sldgridy.model.container import EntityContainer
 from sldgridy.model.document import (
+    DOC_KINDS,
+    DOC_PROJECT,
+    DOC_SLD,
+    DRAWING,
     PAGE_KINDS,
     SCHEMATIC_FRAME,
     Document,
@@ -436,7 +440,7 @@ def _layer_from_dict(d: dict[str, Any]) -> Layer:
 
 
 def _needs_version_3(doc: Document) -> bool:
-    if any(s.kind or s.frame for s in doc.sheets):
+    if doc.kind != DOC_SLD or any(s.kind or s.frame for s in doc.sheets):
         return True
     return any(isinstance(e, InterruptionPoint) for c in doc.containers() for e in c)
 
@@ -459,7 +463,19 @@ def document_to_dict(doc: Document) -> dict[str, Any]:
         "model": {"entities": [entity_to_dict(e) for e in doc.model_space]},
         "sheets": [sheet_to_dict(s) for s in doc.sheets],
     }
+    if doc.kind != DOC_SLD:
+        d["kind"] = doc.kind
     return d
+
+
+def _document_kind(data: dict[str, Any], sheets: list[SheetLayout]) -> str:
+    """Files from before document kinds: pages with a type or the circuit diagram frame
+    make a project, everything else is an overview diagram."""
+    if "kind" in data:
+        return _choice(data["kind"], tuple(DOC_KINDS))
+    if any(s.frame or (s.kind and s.kind != DRAWING) for s in sheets):
+        return DOC_PROJECT
+    return DOC_SLD
 
 
 def migrate(data: dict[str, Any]) -> dict[str, Any]:
@@ -502,6 +518,7 @@ def document_from_dict(data: dict[str, Any]) -> Document:
                 blocks[page.title_block] = schematic_title_block_definition(width)
         sheets += dev_pages
         properties = {str(k): str(v) for k, v in data.get("properties", {}).items()}
+        kind = _document_kind(data, sheets)
     except (KeyError, TypeError, ValueError) as exc:
         raise FileFormatError(f"invalid drawing data: {exc}") from exc
     return Document(
@@ -510,6 +527,7 @@ def document_from_dict(data: dict[str, Any]) -> Document:
         layers=layers,
         blocks=blocks,
         properties=properties,
+        kind=kind,
     )
 
 

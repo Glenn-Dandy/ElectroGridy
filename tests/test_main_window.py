@@ -91,7 +91,8 @@ def test_save_and_open_roundtrip(window, tmp_path):
     path = tmp_path / "anlage.sldg"
     assert window.save_to(path)
     assert not window.isWindowModified()
-    assert window.windowTitle() == "anlage.sldg[*] - SLDGridy"
+    assert window.windowTitle() == "anlage.sldg[*] (Übersichtsschaltplan) - SLDGridy"
+    assert window.recent_files()[0] == (path.resolve(), "sld")
     window._set_document(Document.new("Blatt 1"), None)
     assert len(window.document.model_space) == 0
     assert window.open_path(path)
@@ -228,26 +229,76 @@ def test_readme_links_jump_to_headings(window):
     assert not dialog.jump_to_heading("gibt-es-nicht")
 
 
-def test_workspaces_switch_tools_and_grid(window):
+def test_document_kinds_show_their_tools_and_libraries(window):
+    from sldgridy.model.document import DOC_DRAWING, DOC_PROJECT
     from sldgridy.ui.main_window import WORKSPACE_DRAWING, WORKSPACE_SLD
 
-    assert window.workspace == WORKSPACE_SLD
+    def titles():  # shipped ones; other tests may leave user libraries behind
+        libs = window.library_dock.visible_libraries().values()
+        return [lib.title for lib in libs if lib.shipped]
+
+    # Overview diagram: wires and bus bars, SLD symbols only, no project menu.
+    assert window.workspace == WORKSPACE_SLD and window.document.kind == "sld"
     assert window.act_wire.isVisible() and window.act_busbar.isVisible()
-    window.set_workspace(WORKSPACE_DRAWING)
-    assert not window.act_wire.isVisible() and not window.act_busbar.isVisible()
+    assert not window.act_interruption.isVisible() and not window.act_rails.isVisible()
+    assert not window.act_module_field.isVisible()
+    assert not window.project_menu.menuAction().isVisible()
+    assert titles() and all(t.startswith("SLD:") for t in titles())
+    assert window.sheets.tabs.tabText(0) == "Modell"
+    # Drawing: no wiring, the roof layout instead, no circuit symbols.
+    window.new_document(DOC_DRAWING)
+    assert window.workspace == WORKSPACE_DRAWING
+    assert not window.act_wire.isVisible() and window.act_module_field.isVisible()
     assert window.act_dimension.isVisible()
-    assert window.canvas.grid_spacing() == 5 and window.canvas.snap_spacing == 2.5
-    # Circuit diagram libraries are not offered for drawings.
-    titles = [lib.title for lib in window.library_dock.visible_libraries().values()]
-    assert not any("DIN EN 60617" in t for t in titles)
-    window.canvas.set_snap_spacing(50)  # remembered for the drawing workspace
-    window.set_workspace(WORKSPACE_SLD)
+    assert not any("DIN EN 60617" in t for t in titles())
+    window.canvas.set_snap_spacing(50)  # remembered for drawings
+    # Project: numbered pages without model, SLD before MLD symbols, MLD chosen.
+    window.new_document(DOC_PROJECT)
     assert window.canvas.snap_spacing == 2.5
-    titles = [lib.title for lib in window.library_dock.visible_libraries().values()]
-    assert "Weitere SLD-Symbole (nicht nach DIN EN 60617)" in titles
-    window.set_workspace(WORKSPACE_DRAWING)
+    assert window.act_interruption.isVisible() and window.act_rails.isVisible()
+    assert window.project_menu.menuAction().isVisible()
+    assert [t[:4] for t in titles()] == ["SLD:", "SLD:", "MLD:"]
+    dock = window.library_dock
+    assert dock.source.currentText().startswith("MLD:")
+    tabs = [window.sheets.tabs.tabText(i) for i in range(window.sheets.tabs.count())]
+    assert tabs == ["1 Deckblatt", "2 Stromlaufplan"]
+    assert window.sheets.current_sheet() is window.document.sheets[1]
+    assert "(Schaltplanprojekt)" in window.windowTitle()
+    window.new_document(DOC_DRAWING)
     assert window.canvas.snap_spacing == 50
-    assert window.workspace_box.currentData() == WORKSPACE_DRAWING
+
+
+def test_library_categories_name_their_group_in_a_project(window):
+    from sldgridy.model.document import DOC_PROJECT
+
+    window.new_document(DOC_PROJECT)
+    dock = window.library_dock
+    dock.source.setCurrentIndex(0)  # all libraries
+    texts = [dock.category.itemText(i) for i in range(dock.category.count())]
+    assert "SLD: Schalten und Schützen" in texts and "MLD: Schalten und Schützen" in texts
+    assert texts.index("SLD: Schalten und Schützen") < texts.index("MLD: Schalten und Schützen")
+    assert not any("Klemmen" in t for t in texts)  # terminals are set on wires
+    dock.category.setCurrentIndex(texts.index("MLD: Steuerstromkreis"))
+    shown = [dock.list.item(i).text() for i in range(dock.list.count())
+             if not dock.list.item(i).isHidden()]  # fmt: skip
+    assert "Schließer" in shown and "Leitungsschutzschalter" not in shown
+
+
+def test_start_dialog_creates_the_chosen_kind(window, monkeypatch):
+    from sldgridy.ui import main_window as mw
+
+    class Fake:
+        DialogCode = mw.StartDialog.DialogCode
+
+        def __init__(self, recent, parent):
+            self.choice = ("new", "project")
+
+        def exec(self):
+            return self.DialogCode.Accepted
+
+    monkeypatch.setattr(mw, "StartDialog", Fake)
+    window.show_start_dialog()
+    assert window.document.is_project
 
 
 def test_grid_and_snap_typed_in_the_status_bar_menu(window):
@@ -285,11 +336,11 @@ def test_layers_are_separate_per_workspace(window):
 
 
 def test_module_field_fills_a_roof_with_a_chimney(window):
+    from sldgridy.model.document import DOC_DRAWING
     from sldgridy.model.entities import BlockReference, Rectangle
     from sldgridy.tools.pv import ModuleFieldTool, ModuleSpec
-    from sldgridy.ui.main_window import WORKSPACE_DRAWING
 
-    window.set_workspace(WORKSPACE_DRAWING)
+    window.new_document(DOC_DRAWING)
     assert window.act_module_field.isVisible() and not window.act_wire.isVisible()
     ms = window.document.model_space
     ms.add(Rectangle(id="roof", p1=Point(0, 0), p2=Point(8000, 5000)))
@@ -342,15 +393,15 @@ def test_deleting_many_selected_objects_refreshes_the_dock_once(window):
     assert len(ms) == 60
 
 
-def test_every_start_begins_in_the_circuit_diagram(qapp):
-    from sldgridy.ui.main_window import WORKSPACE_DRAWING, WORKSPACE_SLD, MainWindow
+def test_every_start_begins_with_an_overview_diagram(qapp):
+    from sldgridy.model.document import DOC_DRAWING
+    from sldgridy.ui.main_window import WORKSPACE_SLD, MainWindow
 
     first = MainWindow()
-    first.set_workspace(WORKSPACE_DRAWING)
+    first.new_document(DOC_DRAWING)
     first.undo_stack.setClean()
     first.close()
     second = MainWindow()
-    assert second.workspace == WORKSPACE_SLD
-    assert second.workspace_box.currentData() == WORKSPACE_SLD
+    assert second.workspace == WORKSPACE_SLD and second.document.kind == "sld"
     second.undo_stack.setClean()
     second.close()

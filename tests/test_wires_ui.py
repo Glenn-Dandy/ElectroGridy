@@ -116,13 +116,13 @@ def test_busbar_tool_in_window(window):
 def test_shipped_library_in_dock(window):
     dock = window.library_dock
     titles = [lib.title for lib in dock.libraries.values() if lib.shipped]
-    assert "Symbole nach DIN EN 60617" in titles
+    assert "SLD: Symbole nach DIN EN 60617" in titles
     assert dock.list.count() >= 40
 
 
 def test_library_dock_category_filter(window):
     dock = window.library_dock
-    index = dock.category.findData("Photovoltaik")
+    index = dock.category.findText("Photovoltaik")
     assert index > 0
     dock.category.setCurrentIndex(index)
     shown = [

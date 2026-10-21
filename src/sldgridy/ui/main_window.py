@@ -59,7 +59,14 @@ from sldgridy.model.blocks import BlockDefinition, BlockError, expand, world_con
 from sldgridy.model.container import EntityContainer
 from sldgridy.model.devices import crossref_texts
 from sldgridy.model.dimensions import dimension_geometry, format_value, measured_text, scale_at
-from sldgridy.model.document import Document
+from sldgridy.model.document import (
+    DOC_DRAWING,
+    DOC_KINDS,
+    DOC_PROJECT,
+    DOC_SLD,
+    SCHEMATIC_FRAME,
+    Document,
+)
 from sldgridy.model.entities import (
     BlockReference,
     Busbar,
@@ -73,7 +80,9 @@ from sldgridy.model.entities import (
 from sldgridy.model.geometry import Point
 from sldgridy.model.interruptions import interruption_geometry, partner, unpaired_names
 from sldgridy.model.layers import DEFAULT_LAYER
+from sldgridy.model.sheet import schematic_inner
 from sldgridy.model.snap import ALL_MODES, SnapHit, SnapMode
+from sldgridy.model.title_block import schematic_title_block_definition
 from sldgridy.model.wires import label_anchor, label_text, project_on_path
 from sldgridy.printing.output import export_pdf, export_png, export_svg
 from sldgridy.tools.controller import ToolController, ToolFactory
@@ -87,6 +96,7 @@ from sldgridy.tools.draw import (
     InterruptionTool,
     LineTool,
     PolylineTool,
+    RailsTool,
     RectangleTool,
     TextTool,
     WireTool,
@@ -118,10 +128,12 @@ from sldgridy.ui.pages_dock import PagesDock
 from sldgridy.ui.point_menu import point_actions
 from sldgridy.ui.print_dialog import PrintDialog
 from sldgridy.ui.properties_dock import PropertiesDock
+from sldgridy.ui.rails_dialog import RailsDialog
 from sldgridy.ui.reports import ReportController
 from sldgridy.ui.sheet_controller import SheetController
 from sldgridy.ui.sheet_dialogs import ProjectDialog
 from sldgridy.ui.space import BLOCK, MODEL, SHEET, Space
+from sldgridy.ui.start_dialog import StartDialog
 from sldgridy.ui.styles import MIXED, HeightCombo
 from sldgridy.ui.text_dialog import TextDialog
 from sldgridy.view.canvas import BACKGROUND_COLOR, EMPTY_EXTENTS, Canvas, select_items
@@ -151,6 +163,10 @@ WORKSPACE_GRID = {
 }
 
 OPEN_VIEW_KEY = "view/on_open"
+RECENT_KEY, RECENT_COUNT = "files/recent", 10
+# Rails end this far inside the frame, room for the interruption arrows and references.
+RAIL_INSET_LEFT, RAIL_INSET_RIGHT = 15.0, 22.5
+START_DIALOG_KEY = "start/show_dialog"
 OPEN_EXTENTS, OPEN_LAST, OPEN_ORIGIN = "extents", "last", "origin"
 LAST_VIEW_GROUP = "last_views"
 
@@ -165,6 +181,7 @@ class MainWindow(QMainWindow):
         self._watched_pages: dict[int, EntityContainer] = {}
         self.file_path: Path | None = None
         self.current_layer = DEFAULT_LAYER
+        self.last_terminal_strip = ""  # strip chosen last in "Klemme setzen"
 
         self.undo_group = QUndoGroup(self)
         self.undo_stack = QUndoStack(self)
@@ -444,7 +461,11 @@ class MainWindow(QMainWindow):
 
     def _create_actions(self) -> None:
         sk = QKeySequence.StandardKey
-        self.act_new = self._action(self.tr("&Neu"), self.new_document, sk.New)
+        self.act_new = self._action(self.tr("&Neu …"), self.show_start_dialog, sk.New)
+        self.act_new_kinds = {
+            kind: self._action(self.tr(label), partial(self.new_document, kind))
+            for kind, label in DOC_KINDS.items()
+        }
         self.act_open = self._action(self.tr("Ö&ffnen …"), self.open_document, sk.Open)
         self.act_save = self._action(self.tr("&Speichern"), self.save, sk.Save)
         self.act_save_as = self._action(self.tr("Speichern &unter …"), self.save_as, "Ctrl+Shift+S")
@@ -501,12 +522,17 @@ class MainWindow(QMainWindow):
             )
         )
         self.act_module_field = self._action(self.tr("&Modulfeld …"), self.module_field)
-        self.act_module_field.setToolTip(
-            self.tr("Dachfläche automatisch mit PV-Modulen belegen (Arbeitsbereich Zeichnung)")
+        self.act_module_field.setToolTip(self.tr("Dachfläche automatisch mit PV-Modulen belegen"))
+        self.act_rails = self._action(self.tr("Potential&schienen …"), self.start_rails)
+        self.act_rails.setToolTip(
+            self.tr("Hauptstrompfad L1, L2, L3, N, PE im festen Abstand über die Seite")
         )
+        # Shown in circuit diagram projects only.
+        self.project_actions = [self.act_interruption, self.act_rails]
         self.draw_actions = [
             self.act_wire,
             self.act_busbar,
+            self.act_rails,
             self.act_interruption,
             self.act_line,
             self.act_polyline,
@@ -629,7 +655,14 @@ class MainWindow(QMainWindow):
     def _create_menus(self) -> None:
         bar = self.menuBar()
         m = bar.addMenu(self.tr("&Datei"))
-        m.addActions([self.act_new, self.act_open, self.act_save, self.act_save_as])
+        new_menu = m.addMenu(self.tr("&Neu"))
+        new_menu.addActions(list(self.act_new_kinds.values()))
+        new_menu.addSeparator()
+        new_menu.addAction(self.act_new)
+        m.addAction(self.act_open)
+        self.recent_menu = m.addMenu(self.tr("&Zuletzt geöffnet"))
+        self.recent_menu.aboutToShow.connect(self._fill_recent_menu)
+        m.addActions([self.act_save, self.act_save_as])
         m.addSeparator()
         m.addAction(self.act_print)
         export = m.addMenu(self.tr("&Exportieren"))
@@ -726,19 +759,7 @@ class MainWindow(QMainWindow):
         m.addAction(self.act_about)
 
     def _create_toolbars(self) -> None:
-        # The workspace switch sits at the right end of the status bar (Florian's wish).
-        self.workspace_box = QComboBox()
-        self.workspace_box.addItem(self.tr("Schaltplan"), WORKSPACE_SLD)
-        self.workspace_box.addItem(self.tr("Zeichnung"), WORKSPACE_DRAWING)
-        self.workspace_box.setToolTip(
-            self.tr(
-                "Arbeitsbereich: zeigt die passenden Werkzeuge und Raster. "
-                "Die Zeichnung selbst ändert sich dabei nicht."
-            )
-        )
-        self.workspace_box.activated.connect(
-            lambda _i: self.set_workspace(self.workspace_box.currentData())
-        )
+        # Tools, grid, layers and libraries follow the kind of the open file.
         self.workspace = WORKSPACE_SLD
         for name, title, actions in (
             ("draw", self.tr("Zeichnen"), self.draw_actions),
@@ -938,7 +959,6 @@ class MainWindow(QMainWindow):
             status.addPermanentWidget(button)
         status.addPermanentWidget(self.lbl_layer)
         status.addPermanentWidget(self.lbl_zoom)
-        status.addPermanentWidget(self.workspace_box)
         self._show_cursor_position(QPointF(0.0, 0.0))
 
     # -- style, blocks and snapping -----------------------------------------
@@ -1129,7 +1149,11 @@ class MainWindow(QMainWindow):
         self.library_dock.refresh_document()
         self._update_title()
         self.pages_dock.rebuild()
-        self.canvas.set_initial_view(self._opening_view)
+        self._apply_document_kind()
+        if document.is_project:
+            self.sheets.show_first_page()
+        else:
+            self.canvas.set_initial_view(self._opening_view)
 
     # -- view when a drawing is opened ----------------------------------------
 
@@ -1184,7 +1208,8 @@ class MainWindow(QMainWindow):
         suffix = ""
         if self.space.kind == BLOCK:
             suffix = self.tr(" [Blockeditor: {name}]").format(name=self.blocks.editor_name())
-        self.setWindowTitle(f"{name}[*]{suffix} - {APP_NAME}")
+        kind = self.tr(DOC_KINDS.get(self.document.kind, ""))
+        self.setWindowTitle(f"{name}[*] ({kind}){suffix} - {APP_NAME}")
         self.setWindowModified(not self.undo_stack.isClean())
 
     def _maybe_save(self) -> bool:
@@ -1205,9 +1230,75 @@ class MainWindow(QMainWindow):
             return self.save()
         return answer == buttons.Discard
 
-    def new_document(self) -> None:
+    def start_rails(self) -> None:
+        dialog = RailsDialog(self)
+        if dialog.exec() != RailsDialog.DialogCode.Accepted:
+            return
+        names, ends = dialog.values()
+        if not names:
+            return
+        sheet = self.sheets.current_sheet()
+        span = None
+        if sheet is not None and sheet.frame == SCHEMATIC_FRAME:
+            a, b = schematic_inner(*sheet.size)
+            span = (a.x + RAIL_INSET_LEFT, b.x - RAIL_INSET_RIGHT)
+        self.start_tool(lambda ctx: RailsTool(ctx, names, ends, span))
+
+    def make_document(self, kind: str = DOC_SLD) -> Document:
+        if kind == DOC_PROJECT:
+            labels = title_labels()
+            return Document.new_project(
+                lambda width: schematic_title_block_definition(width, labels)
+            )
+        return Document.new(self.tr("Blatt 1"), title_labels(), kind)
+
+    def new_document(self, kind: str = DOC_SLD) -> None:
         if self._maybe_save():
-            self._set_document(Document.new(self.tr("Blatt 1"), title_labels()), None)
+            self._set_document(self.make_document(kind), None)
+
+    def show_start_dialog(self) -> None:
+        """New overview diagram, project or drawing, or one of the files opened last."""
+        dialog = StartDialog(self.recent_files(), self)
+        if dialog.exec() != StartDialog.DialogCode.Accepted:
+            return
+        action, value = dialog.choice
+        if action == "new":
+            self.new_document(value)
+        elif action == "open" and self._maybe_save():
+            self.open_path(Path(value))
+        elif action == "browse":
+            self.open_document()
+
+    # -- files opened last ----------------------------------------------------
+
+    def recent_files(self) -> list[tuple[Path, str]]:
+        """(path, document kind) of the files opened or saved last, newest first."""
+        result = []
+        for entry in QSettings().value(RECENT_KEY, [], type=list) or []:
+            kind, _, path = str(entry).partition("|")
+            if path and Path(path).is_file():
+                result.append((Path(path), kind if kind in DOC_KINDS else DOC_SLD))
+        return result
+
+    def _add_recent(self, path: Path) -> None:
+        resolved = str(path.resolve())
+        entries = [f"{kind}|{p}" for p, kind in self.recent_files() if str(p.resolve()) != resolved]
+        entries.insert(0, f"{self.document.kind}|{resolved}")
+        QSettings().setValue(RECENT_KEY, entries[:RECENT_COUNT])
+
+    def _fill_recent_menu(self) -> None:
+        self.recent_menu.clear()
+        files = self.recent_files()
+        for path, kind in files:
+            self.recent_menu.addAction(
+                f"{path.name}  ({self.tr(DOC_KINDS[kind])})", partial(self._open_recent, path)
+            ).setToolTip(str(path))
+        if not files:
+            self.recent_menu.addAction(self.tr("(keine)")).setEnabled(False)
+
+    def _open_recent(self, path: Path) -> None:
+        if self._maybe_save():
+            self.open_path(path)
 
     def _file_filter(self) -> str:
         return self.tr("SLDGridy-Zeichnung (*{suffix})").format(suffix=DRAWING_SUFFIX)
@@ -1241,6 +1332,7 @@ class MainWindow(QMainWindow):
             return False
         self.remember_dir(path)
         self._set_document(document, path)
+        self._add_recent(path)
         return True
 
     def save(self) -> bool:
@@ -1274,14 +1366,16 @@ class MainWindow(QMainWindow):
             return False
         self.file_path = path
         self.remember_dir(path)
+        self._add_recent(path)
         self.undo_stack.setClean()
         self.autosave.discard()
         self._update_title()
         self.message(self.tr("Gespeichert: {path}").format(path=path))
         return True
 
-    def offer_recovery(self) -> None:
-        """Offer backups of instances that ended without saving."""
+    def offer_recovery(self) -> bool:
+        """Offer backups of instances that ended without saving. True if one was
+        restored."""
         for backup in orphaned_backups():
             name = backup.original.name if backup.original else self.tr("Unbenannt")
             box = QMessageBox(self)
@@ -1300,7 +1394,8 @@ class MainWindow(QMainWindow):
             if box.clickedButton() is discard:
                 remove_backup(backup)
             elif box.clickedButton() is restore and self.restore_backup(backup):
-                return
+                return True
+        return False
 
     def restore_backup(self, backup) -> bool:
         if not self._maybe_save():
@@ -1892,9 +1987,7 @@ class MainWindow(QMainWindow):
         self.canvas.polar_increment = settings.value("view/polar_increment", 15.0, type=float)
         self.canvas.set_dynamic_enabled(self.act_dynamic_input.isChecked())
         self.canvas.decimal_comma = i18n.ui_locale().decimalPoint() == ","
-        # Every start begins in the circuit diagram (Florian's wish), whatever was used last.
-        self.workspace = WORKSPACE_SLD
-        self._apply_workspace()
+        self._apply_document_kind()
 
     def _set_grid_spacing(self, value: float) -> None:
         if value > 0:
@@ -1929,7 +2022,7 @@ class MainWindow(QMainWindow):
         settings.setValue(f"workspace/{self.workspace}/snap", self.canvas.snap_spacing)
 
     def set_workspace(self, workspace: str) -> None:
-        """Circuit diagram or scaled drawing: tools and grid, not the drawing itself."""
+        """Circuit diagram or scaled drawing: tools, grid and layers."""
         if workspace not in WORKSPACE_GRID or workspace == self.workspace:
             return
         self.tools.cancel()
@@ -1943,11 +2036,6 @@ class MainWindow(QMainWindow):
             self.canvas.set_grid_spacing(grid)
         if snap > 0:
             self.canvas.set_snap_spacing(snap)
-        drawing = self.workspace == WORKSPACE_DRAWING
-        for action in (self.act_wire, self.act_busbar, self.act_interruption):
-            action.setVisible(not drawing)
-        self.act_module_field.setVisible(drawing)
-        self.library_dock.set_workspace(self.workspace)
         # Each workspace has its own layers; the current one must belong to it.
         if self.document.has_layer(self.current_layer) and not self.document.layer(
             self.current_layer
@@ -1955,10 +2043,27 @@ class MainWindow(QMainWindow):
             self.set_current_layer(DEFAULT_LAYER)
         self.layers_dock.rebuild()
         self.properties_dock.refresh()
-        self.workspace_box.setCurrentIndex(max(self.workspace_box.findData(self.workspace), 0))
-        self.message(
-            self.tr("Arbeitsbereich: {name}").format(name=self.workspace_box.currentText())
-        )
+
+    def _apply_document_kind(self) -> None:
+        """Overview diagram, project or drawing: each shows only its own tools, menus,
+        windows and libraries."""
+        kind = self.document.kind
+        self.set_workspace(WORKSPACE_DRAWING if kind == DOC_DRAWING else WORKSPACE_SLD)
+        self._apply_workspace()
+        project, drawing = kind == DOC_PROJECT, kind == DOC_DRAWING
+        for action in (self.act_wire, self.act_busbar):
+            action.setVisible(not drawing)
+        for action in self.project_actions:
+            action.setVisible(project)
+        self.act_module_field.setVisible(drawing)
+        self.project_menu.menuAction().setVisible(project)
+        for dock in (self.pages_dock, self.devices_dock):
+            dock.toggleViewAction().setVisible(project)
+            if not project:
+                dock.hide()
+        self.library_dock.set_kind(kind)
+        self.sheets.apply_document_kind()
+        self._update_title()
 
     def _save_settings(self) -> None:
         settings = QSettings()

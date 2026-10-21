@@ -1,7 +1,7 @@
 {
  "format_version": 2,
  "type": "library",
- "name": "Symbole nach DIN EN 60617",
+ "name": "SLD: Symbole nach DIN EN 60617",
  "workspace": "sld",
  "blocks": [
   {

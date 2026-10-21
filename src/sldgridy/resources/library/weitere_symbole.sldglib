@@ -1,7 +1,7 @@
 {
  "format_version": 2,
  "type": "library",
- "name": "Weitere SLD-Symbole (nicht nach DIN EN 60617)",
+ "name": "SLD: Weitere Symbole (nicht nach DIN EN 60617)",
  "workspace": "sld",
  "blocks": [
   {

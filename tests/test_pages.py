@@ -12,6 +12,7 @@ from sldgridy.model.document import (
     CABLES,
     CIRCUIT,
     COVER,
+    DOC_PROJECT,
     PARTS,
     TERMINALS,
     TOC,
@@ -32,7 +33,7 @@ from sldgridy.ui.main_window import MainWindow
 
 def doc_with_pages() -> Document:
     """Blatt 1 (old drawing sheet), then three circuit diagram pages."""
-    doc = Document.new("Blatt 1")
+    doc = Document.new("Blatt 1", kind=DOC_PROJECT)
     doc.sheets += [
         new_page(CIRCUIT, "Einspeisung", "PV1", "UV1"),
         new_page(CIRCUIT, "Zähler", "PV1", "UV1"),
@@ -112,6 +113,7 @@ def window(qapp):
     w = MainWindow()
     w.resize(1200, 800)
     w.show()
+    w._set_document(Document.new("Blatt 1", kind=DOC_PROJECT), None)
     qapp.processEvents()
     yield w
     w.undo_stack.setClean()
@@ -136,7 +138,7 @@ def test_new_pages_with_types(window, monkeypatch):
     answer(window, monkeypatch, PARTS)
     sheets.new_sheet()
     texts = [sheets.tabs.tabText(i) for i in range(sheets.tabs.count())]
-    assert texts == ["Modell", "Blatt 1", "2 Stromlaufplan Einspeisung", "3 Stückliste"]
+    assert texts == ["Blatt 1", "2 Stromlaufplan Einspeisung", "3 Stückliste"]
     # Drawing on a page goes into the page.
     sheets.show_sheet(page.id)
     window.container.add(Line(id="x", p1=Point(30, 30), p2=Point(60, 30)))
@@ -164,9 +166,9 @@ def test_page_print_list(window):
 
 
 def test_grid_shows_on_paper(window):
-    window.sheets.tabs.setCurrentIndex(1)
-    assert window.canvas.paper_item is window.space.extra["paper"]
     window.sheets.tabs.setCurrentIndex(0)
+    assert window.canvas.paper_item is window.space.extra["paper"]
+    window.activate_space(window.model_view)
     assert window.canvas.paper_item is None
 
 
@@ -337,7 +339,7 @@ def wired_doc() -> Document:
     """-Q1 (page 2) -> wire -> L1 ... L1 (page 3) -> terminal -X1:1 -> cable -W1 -> -M1."""
     from sldgridy.model.entities import InterruptionPoint, Wire
 
-    doc = Document.new("Blatt 1")
+    doc = Document.new("Blatt 1", kind=DOC_PROJECT)
     doc.sheets += [new_page(CIRCUIT, "Einspeisung", "PV1"), new_page(CIRCUIT, "Abgang", "PV1")]
     doc.blocks["LS"] = block("LS", "main", terminals=("1", "2"))
     doc.blocks["Klemme"] = block("Klemme", "terminal", terminals=("1", "2"))
@@ -455,3 +457,20 @@ def test_suggest_bmk_counts_up_and_contacts_take_the_last():
     assert suggest_bmk(doc, "-X1:1") == "-X1:3"
     assert suggest_bmk(doc, "-X1:PE") == "-X1:PE"
     assert suggest_bmk(doc, "-K1") == "-K1"
+
+
+def test_rail_ends_refer_to_the_neighbouring_pages():
+    from sldgridy.model.interruptions import interruption_targets
+
+    doc = doc_with_pages()
+    p = doc.sheets
+    for page in p[1:]:  # L1 across pages 2, 3 and 4
+        page.entities.add(ip(f"l{page.id}", "L1", 25, 30, 180))
+        page.entities.add(ip(f"r{page.id}", "L1", 390, 30, 0))
+    targets = interruption_targets(doc)
+    assert f"l{p[1].id}" not in targets and f"r{p[3].id}" not in targets  # chain ends
+    assert targets[f"r{p[1].id}"][0] == "/3.0" and targets[f"l{p[2].id}"][0] == "/2.9"
+    alone = doc_with_pages()
+    alone.sheets[1].entities.add(ip("x", "N", 25, 30, 180))
+    alone.sheets[1].entities.add(ip("y", "N", 390, 30, 0))
+    assert interruption_targets(alone) == {}  # one rail on one page

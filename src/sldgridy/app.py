@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import QApplication
 from sldgridy import __version__, i18n, memwatch, platform_choice
 from sldgridy.fileio.paths import cache_dir
 from sldgridy.ui.main_window import APP_NAME, MainWindow
+from sldgridy.ui.start_dialog import show_on_start
 
 
 def create_application(argv: list[str]) -> QApplication:
@@ -67,5 +68,6 @@ def main(argv: list[str] | None = None) -> int:
     files = [a for a in app.arguments()[1:] if not a.startswith("-")]
     if files:
         window.open_path(Path(files[0]))
-    window.offer_recovery()
+    if not window.offer_recovery() and not files and show_on_start():
+        QTimer.singleShot(0, window.show_start_dialog)
     return app.exec()

@@ -1,8 +1,8 @@
 {
  "format_version": 2,
  "type": "library",
- "name": "MLD-Symbole nach DIN EN 60617 (allpolig)",
- "workspace": "sld",
+ "name": "MLD: Symbole nach DIN EN 60617 (allpolig)",
+ "workspace": "mld",
  "blocks": [
   {
    "name": "Leitungsschutzschalter 1-polig",
@@ -11,7 +11,7 @@
     0
    ],
    "category": "Schalten und Schützen",
-   "description": "Leitungsschutzschalter, ein Pol (allpolige Darstellung)",
+   "description": "Leitungsschutzschalter, ein Pol, mit thermischem und magnetischem Auslöser",
    "function": "main",
    "entities": [
     {
@@ -102,54 +102,104 @@
      "direction": 270
     },
     {
-     "type": "polyline",
-     "id": "p8",
+     "type": "line",
+     "id": "l8",
      "layer": "0",
-     "points": [
-      [
-       -3.5,
-       6.0
-      ],
-      [
-       -4.5,
-       6.6
-      ],
-      [
-       -3.8,
-       7.3
-      ],
-      [
-       -4.8,
-       7.9
-      ]
+     "p1": [
+      -5.0,
+      7.5
      ],
-     "closed": false
+     "p2": [
+      -1.3,
+      7.5
+     ],
+     "linetype": "dashed"
     },
     {
      "type": "rectangle",
      "id": "r9",
      "layer": "0",
      "p1": [
-      -6.25,
-      8.5
+      -8.75,
+      2.5
      ],
      "p2": [
       -5.0,
-      9.75
+      6.25
      ]
     },
     {
-     "type": "line",
-     "id": "l10",
+     "type": "polyline",
+     "id": "p10",
+     "layer": "0",
+     "points": [
+      [
+       -8.1,
+       5.375
+      ],
+      [
+       -7.5,
+       5.375
+      ],
+      [
+       -7.5,
+       3.375
+      ],
+      [
+       -6.25,
+       3.375
+      ],
+      [
+       -6.25,
+       5.375
+      ],
+      [
+       -5.65,
+       5.375
+      ]
+     ],
+     "closed": false
+    },
+    {
+     "type": "rectangle",
+     "id": "r11",
      "layer": "0",
      "p1": [
-      -3.73,
-      8.6
+      -8.75,
+      8.75
      ],
      "p2": [
       -5.0,
-      9.1
+      12.5
      ]
+    },
+    {
+     "type": "text",
+     "id": "t12",
+     "layer": "0",
+     "position": [
+      -6.875,
+      10.625
+     ],
+     "text": "I>",
+     "height": 1.8,
+     "rotation": 0,
+     "halign": "center",
+     "valign": "middle"
+    },
+    {
+     "type": "line",
+     "id": "l13",
+     "layer": "0",
+     "p1": [
+      -6.875,
+      6.25
+     ],
+     "p2": [
+      -6.875,
+      8.75
+     ],
+     "linetype": "dashed"
     },
     {
      "type": "attdef",
@@ -211,6 +261,360 @@
      "default": "",
      "position": [
       3.75,
+      13.0
+     ],
+     "height": 2.5,
+     "rotation": 0,
+     "visible": true,
+     "halign": "left",
+     "valign": "middle"
+    }
+   ]
+  },
+  {
+   "name": "Leitungsschutzschalter 1+N-polig",
+   "base_point": [
+    0,
+    0
+   ],
+   "category": "Schalten und Schützen",
+   "description": "Leitungsschutzschalter, ein Pol und Neutralleiter",
+   "function": "main",
+   "entities": [
+    {
+     "type": "line",
+     "id": "l1",
+     "layer": "0",
+     "p1": [
+      0.0,
+      0
+     ],
+     "p2": [
+      0.0,
+      5
+     ]
+    },
+    {
+     "type": "line",
+     "id": "l2",
+     "layer": "0",
+     "p1": [
+      0.0,
+      10
+     ],
+     "p2": [
+      0.0,
+      15.0
+     ]
+    },
+    {
+     "type": "line",
+     "id": "l3",
+     "layer": "0",
+     "p1": [
+      0.0,
+      10
+     ],
+     "p2": [
+      -2.59,
+      5.04
+     ]
+    },
+    {
+     "type": "line",
+     "id": "l4",
+     "layer": "0",
+     "p1": [
+      -0.9,
+      4.1
+     ],
+     "p2": [
+      0.9,
+      5.9
+     ]
+    },
+    {
+     "type": "line",
+     "id": "l5",
+     "layer": "0",
+     "p1": [
+      -0.9,
+      5.9
+     ],
+     "p2": [
+      0.9,
+      4.1
+     ]
+    },
+    {
+     "type": "connection",
+     "id": "cp6",
+     "layer": "0",
+     "name": "1",
+     "position": [
+      0.0,
+      0
+     ],
+     "direction": 90
+    },
+    {
+     "type": "connection",
+     "id": "cp7",
+     "layer": "0",
+     "name": "2",
+     "position": [
+      0.0,
+      15.0
+     ],
+     "direction": 270
+    },
+    {
+     "type": "line",
+     "id": "l8",
+     "layer": "0",
+     "p1": [
+      5.0,
+      0
+     ],
+     "p2": [
+      5.0,
+      5
+     ]
+    },
+    {
+     "type": "line",
+     "id": "l9",
+     "layer": "0",
+     "p1": [
+      5.0,
+      10
+     ],
+     "p2": [
+      5.0,
+      15.0
+     ]
+    },
+    {
+     "type": "line",
+     "id": "l10",
+     "layer": "0",
+     "p1": [
+      5.0,
+      10
+     ],
+     "p2": [
+      2.41,
+      5.04
+     ]
+    },
+    {
+     "type": "line",
+     "id": "l11",
+     "layer": "0",
+     "p1": [
+      4.1,
+      4.1
+     ],
+     "p2": [
+      5.9,
+      5.9
+     ]
+    },
+    {
+     "type": "line",
+     "id": "l12",
+     "layer": "0",
+     "p1": [
+      4.1,
+      5.9
+     ],
+     "p2": [
+      5.9,
+      4.1
+     ]
+    },
+    {
+     "type": "connection",
+     "id": "cp13",
+     "layer": "0",
+     "name": "N",
+     "position": [
+      5.0,
+      0
+     ],
+     "direction": 90
+    },
+    {
+     "type": "connection",
+     "id": "cp14",
+     "layer": "0",
+     "name": "N'",
+     "position": [
+      5.0,
+      15.0
+     ],
+     "direction": 270
+    },
+    {
+     "type": "line",
+     "id": "l15",
+     "layer": "0",
+     "p1": [
+      -5.0,
+      7.5
+     ],
+     "p2": [
+      3.7,
+      7.5
+     ],
+     "linetype": "dashed"
+    },
+    {
+     "type": "rectangle",
+     "id": "r16",
+     "layer": "0",
+     "p1": [
+      -8.75,
+      2.5
+     ],
+     "p2": [
+      -5.0,
+      6.25
+     ]
+    },
+    {
+     "type": "polyline",
+     "id": "p17",
+     "layer": "0",
+     "points": [
+      [
+       -8.1,
+       5.375
+      ],
+      [
+       -7.5,
+       5.375
+      ],
+      [
+       -7.5,
+       3.375
+      ],
+      [
+       -6.25,
+       3.375
+      ],
+      [
+       -6.25,
+       5.375
+      ],
+      [
+       -5.65,
+       5.375
+      ]
+     ],
+     "closed": false
+    },
+    {
+     "type": "rectangle",
+     "id": "r18",
+     "layer": "0",
+     "p1": [
+      -8.75,
+      8.75
+     ],
+     "p2": [
+      -5.0,
+      12.5
+     ]
+    },
+    {
+     "type": "text",
+     "id": "t19",
+     "layer": "0",
+     "position": [
+      -6.875,
+      10.625
+     ],
+     "text": "I>",
+     "height": 1.8,
+     "rotation": 0,
+     "halign": "center",
+     "valign": "middle"
+    },
+    {
+     "type": "line",
+     "id": "l20",
+     "layer": "0",
+     "p1": [
+      -6.875,
+      6.25
+     ],
+     "p2": [
+      -6.875,
+      8.75
+     ],
+     "linetype": "dashed"
+    },
+    {
+     "type": "attdef",
+     "id": "att_bmk",
+     "layer": "0",
+     "tag": "BMK",
+     "prompt": "Betriebsmittelkennzeichen",
+     "default": "-F1",
+     "position": [
+      8.75,
+      2.5
+     ],
+     "height": 2.5,
+     "rotation": 0,
+     "visible": true,
+     "halign": "left",
+     "valign": "middle"
+    },
+    {
+     "type": "attdef",
+     "id": "att_hersteller",
+     "layer": "0",
+     "tag": "HERSTELLER",
+     "prompt": "Hersteller",
+     "default": "",
+     "position": [
+      8.75,
+      6.0
+     ],
+     "height": 2.5,
+     "rotation": 0,
+     "visible": true,
+     "halign": "left",
+     "valign": "middle"
+    },
+    {
+     "type": "attdef",
+     "id": "att_typ",
+     "layer": "0",
+     "tag": "TYP",
+     "prompt": "Typ",
+     "default": "",
+     "position": [
+      8.75,
+      9.5
+     ],
+     "height": 2.5,
+     "rotation": 0,
+     "visible": true,
+     "halign": "left",
+     "valign": "middle"
+    },
+    {
+     "type": "attdef",
+     "id": "att_wert",
+     "layer": "0",
+     "tag": "WERT",
+     "prompt": "Wert",
+     "default": "",
+     "position": [
+      8.75,
       13.0
      ],
      "height": 2.5,
@@ -497,7 +901,7 @@
      "id": "l22",
      "layer": "0",
      "p1": [
-      -1.3,
+      -5.0,
       7.5
      ],
      "p2": [
@@ -507,54 +911,90 @@
      "linetype": "dashed"
     },
     {
+     "type": "rectangle",
+     "id": "r23",
+     "layer": "0",
+     "p1": [
+      -8.75,
+      2.5
+     ],
+     "p2": [
+      -5.0,
+      6.25
+     ]
+    },
+    {
      "type": "polyline",
-     "id": "p23",
+     "id": "p24",
      "layer": "0",
      "points": [
       [
-       -3.5,
-       6.0
+       -8.1,
+       5.375
       ],
       [
-       -4.5,
-       6.6
+       -7.5,
+       5.375
       ],
       [
-       -3.8,
-       7.3
+       -7.5,
+       3.375
       ],
       [
-       -4.8,
-       7.9
+       -6.25,
+       3.375
+      ],
+      [
+       -6.25,
+       5.375
+      ],
+      [
+       -5.65,
+       5.375
       ]
      ],
      "closed": false
     },
     {
      "type": "rectangle",
-     "id": "r24",
+     "id": "r25",
      "layer": "0",
      "p1": [
-      -6.25,
-      8.5
+      -8.75,
+      8.75
      ],
      "p2": [
       -5.0,
-      9.75
+      12.5
      ]
     },
     {
+     "type": "text",
+     "id": "t26",
+     "layer": "0",
+     "position": [
+      -6.875,
+      10.625
+     ],
+     "text": "I>",
+     "height": 1.8,
+     "rotation": 0,
+     "halign": "center",
+     "valign": "middle"
+    },
+    {
      "type": "line",
-     "id": "l25",
+     "id": "l27",
      "layer": "0",
      "p1": [
-      -3.73,
-      8.6
+      -6.875,
+      6.25
      ],
      "p2": [
-      -5.0,
-      9.1
-     ]
+      -6.875,
+      8.75
+     ],
+     "linetype": "dashed"
     },
     {
      "type": "attdef",
@@ -989,7 +1429,7 @@
      "id": "l29",
      "layer": "0",
      "p1": [
-      -1.3,
+      -5.0,
       7.5
      ],
      "p2": [
@@ -999,54 +1439,90 @@
      "linetype": "dashed"
     },
     {
+     "type": "rectangle",
+     "id": "r30",
+     "layer": "0",
+     "p1": [
+      -8.75,
+      2.5
+     ],
+     "p2": [
+      -5.0,
+      6.25
+     ]
+    },
+    {
      "type": "polyline",
-     "id": "p30",
+     "id": "p31",
      "layer": "0",
      "points": [
       [
-       -3.5,
-       6.0
+       -8.1,
+       5.375
       ],
       [
-       -4.5,
-       6.6
+       -7.5,
+       5.375
       ],
       [
-       -3.8,
-       7.3
+       -7.5,
+       3.375
       ],
       [
-       -4.8,
-       7.9
+       -6.25,
+       3.375
+      ],
+      [
+       -6.25,
+       5.375
+      ],
+      [
+       -5.65,
+       5.375
       ]
      ],
      "closed": false
     },
     {
      "type": "rectangle",
-     "id": "r31",
+     "id": "r32",
      "layer": "0",
      "p1": [
-      -6.25,
-      8.5
+      -8.75,
+      8.75
      ],
      "p2": [
       -5.0,
-      9.75
+      12.5
      ]
     },
     {
+     "type": "text",
+     "id": "t33",
+     "layer": "0",
+     "position": [
+      -6.875,
+      10.625
+     ],
+     "text": "I>",
+     "height": 1.8,
+     "rotation": 0,
+     "halign": "center",
+     "valign": "middle"
+    },
+    {
      "type": "line",
-     "id": "l32",
+     "id": "l34",
      "layer": "0",
      "p1": [
-      -3.73,
-      8.6
+      -6.875,
+      6.25
      ],
      "p2": [
-      -5.0,
-      9.1
-     ]
+      -6.875,
+      8.75
+     ],
+     "linetype": "dashed"
     },
     {
      "type": "attdef",
@@ -1394,7 +1870,7 @@
      "id": "l22",
      "layer": "0",
      "p1": [
-      -1.3,
+      -5.0,
       7.5
      ],
      "p2": [
@@ -1404,54 +1880,90 @@
      "linetype": "dashed"
     },
     {
+     "type": "rectangle",
+     "id": "r23",
+     "layer": "0",
+     "p1": [
+      -8.75,
+      2.5
+     ],
+     "p2": [
+      -5.0,
+      6.25
+     ]
+    },
+    {
      "type": "polyline",
-     "id": "p23",
+     "id": "p24",
      "layer": "0",
      "points": [
       [
-       -3.5,
-       6.0
+       -8.1,
+       5.375
       ],
       [
-       -4.5,
-       6.6
+       -7.5,
+       5.375
       ],
       [
-       -3.8,
-       7.3
+       -7.5,
+       3.375
       ],
       [
-       -4.8,
-       7.9
+       -6.25,
+       3.375
+      ],
+      [
+       -6.25,
+       5.375
+      ],
+      [
+       -5.65,
+       5.375
       ]
      ],
      "closed": false
     },
     {
      "type": "rectangle",
-     "id": "r24",
+     "id": "r25",
      "layer": "0",
      "p1": [
-      -6.25,
-      8.5
+      -8.75,
+      8.75
      ],
      "p2": [
       -5.0,
-      9.75
+      12.5
      ]
     },
     {
+     "type": "text",
+     "id": "t26",
+     "layer": "0",
+     "position": [
+      -6.875,
+      10.625
+     ],
+     "text": "I>",
+     "height": 1.8,
+     "rotation": 0,
+     "halign": "center",
+     "valign": "middle"
+    },
+    {
      "type": "line",
-     "id": "l25",
+     "id": "l27",
      "layer": "0",
      "p1": [
-      -3.73,
-      8.6
+      -6.875,
+      6.25
      ],
      "p2": [
-      -5.0,
-      9.1
-     ]
+      -6.875,
+      8.75
+     ],
+     "linetype": "dashed"
     },
     {
      "type": "attdef",
@@ -2315,34 +2827,8 @@
      ]
     },
     {
-     "type": "line",
-     "id": "l4",
-     "layer": "0",
-     "p1": [
-      -0.9,
-      4.1
-     ],
-     "p2": [
-      0.9,
-      5.9
-     ]
-    },
-    {
-     "type": "line",
-     "id": "l5",
-     "layer": "0",
-     "p1": [
-      -0.9,
-      5.9
-     ],
-     "p2": [
-      0.9,
-      4.1
-     ]
-    },
-    {
      "type": "connection",
-     "id": "cp6",
+     "id": "cp4",
      "layer": "0",
      "name": "1",
      "position": [
@@ -2353,7 +2839,7 @@
     },
     {
      "type": "connection",
-     "id": "cp7",
+     "id": "cp5",
      "layer": "0",
      "name": "2",
      "position": [
@@ -2364,7 +2850,7 @@
     },
     {
      "type": "line",
-     "id": "l8",
+     "id": "l6",
      "layer": "0",
      "p1": [
       5.0,
@@ -2377,7 +2863,7 @@
     },
     {
      "type": "line",
-     "id": "l9",
+     "id": "l7",
      "layer": "0",
      "p1": [
       5.0,
@@ -2390,7 +2876,7 @@
     },
     {
      "type": "line",
-     "id": "l10",
+     "id": "l8",
      "layer": "0",
      "p1": [
       5.0,
@@ -2402,34 +2888,8 @@
      ]
     },
     {
-     "type": "line",
-     "id": "l11",
-     "layer": "0",
-     "p1": [
-      4.1,
-      4.1
-     ],
-     "p2": [
-      5.9,
-      5.9
-     ]
-    },
-    {
-     "type": "line",
-     "id": "l12",
-     "layer": "0",
-     "p1": [
-      4.1,
-      5.9
-     ],
-     "p2": [
-      5.9,
-      4.1
-     ]
-    },
-    {
      "type": "connection",
-     "id": "cp13",
+     "id": "cp9",
      "layer": "0",
      "name": "3",
      "position": [
@@ -2440,7 +2900,7 @@
     },
     {
      "type": "connection",
-     "id": "cp14",
+     "id": "cp10",
      "layer": "0",
      "name": "4",
      "position": [
@@ -2451,7 +2911,7 @@
     },
     {
      "type": "line",
-     "id": "l15",
+     "id": "l11",
      "layer": "0",
      "p1": [
       10.0,
@@ -2464,7 +2924,7 @@
     },
     {
      "type": "line",
-     "id": "l16",
+     "id": "l12",
      "layer": "0",
      "p1": [
       10.0,
@@ -2477,7 +2937,7 @@
     },
     {
      "type": "line",
-     "id": "l17",
+     "id": "l13",
      "layer": "0",
      "p1": [
       10.0,
@@ -2489,34 +2949,8 @@
      ]
     },
     {
-     "type": "line",
-     "id": "l18",
-     "layer": "0",
-     "p1": [
-      9.1,
-      4.1
-     ],
-     "p2": [
-      10.9,
-      5.9
-     ]
-    },
-    {
-     "type": "line",
-     "id": "l19",
-     "layer": "0",
-     "p1": [
-      9.1,
-      5.9
-     ],
-     "p2": [
-      10.9,
-      4.1
-     ]
-    },
-    {
      "type": "connection",
-     "id": "cp20",
+     "id": "cp14",
      "layer": "0",
      "name": "5",
      "position": [
@@ -2527,7 +2961,7 @@
     },
     {
      "type": "connection",
-     "id": "cp21",
+     "id": "cp15",
      "layer": "0",
      "name": "6",
      "position": [
@@ -2538,7 +2972,7 @@
     },
     {
      "type": "line",
-     "id": "l22",
+     "id": "l16",
      "layer": "0",
      "p1": [
       15.0,
@@ -2551,7 +2985,7 @@
     },
     {
      "type": "line",
-     "id": "l23",
+     "id": "l17",
      "layer": "0",
      "p1": [
       15.0,
@@ -2564,7 +2998,7 @@
     },
     {
      "type": "line",
-     "id": "l24",
+     "id": "l18",
      "layer": "0",
      "p1": [
       15.0,
@@ -2576,34 +3010,8 @@
      ]
     },
     {
-     "type": "line",
-     "id": "l25",
-     "layer": "0",
-     "p1": [
-      14.1,
-      4.1
-     ],
-     "p2": [
-      15.9,
-      5.9
-     ]
-    },
-    {
-     "type": "line",
-     "id": "l26",
-     "layer": "0",
-     "p1": [
-      14.1,
-      5.9
-     ],
-     "p2": [
-      15.9,
-      4.1
-     ]
-    },
-    {
      "type": "connection",
-     "id": "cp27",
+     "id": "cp19",
      "layer": "0",
      "name": "N",
      "position": [
@@ -2614,7 +3022,7 @@
     },
     {
      "type": "connection",
-     "id": "cp28",
+     "id": "cp20",
      "layer": "0",
      "name": "N'",
      "position": [
@@ -2624,20 +3032,6 @@
      "direction": 270
     },
     {
-     "type": "line",
-     "id": "l29",
-     "layer": "0",
-     "p1": [
-      -1.3,
-      7.5
-     ],
-     "p2": [
-      13.7,
-      7.5
-     ],
-     "linetype": "dashed"
-    },
-    {
      "type": "attdef",
      "id": "att_bmk",
      "layer": "0",
@@ -2645,7 +3039,7 @@
      "prompt": "Betriebsmittelkennzeichen",
      "default": "-F1",
      "position": [
-      20.0,
+      18.75,
       2.5
      ],
      "height": 2.5,
@@ -2662,7 +3056,7 @@
      "prompt": "Hersteller",
      "default": "",
      "position": [
-      20.0,
+      18.75,
       6.0
      ],
      "height": 2.5,
@@ -2679,7 +3073,7 @@
      "prompt": "Typ",
      "default": "",
      "position": [
-      20.0,
+      18.75,
       9.5
      ],
      "height": 2.5,
@@ -2696,7 +3090,7 @@
      "prompt": "Wert",
      "default": "",
      "position": [
-      20.0,
+      18.75,
       13.0
      ],
      "height": 2.5,
@@ -2706,77 +3100,11 @@
      "valign": "middle"
     },
     {
-     "type": "polyline",
-     "id": "p30",
-     "layer": "0",
-     "points": [
-      [
-       -1.25,
-       12.5
-      ],
-      [
-       2,
-       11.6
-      ],
-      [
-       7.5,
-       11.3
-      ],
-      [
-       13,
-       11.6
-      ],
-      [
-       16.25,
-       12.5
-      ],
-      [
-       13,
-       13.4
-      ],
-      [
-       7.5,
-       13.7
-      ],
-      [
-       2,
-       13.4
-      ]
-     ],
-     "closed": true
-    },
-    {
      "type": "line",
-     "id": "l31",
+     "id": "l22",
      "layer": "0",
      "p1": [
-      16.25,
-      12.5
-     ],
-     "p2": [
-      18.0,
-      12.5
-     ]
-    },
-    {
-     "type": "line",
-     "id": "l32",
-     "layer": "0",
-     "p1": [
-      18.0,
-      12.5
-     ],
-     "p2": [
-      18.0,
-      7.5
-     ]
-    },
-    {
-     "type": "line",
-     "id": "l33",
-     "layer": "0",
-     "p1": [
-      18.0,
+      -5.0,
       7.5
      ],
      "p2": [
@@ -2784,6 +3112,103 @@
       7.5
      ],
      "linetype": "dashed"
+    },
+    {
+     "type": "rectangle",
+     "id": "r23",
+     "layer": "0",
+     "p1": [
+      -8.75,
+      5.625
+     ],
+     "p2": [
+      -5.0,
+      9.375
+     ]
+    },
+    {
+     "type": "text",
+     "id": "t24",
+     "layer": "0",
+     "position": [
+      -6.875,
+      7.5
+     ],
+     "text": "IΔ",
+     "height": 1.8,
+     "rotation": 0,
+     "halign": "center",
+     "valign": "middle"
+    },
+    {
+     "type": "arc",
+     "id": "a25",
+     "layer": "0",
+     "center": [
+      0,
+      12.5
+     ],
+     "radius": 1.25,
+     "start_angle": 90,
+     "end_angle": 270
+    },
+    {
+     "type": "arc",
+     "id": "a26",
+     "layer": "0",
+     "center": [
+      15,
+      12.5
+     ],
+     "radius": 1.25,
+     "start_angle": 270,
+     "end_angle": 90
+    },
+    {
+     "type": "line",
+     "id": "l27",
+     "layer": "0",
+     "p1": [
+      0,
+      11.25
+     ],
+     "p2": [
+      15,
+      11.25
+     ]
+    },
+    {
+     "type": "line",
+     "id": "l28",
+     "layer": "0",
+     "p1": [
+      0,
+      13.75
+     ],
+     "p2": [
+      15,
+      13.75
+     ]
+    },
+    {
+     "type": "polyline",
+     "id": "p29",
+     "layer": "0",
+     "points": [
+      [
+       -1.25,
+       12.5
+      ],
+      [
+       -6.875,
+       12.5
+      ],
+      [
+       -6.875,
+       9.375
+      ]
+     ],
+     "closed": false
     }
    ]
   },
@@ -3167,11 +3592,11 @@
      "id": "r2",
      "layer": "0",
      "p1": [
-      -3.75,
+      -5.0,
       5
      ],
      "p2": [
-      3.75,
+      5.0,
       10
      ]
     },
@@ -3216,9 +3641,9 @@
      "layer": "0",
      "tag": "BMK",
      "prompt": "Betriebsmittelkennzeichen",
-     "default": "-Q1",
+     "default": "-K1",
      "position": [
-      6.25,
+      7.5,
       2.5
      ],
      "height": 2.5,
@@ -3235,7 +3660,7 @@
      "prompt": "Hersteller",
      "default": "",
      "position": [
-      6.25,
+      7.5,
       6.0
      ],
      "height": 2.5,
@@ -3252,7 +3677,7 @@
      "prompt": "Typ",
      "default": "",
      "position": [
-      6.25,
+      7.5,
       9.5
      ],
      "height": 2.5,
@@ -3513,7 +3938,7 @@
      "layer": "0",
      "tag": "BMK",
      "prompt": "Betriebsmittelkennzeichen",
-     "default": "-Q1",
+     "default": "-K1",
      "position": [
       13.75,
       2.5
@@ -3554,30 +3979,17 @@
      "id": "r2",
      "layer": "0",
      "p1": [
-      -3.75,
+      -5.0,
       5
      ],
      "p2": [
-      3.75,
+      5.0,
       10
      ]
     },
     {
      "type": "line",
      "id": "l3",
-     "layer": "0",
-     "p1": [
-      -3.75,
-      10
-     ],
-     "p2": [
-      3.75,
-      5
-     ]
-    },
-    {
-     "type": "line",
-     "id": "l4",
      "layer": "0",
      "p1": [
       0,
@@ -3590,7 +4002,7 @@
     },
     {
      "type": "connection",
-     "id": "cp5",
+     "id": "cp4",
      "layer": "0",
      "name": "A1",
      "position": [
@@ -3601,7 +4013,7 @@
     },
     {
      "type": "connection",
-     "id": "cp6",
+     "id": "cp5",
      "layer": "0",
      "name": "A2",
      "position": [
@@ -3618,7 +4030,7 @@
      "prompt": "Betriebsmittelkennzeichen",
      "default": "-K1",
      "position": [
-      6.25,
+      7.5,
       2.5
      ],
      "height": 2.5,
@@ -3635,7 +4047,7 @@
      "prompt": "Hersteller",
      "default": "",
      "position": [
-      6.25,
+      7.5,
       6.0
      ],
      "height": 2.5,
@@ -3652,7 +4064,7 @@
      "prompt": "Typ",
      "default": "",
      "position": [
-      6.25,
+      7.5,
       9.5
      ],
      "height": 2.5,
@@ -3874,11 +4286,11 @@
      "id": "l1",
      "layer": "0",
      "p1": [
-      -2.5,
+      0,
       0
      ],
      "p2": [
-      -2.5,
+      0,
       5
      ]
     },
@@ -3887,17 +4299,30 @@
      "id": "l2",
      "layer": "0",
      "p1": [
-      2.5,
+      5,
       0
      ],
      "p2": [
-      2.5,
+      5,
       5
      ]
     },
     {
      "type": "line",
      "id": "l3",
+     "layer": "0",
+     "p1": [
+      5,
+      5
+     ],
+     "p2": [
+      2.0,
+      5
+     ]
+    },
+    {
+     "type": "line",
+     "id": "l4",
      "layer": "0",
      "p1": [
       0,
@@ -3910,27 +4335,16 @@
     },
     {
      "type": "line",
-     "id": "l4",
+     "id": "l5",
      "layer": "0",
      "p1": [
       0,
       10
      ],
      "p2": [
-      -2.3,
-      5.4
+      3.0,
+      4.3
      ]
-    },
-    {
-     "type": "connection",
-     "id": "cp5",
-     "layer": "0",
-     "name": "12",
-     "position": [
-      -2.5,
-      0
-     ],
-     "direction": 90
     },
     {
      "type": "connection",
@@ -3938,7 +4352,7 @@
      "layer": "0",
      "name": "14",
      "position": [
-      2.5,
+      0,
       0
      ],
      "direction": 90
@@ -3946,6 +4360,17 @@
     {
      "type": "connection",
      "id": "cp7",
+     "layer": "0",
+     "name": "12",
+     "position": [
+      5,
+      0
+     ],
+     "direction": 90
+    },
+    {
+     "type": "connection",
+     "id": "cp8",
      "layer": "0",
      "name": "11",
      "position": [
@@ -3962,7 +4387,7 @@
      "prompt": "Betriebsmittelkennzeichen",
      "default": "-K1",
      "position": [
-      5.0,
+      7.5,
       2.5
      ],
      "height": 2.5,
@@ -5258,7 +5683,7 @@
      "layer": "0",
      "position": [
       7.5,
-      11.2
+      10.0
      ],
      "text": "kWh",
      "height": 3.5,
@@ -5502,206 +5927,6 @@
      "position": [
       20.0,
       14.5
-     ],
-     "height": 2.5,
-     "rotation": 0,
-     "visible": true,
-     "halign": "left",
-     "valign": "middle"
-    }
-   ]
-  },
-  {
-   "name": "Klemme",
-   "base_point": [
-    0,
-    0
-   ],
-   "category": "Klemmen",
-   "description": "Reihenklemme; BMK mit Leiste und Nummer, z. B. -X1:1",
-   "function": "terminal",
-   "entities": [
-    {
-     "type": "line",
-     "id": "l1",
-     "layer": "0",
-     "p1": [
-      0,
-      0
-     ],
-     "p2": [
-      0,
-      1.5
-     ]
-    },
-    {
-     "type": "circle",
-     "id": "c2",
-     "layer": "0",
-     "center": [
-      0,
-      2.5
-     ],
-     "radius": 1.0
-    },
-    {
-     "type": "line",
-     "id": "l3",
-     "layer": "0",
-     "p1": [
-      0,
-      3.5
-     ],
-     "p2": [
-      0,
-      5
-     ]
-    },
-    {
-     "type": "connection",
-     "id": "cp4",
-     "layer": "0",
-     "name": "1",
-     "position": [
-      0,
-      0
-     ],
-     "direction": 90
-    },
-    {
-     "type": "connection",
-     "id": "cp5",
-     "layer": "0",
-     "name": "2",
-     "position": [
-      0,
-      5
-     ],
-     "direction": 270
-    },
-    {
-     "type": "attdef",
-     "id": "att_bmk",
-     "layer": "0",
-     "tag": "BMK",
-     "prompt": "Betriebsmittelkennzeichen",
-     "default": "-X1:1",
-     "position": [
-      2.5,
-      2.5
-     ],
-     "height": 2.5,
-     "rotation": 0,
-     "visible": true,
-     "halign": "left",
-     "valign": "middle"
-    }
-   ]
-  },
-  {
-   "name": "Klemme PE",
-   "base_point": [
-    0,
-    0
-   ],
-   "category": "Klemmen",
-   "description": "Schutzleiterklemme; BMK mit Leiste und Nummer, z. B. -X1:PE",
-   "function": "terminal",
-   "entities": [
-    {
-     "type": "line",
-     "id": "l1",
-     "layer": "0",
-     "p1": [
-      0,
-      0
-     ],
-     "p2": [
-      0,
-      1.5
-     ]
-    },
-    {
-     "type": "circle",
-     "id": "c2",
-     "layer": "0",
-     "center": [
-      0,
-      2.5
-     ],
-     "radius": 1.0
-    },
-    {
-     "type": "line",
-     "id": "l3",
-     "layer": "0",
-     "p1": [
-      -0.7,
-      2.5
-     ],
-     "p2": [
-      0.7,
-      2.5
-     ]
-    },
-    {
-     "type": "line",
-     "id": "l4",
-     "layer": "0",
-     "p1": [
-      0,
-      1.8
-     ],
-     "p2": [
-      0,
-      3.2
-     ]
-    },
-    {
-     "type": "line",
-     "id": "l5",
-     "layer": "0",
-     "p1": [
-      0,
-      3.5
-     ],
-     "p2": [
-      0,
-      5
-     ]
-    },
-    {
-     "type": "connection",
-     "id": "cp6",
-     "layer": "0",
-     "name": "1",
-     "position": [
-      0,
-      0
-     ],
-     "direction": 90
-    },
-    {
-     "type": "connection",
-     "id": "cp7",
-     "layer": "0",
-     "name": "2",
-     "position": [
-      0,
-      5
-     ],
-     "direction": 270
-    },
-    {
-     "type": "attdef",
-     "id": "att_bmk",
-     "layer": "0",
-     "tag": "BMK",
-     "prompt": "Betriebsmittelkennzeichen",
-     "default": "-X1:PE",
-     "position": [
-      2.5,
-      2.5
      ],
      "height": 2.5,
      "rotation": 0,

@@ -54,10 +54,12 @@ from sldgridy.model.blocks import (
     dependencies,
     expand,
     explode,
+    world_connections,
     would_create_cycle,
 )
 from sldgridy.model.container import EntityContainer
 from sldgridy.model.devices import BMK, suggest_bmk
+from sldgridy.model.document import DOC_DRAWING
 from sldgridy.model.entities import (
     AttributeDefinition,
     BlockReference,
@@ -66,6 +68,7 @@ from sldgridy.model.entities import (
     new_id,
 )
 from sldgridy.model.geometry import Point
+from sldgridy.model.routing import open_wires
 from sldgridy.tools.blocks import InsertBlockTool, PointTool
 from sldgridy.tools.edit import SelectObjectsTool
 from sldgridy.ui.block_dialogs import (
@@ -400,21 +403,26 @@ class BlockController(QObject):
             if attdefs:
                 values = dict(ref.attributes)
                 bmk = next((d for d in attdefs if d.tag == BMK), None)
-                if bmk is not None and not values.get(BMK):
+                if bmk is not None and values.get(BMK, "") in ("", bmk.default):
                     values[BMK] = suggest_bmk(self.doc, bmk.default, definition.function)
                 dialog = AttributeValuesDialog(ref.name, attdefs, values, self.w)
                 if dialog.exec() != AttributeValuesDialog.DialogCode.Accepted:
                     return
                 ref = replace(ref, attributes=tuple(sorted(dialog.values().items())))
             ref = replace(ref, id=new_id())
+            text = self.tr("Block {name} einfügen").format(name=ref.name)
+            # Placed into wires (circuit diagrams): each pole opens its conductor.
+            removed, added = [], []
+            if not self.in_editor() and self.doc.kind != DOC_DRAWING:
+                removed, added = open_wires(self.w.container, world_connections(ref, blocks))
+            if removed:
+                self.w.begin_macro(text)
             prepare()
-            self.w.push(
-                AddEntitiesCommand(
-                    self.w.container,
-                    [ref],
-                    self.tr("Block {name} einfügen").format(name=ref.name),
-                )
-            )
+            self.w.push(AddEntitiesCommand(self.w.container, [ref], text))
+            if removed:
+                self.w.push(RemoveEntitiesCommand(self.w.container, removed, ""))
+                self.w.push(AddEntitiesCommand(self.w.container, added, ""))
+                self.w.end_macro()
 
         return place
 

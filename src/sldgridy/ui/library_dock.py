@@ -24,7 +24,7 @@ from sldgridy.fileio.json_format import FileFormatError
 from sldgridy.fileio.paths import system_library_dir, user_library_dir
 from sldgridy.i18n import library_text
 from sldgridy.model.blocks import BlockDefinition
-from sldgridy.model.document import Document
+from sldgridy.model.document import DOC_DRAWING, DOC_PROJECT, DOC_SLD, Document
 from sldgridy.view.canvas import BLOCK_MIME
 from sldgridy.view.thumbnails import block_icon
 
@@ -85,6 +85,16 @@ class Library:
         self.workspace = workspace
 
 
+SLD, MLD, DRAWING_LIBRARY = "sld", "mld", "drawing"
+# Libraries (by their "workspace") offered for each document kind.
+KIND_LIBRARIES = {
+    DOC_SLD: (SLD,),
+    DOC_PROJECT: (SLD, MLD),
+    DOC_DRAWING: (DRAWING_LIBRARY,),
+}
+_GROUP_ORDER = {SLD: 0, MLD: 1, DRAWING_LIBRARY: 2}
+
+
 def library_files() -> list[tuple[Path, bool]]:
     """(path, shipped) of all library files, shipped ones first."""
     result: list[tuple[Path, bool]] = []
@@ -108,7 +118,8 @@ class LibraryDock(QDockWidget):
         self.setObjectName("dock_library")
         self._host = host
         self.libraries: dict[str, Library] = {}
-        self.workspace = ""
+        self.kind = DOC_SLD
+        self._preferred = ""
         self._icons: dict[tuple[str, str], object] = {}
 
         self.source = QComboBox()
@@ -182,16 +193,31 @@ class LibraryDock(QDockWidget):
         self._fill_sources()
 
     def visible_libraries(self) -> dict[str, Library]:
-        """Libraries of the current workspace (and those for every workspace)."""
-        return {
-            key: lib
+        """Libraries for the kind of the open file (and those for every kind), the
+        overview diagram ones (SLD) before the circuit diagram ones (MLD)."""
+        shown = [
+            (key, lib)
             for key, lib in self.libraries.items()
-            if not lib.workspace or not self.workspace or lib.workspace == self.workspace
-        }
+            if not lib.workspace or lib.workspace in KIND_LIBRARIES.get(self.kind, ())
+        ]
+        shown.sort(key=lambda kv: _GROUP_ORDER.get(kv[1].workspace, len(_GROUP_ORDER)))
+        return dict(shown)
 
-    def set_workspace(self, workspace: str) -> None:
-        self.workspace = workspace
+    def set_kind(self, kind: str) -> None:
+        """Document kind: "sld", "project" or "drawing"."""
+        if kind == self.kind:
+            return
+        self.kind = kind
+        # A project starts with the circuit diagram symbols.
+        self._preferred = MLD if kind == DOC_PROJECT else ""
         self._fill_sources()
+
+    def _group(self, path: str) -> str:
+        """ "SLD" or "MLD" when both kinds of symbols are listed, else empty."""
+        lib = self.libraries.get(path)
+        if lib is None or self.kind != DOC_PROJECT:
+            return ""
+        return {SLD: "SLD", MLD: "MLD"}.get(lib.workspace, "")
 
     def _fill_sources(self) -> None:
         current = self.source.currentData()
@@ -202,6 +228,12 @@ class LibraryDock(QDockWidget):
         for key, lib in self.visible_libraries().items():
             self.source.addItem(library_text(lib.title), key)
         index = self.source.findData(current) if current is not None else 0
+        if self._preferred:
+            preferred = [
+                k for k, lib in self.visible_libraries().items() if lib.workspace == self._preferred
+            ]
+            index = self.source.findData(preferred[0]) if preferred else index
+            self._preferred = ""
         self.source.setCurrentIndex(max(index, 0))
         self.source.blockSignals(False)
         self._fill()
@@ -230,18 +262,22 @@ class LibraryDock(QDockWidget):
         self.category.blockSignals(True)
         self.category.clear()
         self.category.addItem(self.tr("Alle Kategorien"), ALL_CATEGORIES)
-        names = sorted({d.category for _, d in entries if d.category}, key=str.casefold)
-        for name in names:
-            self.category.addItem(library_text(name), name)
+        keys = {(self._group(p), d.category) for p, d in entries if d.category}
+        for group, name in sorted(keys, key=lambda k: (k[0] != "SLD", k[0], k[1].casefold())):
+            text = library_text(name)
+            self.category.addItem(f"{group}: {text}" if group else text, f"{group}|{name}")
         if any(not d.category for _, d in entries):
-            self.category.addItem(self.tr("Ohne Kategorie"), "")
+            self.category.addItem(self.tr("Ohne Kategorie"), "|")
         index = self.category.findData(current) if current is not None else 0
         self.category.setCurrentIndex(max(index, 0))
         self.category.blockSignals(False)
 
     def _fill(self) -> None:
         self.list.clear()
-        entries = sorted(self._entries(), key=lambda e: (e[1].category, e[1].name.casefold()))
+        entries = sorted(
+            self._entries(),
+            key=lambda e: (self._group(e[0]) != "SLD", e[1].category, e[1].name.casefold()),
+        )
         self._fill_categories(entries)
         for path, definition in entries:
             key = (path, definition.name)
@@ -257,7 +293,7 @@ class LibraryDock(QDockWidget):
                 tip += f"\n{library_text(definition.description)}"
             item.setToolTip(tip)
             item.setData(Qt.ItemDataRole.UserRole + 2, tip.casefold())
-            item.setData(ROLE_CATEGORY, definition.category)
+            item.setData(ROLE_CATEGORY, f"{self._group(path)}|{definition.category}")
             self.list.addItem(item)
         self._apply_filter(self.search.text())
 
@@ -269,7 +305,11 @@ class LibraryDock(QDockWidget):
             haystack = item.data(Qt.ItemDataRole.UserRole + 2) or ""
             hidden = bool(needle) and needle not in haystack
             if category not in (None, ALL_CATEGORIES):
-                hidden = hidden or (item.data(ROLE_CATEGORY) or "") != category
+                own = item.data(ROLE_CATEGORY) or "|"
+                if category == "|":  # without a category, in any group
+                    hidden = hidden or bool(own.partition("|")[2])
+                else:
+                    hidden = hidden or own != category
             item.setHidden(hidden)
 
     def _on_double_click(self, item: QListWidgetItem) -> None:

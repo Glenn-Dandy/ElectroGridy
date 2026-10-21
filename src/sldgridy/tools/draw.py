@@ -20,6 +20,7 @@ from sldgridy.model.entities import (
     new_id,
 )
 from sldgridy.model.geometry import Point, angle_deg, distance, ortho
+from sldgridy.model.routing import Pin, connect, pin_at, pins_of, rails
 from sldgridy.model.snap import edges_of
 from sldgridy.model.wires import elbow, simplify
 from sldgridy.tools.base import PREVIEW_ID, Tool, tr
@@ -251,22 +252,51 @@ class TextTool(_DrawTool):
 
 
 class WireTool(_DrawTool):
-    """Orthogonal wire; points that are not aligned get an automatic corner."""
+    """Orthogonal wire; points that are not aligned get an automatic corner.
+
+    From one connection point straight to another, the wire is laid automatically; on
+    multi-pole devices all following poles are wired at once (L1 to L1, L2 to L2 …).
+    The tool then waits for the next connection.
+    """
 
     def __init__(self, ctx) -> None:
         super().__init__(ctx)
         self._points: list[Point] = []
+        self._pins: list[Pin] = []
+        self._start_pin: Pin | None = None
 
     def prompt(self) -> str:
         if not self._points:
-            return tr("Leitung: Startpunkt angeben")
+            return tr("Leitung: Startpunkt angeben (Anschlusspunkt: automatisch verlegen)")
+        if self._start_pin is not None and len(self._points) == 1:
+            return tr("Leitung: Ziel-Anschlusspunkt oder nächsten Punkt angeben")
         return tr("Leitung: Nächsten Punkt angeben (Enter beendet)")
+
+    def _routed(self, p: Point) -> list[tuple[Point, ...]]:
+        """Automatic paths when the wire runs from a connection point to another one."""
+        if self._start_pin is None or len(self._points) != 1:
+            return []
+        end = pin_at(self._pins, p)
+        if end is None or end == self._start_pin:
+            return []
+        return [path for path in connect(self._pins, self._start_pin, end) if len(path) >= 2]
 
     def pick(self, p: Point) -> None:
         if not self._points:
             self._points.append(p)
+            self._pins = pins_of(self.ctx.container, self.ctx.block_definitions)
+            self._start_pin = pin_at(self._pins, p)
             return
         if p == self._points[-1]:
+            return
+        paths = self._routed(p)
+        if paths:
+            wires = [Wire(id=new_id(), layer=self.ctx.current_layer, points=path) for path in paths]
+            text = tr("Leitung zeichnen") if len(wires) == 1 else tr("Leitungen verlegen")
+            self.ctx.push(AddEntitiesCommand(self.ctx.container, wires, text))
+            if len(wires) > 1:
+                self.ctx.message(tr("{n} Leitungen verlegt").format(n=len(wires)))
+            self._points, self._start_pin = [], None
             return
         self._points += elbow(self._points[-1], p)
 
@@ -283,6 +313,12 @@ class WireTool(_DrawTool):
     def preview(self) -> list[Entity]:
         if not self._points or self.cursor is None:
             return []
+        paths = self._routed(self.cursor)
+        if paths:
+            return [
+                Wire(id=f"{PREVIEW_ID}{i}", layer=self.ctx.current_layer, points=path)
+                for i, path in enumerate(paths)
+            ]
         pts = simplify([*self._points, *elbow(self._points[-1], self.cursor)])
         if len(pts) < 2:
             return []
@@ -614,4 +650,52 @@ class InterruptionTool(_DrawTool):
                 name="?",
                 direction=self._direction(self.cursor),
             )
+        ]
+
+
+class RailsTool(_DrawTool):
+    """Main circuit conductors (L1, L2, L3, N, PE) across the page, one pole spacing
+    apart. On a page with the circuit diagram frame one click sets the height of the
+    first conductor; elsewhere a start and an end point."""
+
+    def __init__(self, ctx, names: list[str], ends: bool, span: tuple[float, float] | None) -> None:
+        super().__init__(ctx)
+        self._names, self._ends, self._span = names, ends, span
+        self._start: Point | None = None
+
+    def prompt(self) -> str:
+        if self._span is not None:
+            return tr("Potentialschienen: Höhe des ersten Leiters angeben")
+        if self._start is None:
+            return tr("Potentialschienen: Startpunkt des ersten Leiters angeben")
+        return tr("Potentialschienen: Endpunkt angeben")
+
+    def base_point(self) -> Point | None:
+        return self._start
+
+    def _entities(self, p: Point) -> list[Entity]:
+        if self._span is not None:
+            x1, x2, y = self._span[0], self._span[1], p.y
+        elif self._start is not None:
+            x1, x2, y = self._start.x, p.x, self._start.y
+        else:
+            return []
+        if abs(x2 - x1) < 1e-6:
+            return []
+        return rails(self._names, x1, x2, y, self.ctx.current_layer, self._ends)
+
+    def pick(self, p: Point) -> None:
+        if self._span is None and self._start is None:
+            self._start = p
+            return
+        entities = self._entities(p)
+        if entities:
+            self.ctx.push(AddEntitiesCommand(self.ctx.container, entities, tr("Potentialschienen")))
+            self.done = True
+
+    def preview(self) -> list[Entity]:
+        if self.cursor is None:
+            return []
+        return [
+            replace(e, id=f"{PREVIEW_ID}{i}") for i, e in enumerate(self._entities(self.cursor))
         ]

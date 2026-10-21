@@ -39,3 +39,8 @@ def system_library_dir() -> Path:
 
 def system_template_dir() -> Path:
     return _shipped("templates")
+
+
+def symbols_dir() -> Path:
+    """Symbols the program places itself (terminals); always inside the module."""
+    return _MODULE_DIR / "resources" / "symbols"

@@ -6,23 +6,40 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QCoreApplication
 
+from sldgridy.commands.blocks import AddBlockCommand
 from sldgridy.commands.entities import (
     AddEntitiesCommand,
     RemoveEntitiesCommand,
     ReplaceEntitiesCommand,
 )
+from sldgridy.fileio.files import load_library
+from sldgridy.fileio.json_format import FileFormatError
+from sldgridy.fileio.paths import symbols_dir
 from sldgridy.i18n import library_text
-from sldgridy.model.blocks import dock_target, point_to_world
+from sldgridy.model.blocks import BlockDefinition, dock_target, point_to_world
+from sldgridy.model.document import DOC_DRAWING
 from sldgridy.model.entities import BlockReference, JunctionMark, Line, Polyline, Wire, new_id
 from sldgridy.model.geometry import Point
+from sldgridy.model.routing import split_wire
+from sldgridy.model.terminals import (
+    TERMINAL,
+    TERMINAL_PE,
+    normalized_strip,
+    place_terminal,
+    strips,
+)
 from sldgridy.model.wires import (
     entities_at,
     insert_point,
     junction_points,
+    on_segment,
     remove_vertex,
     same,
+    segments,
 )
 from sldgridy.tools.draw import ExtendTool, LineTool
+from sldgridy.ui.space import BLOCK
+from sldgridy.ui.terminal_dialog import TerminalDialog
 
 if TYPE_CHECKING:
     from sldgridy.ui.main_window import MainWindow
@@ -69,6 +86,7 @@ def point_actions(w: "MainWindow", p: Point) -> list[tuple[str, Callable[[], Non
         )
 
     actions += _dock_actions(w, p, entities, push)
+    actions += _wire_actions(w, p, entities, push)
 
     for e in entities:
         if isinstance(e, Wire | Polyline):
@@ -112,6 +130,71 @@ def point_actions(w: "MainWindow", p: Point) -> list[tuple[str, Callable[[], Non
         elif isinstance(e, Line) and (same(e.p1, p) or same(e.p2, p)):
             actions.append((tr("Verlängern (Linie)"), lambda: w.start_tool(_line_from(p))))
     return actions
+
+
+def _wire_actions(w, p: Point, entities, push) -> list[tuple[str, Callable[[], None]]]:
+    """Set a terminal into the wire (projects) or cut the wire to wire it anew."""
+    container = w.container
+    wires = [e for e in entities if isinstance(e, Wire)]
+    on = [e for e in wires if any(on_segment(p, a, b) for a, b in segments(e.points))]
+    if not on or w.document.kind == DOC_DRAWING:
+        return []
+    actions: list[tuple[str, Callable[[], None]]] = []
+    if w.document.is_project and w.space.kind != BLOCK:
+        actions.append((tr("Klemme setzen …"), lambda: set_terminal(w, p, on)))
+    for wire in on:
+        pieces = split_wire(wire, p)
+        if pieces:
+
+            def cut(wire=wire, pieces=pieces) -> None:
+                w.begin_macro(tr("Leitung auftrennen"))
+                push(RemoveEntitiesCommand(container, [wire.id], ""))
+                push(AddEntitiesCommand(container, pieces, ""))
+                w.end_macro()
+
+            actions.append((tr("Leitung hier auftrennen"), cut))
+            break
+    return actions
+
+
+def set_terminal(w: "MainWindow", p: Point, wires: list[Wire]) -> None:
+    """Ask for strip and number, then place the terminal into the wire at ``p``."""
+    dialog = TerminalDialog(strips(w.document), w.last_terminal_strip, w)
+    if dialog.exec() != TerminalDialog.DialogCode.Accepted:
+        return
+    strip, number, pe = dialog.values()
+    strip = normalized_strip(strip)
+    if not strip or not number:
+        return
+    w.last_terminal_strip = strip
+    name = TERMINAL_PE if pe else TERMINAL
+    definition = w.document.blocks.get(name) or terminal_definitions().get(name)
+    if definition is None:
+        w.message(tr("Klemmensymbol nicht gefunden"))
+        return
+    placed = place_terminal(wires, p, definition, f"{strip}:{number}", w.current_layer)
+    if placed is None:
+        w.message(tr("Hier liegt kein gerades Stück Leitung"))
+        return
+    ref, removed, added = placed
+    container = w.container
+    w.tools.cancel()
+    w.begin_macro(tr("Klemme {bmk} setzen").format(bmk=f"{strip}:{number}"))
+    if name not in w.document.blocks:
+        w.push(AddBlockCommand(w.document, definition, ""))
+    w.push(AddEntitiesCommand(container, [ref], ""))
+    if removed:
+        w.push(RemoveEntitiesCommand(container, removed, ""))
+        w.push(AddEntitiesCommand(container, added, ""))
+    w.end_macro()
+
+
+def terminal_definitions() -> dict[str, BlockDefinition]:
+    try:
+        _title, blocks = load_library(symbols_dir() / "klemmen.sldglib")
+    except (OSError, FileFormatError):
+        return {}
+    return {b.name: b for b in blocks}
 
 
 DOCK_TOLERANCE = 1.0  # mm around the symbol where a dock may be set
