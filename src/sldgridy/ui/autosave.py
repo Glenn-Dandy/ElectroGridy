@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +25,8 @@ class Backup:
 
 
 def _alive(pid: int) -> bool:
+    if sys.platform == "win32":
+        return _alive_windows(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -31,6 +34,23 @@ def _alive(pid: int) -> bool:
     except PermissionError:
         return True
     return True
+
+
+def _alive_windows(pid: int) -> bool:
+    # os.kill(pid, 0) would end the process on Windows; ask for its exit code instead.
+    import ctypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return ctypes.get_last_error() == 5  # access denied: it exists
+    try:
+        code = ctypes.c_ulong()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            return True
+        return code.value == 259  # STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def orphaned_backups(directory: Path | None = None) -> list[Backup]:

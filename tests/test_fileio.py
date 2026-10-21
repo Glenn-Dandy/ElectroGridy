@@ -1,4 +1,5 @@
 import json
+import sys
 
 import pytest
 
@@ -113,6 +114,7 @@ def test_missing_layer_zero_is_restored():
     assert [layer.name for layer in document_from_dict(data).layers] == ["0"]
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix file modes")
 def test_saved_file_gets_normal_permissions(tmp_path):
     import os
 

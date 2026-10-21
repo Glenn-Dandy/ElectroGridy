@@ -3,9 +3,14 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from sldgridy import memwatch
 
+linux_only = pytest.mark.skipif(not sys.platform.startswith("linux"), reason="reads /proc")
 
+
+@linux_only
 def test_reads_own_memory():
     used = memwatch.rss_bytes()
     assert used is not None and used > 10 * 1024**2
@@ -20,6 +25,7 @@ def test_report_writes_stacks():
     assert "Speicher 3.0 GB" in text and "test_report_writes_stacks" in text
 
 
+@linux_only
 def test_limit_ends_the_program_with_a_report(tmp_path: Path):
     log = tmp_path / "crash.log"
     code = (
@@ -37,6 +43,7 @@ def test_limit_ends_the_program_with_a_report(tmp_path: Path):
     assert "Grenze erreicht" in text and "busy" in text
 
 
+@linux_only
 def test_a_hang_is_reported(tmp_path: Path):
     log = tmp_path / "crash.log"
     code = (
