@@ -1,6 +1,7 @@
 """Main application window."""
 
 import hashlib
+import math
 from collections.abc import Mapping
 from dataclasses import replace
 from functools import partial
@@ -80,6 +81,7 @@ from sldgridy.model.entities import (
 from sldgridy.model.geometry import Point
 from sldgridy.model.interruptions import interruption_geometry, partner, unpaired_names
 from sldgridy.model.layers import DEFAULT_LAYER
+from sldgridy.model.routing import GRID
 from sldgridy.model.sheet import schematic_inner
 from sldgridy.model.snap import ALL_MODES, SnapHit, SnapMode
 from sldgridy.model.title_block import schematic_title_block_definition
@@ -1134,6 +1136,9 @@ class MainWindow(QMainWindow):
         self.autosave.discard()
         self._unsubscribe_document()
         old = self.model_view
+        document.fit_schematic_title_blocks(
+            lambda width: schematic_title_block_definition(width, title_labels())
+        )
         self.document = document
         self.file_path = path
         self.sheets.reset()
@@ -1250,7 +1255,11 @@ class MainWindow(QMainWindow):
         span = None
         if sheet is not None and sheet.frame == SCHEMATIC_FRAME:
             a, b = schematic_inner(*sheet.size)
-            span = (a.x + RAIL_INSET_LEFT, b.x - RAIL_INSET_RIGHT)
+            # Ends on the 2.5 mm grid, inside the insets.
+            span = (
+                math.ceil((a.x + RAIL_INSET_LEFT) / GRID) * GRID,
+                math.floor((b.x - RAIL_INSET_RIGHT) / GRID) * GRID,
+            )
         self.start_tool(lambda ctx: RailsTool(ctx, names, ends, span))
 
     def make_document(self, kind: str = DOC_SLD) -> Document:

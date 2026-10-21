@@ -63,21 +63,29 @@ def title_block_reference(
 
 
 # -- circuit diagram frame (Florian's template) ----------------------------------------
-# Margins 5 mm, top 15 mm (filing), a 5 mm band all round with the column numbers
-# 0 … n-1 (top and bottom) and row letters A … (left and right). References read
-# "/page.column".
+# Margins left, right and bottom 5 mm, top 15 mm (filing) on the printed A4 sheet, a
+# 5 mm band all round with the column numbers 0 … n-1 (top and bottom) and row letters
+# A … (left and right). References read "/page.column".
 
 SCHEMATIC_TOP = 15.0
 SCHEMATIC_SIDE = 5.0
+PRINT_SHORT_SIDE = 210.0  # A4: what the pages are printed on
 BAND = 5.0
-ROW_HEIGHT = 44.5  # A4 landscape: four rows A … D, A3 landscape: six
+ROW_HEIGHT = 44.5  # A3 landscape: six rows A … F, A4 landscape: four
 BAND_TEXT = 2.5
 
 
+def schematic_margins(width: float, height: float) -> tuple[float, float]:
+    """(left, right and bottom margin; top margin) of the frame. Larger sheets than A4
+    have them enlarged in proportion, so that the sheet fitted onto A4 paper prints with
+    exactly 5 and 15 mm (A3: 7.1 and 21.2 mm)."""
+    k = max(1.0, min(width, height) / PRINT_SHORT_SIDE)
+    return round(SCHEMATIC_SIDE * k, 1), round(SCHEMATIC_TOP * k, 1)
+
+
 def schematic_outer(width: float, height: float) -> tuple[Point, Point]:
-    return Point(SCHEMATIC_SIDE, SCHEMATIC_TOP), Point(
-        width - SCHEMATIC_SIDE, height - SCHEMATIC_SIDE
-    )
+    side, top = schematic_margins(width, height)
+    return Point(side, top), Point(width - side, height - side)
 
 
 def schematic_inner(width: float, height: float) -> tuple[Point, Point]:

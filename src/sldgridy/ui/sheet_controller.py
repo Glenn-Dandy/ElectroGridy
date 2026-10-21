@@ -55,7 +55,7 @@ from sldgridy.model.document import (
 )
 from sldgridy.model.entities import Entity, Rectangle, Viewport, new_id
 from sldgridy.model.geometry import Point
-from sldgridy.model.paper import Orientation
+from sldgridy.model.paper import Orientation, sheet_size
 from sldgridy.model.sheet import schematic_title_width, schematic_viewport
 from sldgridy.model.title_block import (
     TITLE_BLOCK_NAME,
@@ -885,7 +885,18 @@ class SheetController(QObject):
             changes["title_block"] = title_block
         if not changes:
             return
+        needed = []
+        if current.frame == SCHEMATIC_FRAME and "title_block" not in changes:
+            # The circuit diagram title block spans the frame: the one for the new width.
+            width = schematic_title_width(*sheet_size(paper, orientation))
+            changes["title_block"] = schematic_title_block_name(width)
+            if changes["title_block"] not in self.doc.blocks:
+                needed.append(schematic_title_block_definition(width, title_labels()))
+        self.w.begin_macro(self.tr("Blattformat"))
+        for definition in needed:
+            self.w.push(AddBlockCommand(self.doc, definition, ""))
         self.w.push(ChangeSheetCommand(self.doc, current.id, self.tr("Blattformat"), **changes))
+        self.w.end_macro()
         self._warn_outside(current.id)
 
     def _warn_outside(self, sheet_id: str) -> None:

@@ -27,7 +27,9 @@ from sldgridy.model.sheet import (
     row_count,
     schematic_frame_entities,
     schematic_inner,
+    schematic_outer,
 )
+from sldgridy.model.title_block import schematic_title_block_definition
 from sldgridy.ui.main_window import MainWindow
 
 
@@ -61,12 +63,15 @@ def test_pages_are_numbered_through_the_project():
 
 
 def test_circuit_diagram_frame():
+    # A4: margins 5 mm, top 15, then the 5 mm band.
+    assert schematic_inner(297, 210) == (Point(10, 20), Point(287, 200))
+    # A3: margins enlarged so that the page fitted onto A4 has exactly those.
     a, b = schematic_inner(420, 297)
-    assert (a, b) == (Point(10, 20), Point(410, 287))  # 5 mm margins, top 15, 5 mm band
+    assert (a, b) == (Point(12.1, 26.2), Point(407.9, 284.9))
     assert row_count(420, 297) == 6 and row_count(297, 210) == 4
     edges = column_edges(420, 297, 10)
-    assert edges[0] == 10 and edges[-1] == pytest.approx(410)
-    assert column_at(420, 297, 10, 12) == 0
+    assert edges[0] == 12.1 and edges[-1] == pytest.approx(407.9)
+    assert column_at(420, 297, 10, 13) == 0
     assert column_at(420, 297, 10, 200) == 4
     assert column_at(420, 297, 10, 999) == 9
     assert column_at(420, 297, 0, 50) is None
@@ -134,7 +139,7 @@ def test_new_pages_with_types(window, monkeypatch):
     sheets.new_sheet()
     page = sheets.current_sheet()
     assert (page.kind, page.frame, page.paper) == (CIRCUIT, "schematic", "A3")
-    assert page.title_block == "Schriftfeld Schaltplan 400" in window.document.blocks
+    assert page.title_block == "Schriftfeld Schaltplan 395.8" in window.document.blocks
     answer(window, monkeypatch, PARTS)
     sheets.new_sheet()
     texts = [sheets.tabs.tabText(i) for i in range(sheets.tabs.count())]
@@ -382,7 +387,7 @@ def test_list_rows():
     assert toc_rows(doc)[1] == ["=PV1", "", "2", "Stromlaufplan", "Einspeisung", "", ""]
     assert parts_rows(doc) == [
         ["-M1", "", "1,5 kW", "Motor", "3", "2"],
-        ["-Q1", "Hager", "B16", "Leitungsschutzschalter", "2", "1"],
+        ["-Q1", "Hager", "B16", "Leitungsschutzschalter", "2", "0"],
         ["-X1:1", "", "", "Klemme", "3", "2"],
     ]
     assert terminal_rows(doc) == [["-X1", "1", "-Q1:2", "-M1:U", "3", "2"]]
@@ -479,7 +484,7 @@ def test_rail_ends_refer_to_the_neighbouring_pages():
     assert interruption_targets(alone) == {}  # one rail on one page
 
 
-def test_new_project_is_a4_and_the_cover_fits():
+def test_new_project_is_a3_and_the_cover_fits_a3_and_a4():
     from sldgridy.model.entities import Text
     from sldgridy.model.paper import Orientation
     from sldgridy.model.reports import cover_entities
@@ -487,9 +492,34 @@ def test_new_project_is_a4_and_the_cover_fits():
 
     doc = Document.new_project()
     cover, page = doc.sheets
-    assert (page.paper, page.orientation) == ("A4", Orientation.LANDSCAPE)
-    assert row_count(*page.size) == 4
+    assert (page.paper, page.orientation) == ("A3", Orientation.LANDSCAPE)
     doc.properties.update({"ADRESSE": "Weg 1, 99087 Erfurt, Haus 2", "FIRMA": "FS"})
-    _a, b = schematic_inner(*cover.size)
-    texts = [e for e in cover_entities(doc, cover) if isinstance(e, Text)]
-    assert max(t.position.y for t in texts) < b.y - SCHEMATIC_TITLE_HEIGHT
+    for sheet in (cover, new_page(COVER, paper="A4")):
+        _a, b = schematic_inner(*sheet.size)
+        texts = [e for e in cover_entities(doc, sheet) if isinstance(e, Text)]
+        assert max(t.position.y for t in texts) < b.y - SCHEMATIC_TITLE_HEIGHT
+
+
+def test_a3_page_fitted_onto_a4_prints_with_the_standard_margins():
+    from sldgridy.printing.layout import fit
+
+    (page,) = fit(420, 297, 210, 297)
+    a, b = schematic_outer(420, 297)
+    left, top = page.to_page(a.x, a.y)
+    right, bottom = page.to_page(b.x, b.y)
+    assert (page.width, page.height) == (297, 210)
+    assert left == pytest.approx(5, abs=0.05) and 297 - right == pytest.approx(5, abs=0.05)
+    assert top == pytest.approx(15, abs=0.05) and 210 - bottom == pytest.approx(5, abs=0.05)
+
+
+def test_title_blocks_of_older_files_follow_the_frame():
+    doc = Document.new_project()
+    old = schematic_title_block_definition(400)
+    doc.blocks[old.name] = old
+    for page in doc.sheets:
+        page.title_block = old.name
+    del doc.blocks["Schriftfeld Schaltplan 395.8"]
+    assert doc.fit_schematic_title_blocks()
+    assert {p.title_block for p in doc.sheets} == {"Schriftfeld Schaltplan 395.8"}
+    assert old.name not in doc.blocks and "Schriftfeld Schaltplan 395.8" in doc.blocks
+    assert not doc.fit_schematic_title_blocks()

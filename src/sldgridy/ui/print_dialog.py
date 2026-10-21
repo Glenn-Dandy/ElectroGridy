@@ -103,7 +103,7 @@ class PrintDialog(QDialog):
         self.paper = QComboBox()
         for name in sorted(PAPER_FORMATS, key=lambda n: PAPER_FORMATS[n][0]):
             self.paper.addItem(name, PAPER_FORMATS[name])
-        self.paper.setCurrentIndex(max(self.paper.findText("A3"), 0))
+        self.paper.setCurrentIndex(max(self.paper.findText("A4"), 0))  # office printers
         box_how = QGroupBox(self.tr("Modus"))
         lh = QFormLayout(box_how)
         lh.addRow(self.rb_one)

@@ -77,13 +77,21 @@ def plan(doc: Document, job: Job) -> list[tuple[SheetLayout | None, Page]]:
 
 
 def page_layout(page: Page) -> QPageLayout:
+    """Full page layout for ``page``: a standard paper size (A4, A3 …) with portrait or
+    landscape orientation where it is one, so the printer gets "A4 landscape" and prints
+    it 1:1 instead of scaling an unknown custom size to its paper."""
+    short, long = sorted((page.width, page.height))
     size = QPageSize(
-        QSizeF(page.width, page.height),
+        QSizeF(short, long),
         QPageSize.Unit.Millimeter,
         "",
-        QPageSize.SizeMatchPolicy.ExactMatch,
+        QPageSize.SizeMatchPolicy.FuzzyMatch,
     )
-    orientation = QPageLayout.Orientation.Portrait
+    orientation = (
+        QPageLayout.Orientation.Landscape
+        if page.width > page.height
+        else QPageLayout.Orientation.Portrait
+    )
     layout = QPageLayout(size, orientation, QMarginsF(0, 0, 0, 0), QPageLayout.Unit.Millimeter)
     layout.setMode(QPageLayout.Mode.FullPageMode)
     return layout

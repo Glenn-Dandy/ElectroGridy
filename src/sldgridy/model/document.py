@@ -18,6 +18,7 @@ from sldgridy.model.paper import DEFAULT_FORMAT, DEFAULT_ORIENTATION, Orientatio
 from sldgridy.model.sheet import default_viewport, schematic_title_width
 from sldgridy.model.title_block import (
     DOCUMENT_FIELDS,
+    SCHEMATIC_TITLE_PREFIX,
     SHEET_FIELDS,
     TITLE_BLOCK_NAME,
     schematic_title_block_definition,
@@ -63,7 +64,7 @@ class SheetLayout:
         return [e for e in self.entities if isinstance(e, Viewport)]
 
 
-PAGE_FORMAT = "A4"  # prints 1:1 on any office printer
+PAGE_FORMAT = "A3"  # printed fitted onto A4 (see sheet.schematic_margins)
 PAGE_COLUMNS = 10
 SCHEMATIC_FRAME = "schematic"
 
@@ -180,7 +181,7 @@ class Document:
     def new_project(
         cls, title_definition: Callable[[float], BlockDefinition] | None = None
     ) -> "Document":
-        """Empty circuit diagram project: a cover and a first circuit diagram page, A4,
+        """Empty circuit diagram project: a cover and a first circuit diagram page, A3,
         each with the circuit diagram title block (``title_definition`` makes it for a
         width, translated by the caller)."""
         make = title_definition or schematic_title_block_definition
@@ -195,6 +196,33 @@ class Document:
     @property
     def is_project(self) -> bool:
         return self.kind == DOC_PROJECT
+
+    def fit_schematic_title_blocks(
+        self, title_definition: Callable[[float], BlockDefinition] | None = None
+    ) -> bool:
+        """Give every page in the circuit diagram frame the title block for its width
+        (files of older versions had other frame margins); title blocks no page uses
+        any more are dropped. True if anything changed."""
+        make = title_definition or schematic_title_block_definition
+        changed = False
+        for page in self.sheets:
+            if page.frame != SCHEMATIC_FRAME or not page.title_block.startswith(
+                SCHEMATIC_TITLE_PREFIX
+            ):
+                continue
+            width = schematic_title_width(*page.size)
+            name = schematic_title_block_name(width)
+            if page.title_block != name:
+                if name not in self.blocks:
+                    self.blocks[name] = make(width)
+                page.title_block = name
+                changed = True
+        if changed:
+            used = {page.title_block for page in self.sheets}
+            for name in [n for n in self.blocks if n.startswith(SCHEMATIC_TITLE_PREFIX)]:
+                if name not in used:
+                    del self.blocks[name]
+        return changed
 
     # -- sheets -------------------------------------------------------------
 

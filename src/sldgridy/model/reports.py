@@ -33,7 +33,7 @@ TEXT = 2.5
 ROW = 5.0
 TITLE = 7.0
 MARGIN = 5.0
-COVER_HEIGHT = 267.0  # drawing area height of A3 landscape, the cover's design size
+COVER_HEIGHT = 258.7  # drawing area height of A3 landscape, the cover's design size
 OVERFLOW_COLOR = "#c62828"
 
 # Columns of the lists: caption and share of the table width.
