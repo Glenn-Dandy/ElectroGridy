@@ -143,9 +143,12 @@ class _Shape:
 
 def _shapes(curve) -> list[_Shape]:
     """Subpaths of a pdfminer curve with Bezier pieces flattened."""
+    from pdfminer.layout import LTRect
+
     path = getattr(curve, "original_path", None)
     if not path:
-        return [_Shape([tuple(p) for p in curve.pts], False, 0)]
+        # Older pdfminer (Ubuntu 24.04) keeps no path for rectangles drawn with "re".
+        return [_Shape([tuple(p) for p in curve.pts], isinstance(curve, LTRect), 0)]
     shapes: list[_Shape] = []
     current: _Shape | None = None
     for op, *args in path:
