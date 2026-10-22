@@ -374,7 +374,7 @@ Immer nur einen Meilenstein bearbeiten. Der deb-Build wird in M1 angelegt und bl
 - Was sich nicht automatisch prüfen lässt (Bedienung, Druckbild auf Papier), als kurze Prüfliste für den Benutzer ausgeben.
 - Bei Unklarheiten im Funktionsumfang nachfragen statt raten. Nichts bauen, was hier nicht steht.
 - Diese Datei aktuell halten, wenn sich Struktur, Befehle oder Entscheidungen ändern.
-- Veröffentlichung in zwei Stufen: Änderungen entstehen auf dem Zweig `dev`, Version `X.Y.Z.devN` in `__init__.py` (Debian-Paket `X.Y.Z~devN`, sortiert vor `X.Y.Z`). Dafür ein GitHub-**Pre-Release** `vX.Y.Z-devN` mit Ziel `dev` und dem .deb. Erst nach Freigabe durch den Benutzer: `dev` nach `main` mergen, Version auf `X.Y.Z`, Release `vX.Y.Z` aus `main`. Die Update-Prüfung liest nur `releases/latest`, Vorabversionen werden also nicht angeboten; eine installierte Dev-Version gilt als älter als das Release gleicher Nummer.
+- Veröffentlichung in zwei Stufen: Änderungen entstehen auf dem Zweig `dev`, Version `X.Y.Z.devN` in `__init__.py` (Debian-Paket `X.Y.Z~devN`, sortiert vor `X.Y.Z`). Dafür ein GitHub-**Pre-Release** `vX.Y.Z-devN` mit Ziel `dev` und dem .deb. Erst nach Freigabe durch den Benutzer: `dev` nach `main` mergen, Version auf `X.Y.Z`, Release `vX.Y.Z` aus `main`. Die Update-Prüfung liest nur `releases/latest`, Vorabversionen werden also nicht angeboten; eine installierte Dev-Version gilt als älter als das Release gleicher Nummer. Es bleibt immer nur die neueste Vorabversion stehen (Florians Wunsch 2026-10-22, wie bei den Android-Apps): Der Job `cleanup` in `release.yml` löscht nach erfolgreichem Bau (deb und windows) alle anderen Pre-Releases samt Tag, auch beim echten Release.
 
 ## Sprachen (Deutsch / Englisch)
 

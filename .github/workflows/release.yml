@@ -3,6 +3,8 @@ name: Release packages
 # Publishing a GitHub release builds the packages:
 #   pre-release vX.Y.Z-devN -> .deb and Windows installer attached (no snap)
 #   release vX.Y.Z          -> .deb and Windows installer attached, snap published to "stable"
+# Once the packages are attached, all other pre-releases are deleted with their tags:
+# only the newest development build stays.
 # Started by hand (workflow_dispatch) only the Windows installer is built, as a
 # workflow artifact.
 on:
@@ -128,3 +130,20 @@ jobs:
         with:
           name: windows-installer
           path: dist/SLDGridy-*-setup.exe
+
+  cleanup:
+    if: ${{ github.event_name == 'release' }}
+    runs-on: ubuntu-24.04
+    needs: [deb, windows]
+    steps:
+      - name: Delete older pre-releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT: ${{ github.event.release.tag_name }}
+        run: |
+          gh release list -R "$GITHUB_REPOSITORY" --limit 500 --json tagName,isPrerelease \
+            -q '.[] | select(.isPrerelease and .tagName != env.CURRENT) | .tagName' |
+          while read -r tag; do
+            echo "deleting $tag"
+            gh release delete "$tag" -R "$GITHUB_REPOSITORY" --yes --cleanup-tag
+          done
