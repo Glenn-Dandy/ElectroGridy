@@ -480,7 +480,9 @@ class MainWindow(QMainWindow):
         self.act_save_as = self._action(self.tr("Speichern &unter …"), self.save_as, "Ctrl+Shift+S")
         self.act_quit = self._action(self.tr("&Beenden"), self.close, sk.Quit)
         self.act_import_drawing = self._action(
-            self.tr("Schaltplan &importieren (PDF, Bild) …"), self.import_drawing
+            # Not the method itself: triggered would hand it checked=False as the path.
+            self.tr("Schaltplan &importieren (PDF, Bild) …"),
+            lambda: self.import_drawing(),
         )
         self.act_import_drawing.setToolTip(
             self.tr(

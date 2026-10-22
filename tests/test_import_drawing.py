@@ -201,3 +201,21 @@ def test_import_dialog_with_a_cad_pdf(qapp, tmp_path):
     dialog.mode.setCurrentIndex(dialog.mode.findData(PICTURE))
     (picture,) = dialog.entities()
     assert isinstance(picture, RasterImage) and picture.data[:4] == b"\x89PNG"
+
+
+def test_import_menu_entry_asks_for_a_file(qapp, monkeypatch):
+    from sldgridy.ui import main_window
+    from sldgridy.ui.main_window import MainWindow
+
+    asked = []
+
+    def ask(*args):
+        asked.append(args)
+        return "", ""
+
+    monkeypatch.setattr(main_window.QFileDialog, "getOpenFileName", ask)
+    window = MainWindow()
+    window.act_import_drawing.trigger()
+    assert len(asked) == 1
+    window.undo_stack.setClean()
+    window.close()
