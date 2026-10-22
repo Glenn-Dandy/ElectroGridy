@@ -36,7 +36,7 @@ class Word:
     width: float
     height: float
     confidence: float
-    line: tuple[int, int, int]  # block, paragraph, line as numbered by tesseract
+    line: tuple[int, int, int, int]  # page, block, paragraph, line as numbered by tesseract
 
 
 @dataclass(frozen=True)
@@ -111,7 +111,7 @@ def parse_tsv(text: str) -> list[Word]:
         try:
             confidence = float(row.get("conf") or -1)
             box = [float(row[k]) for k in ("left", "top", "width", "height")]
-            line = (int(row["block_num"]), int(row["par_num"]), int(row["line_num"]))
+            line = tuple(int(row[k]) for k in ("page_num", "block_num", "par_num", "line_num"))
         except (KeyError, TypeError, ValueError):
             continue
         if word and confidence >= 0:
