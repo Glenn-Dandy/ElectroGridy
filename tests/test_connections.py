@@ -9,6 +9,7 @@ from sldgridy.model.snap import SnapMode, find_snap
 from sldgridy.model.wires import junction_points, remove_vertex
 from sldgridy.ui.main_window import MainWindow
 from sldgridy.ui.point_menu import point_actions
+from waiting import wait_until
 
 BAR = Busbar(id="bar", p1=Point(0, 50), p2=Point(100, 50))
 
@@ -127,8 +128,7 @@ def test_clicked_point_is_not_a_tracking_source(window):
     window.document.model_space.add(Line(id="l", p1=Point(20, 10), p2=Point(20, 30)))
     window.act_line.trigger()
     QTest.mouseMove(window.canvas.viewport(), vp(window, 20.3, 30.2))
-    QTest.qWait(500)
-    assert window.canvas.acquired == [Point(20, 30)]
+    assert wait_until(lambda: window.canvas.acquired == [Point(20, 30)])
     QTest.mouseClick(
         window.canvas.viewport(), Qt.MouseButton.LeftButton, pos=vp(window, 20.3, 30.2)
     )

@@ -6,6 +6,7 @@ from sldgridy.model.entities import Line
 from sldgridy.model.geometry import Point
 from sldgridy.model.tracking import MAX_ACQUIRED, toggle_acquired, track
 from sldgridy.ui.main_window import MainWindow
+from waiting import wait_until
 
 P = Point(10, 20)
 
@@ -69,8 +70,7 @@ def test_hover_acquires_point_and_line_follows_track(window):
     window.act_line.trigger()
     viewport = window.canvas.viewport()
     QTest.mouseMove(viewport, vp(window, 20.3, 40.2))  # rest on the end point
-    QTest.qWait(500)
-    assert window.canvas.acquired == [Point(20, 40)]
+    assert wait_until(lambda: window.canvas.acquired == [Point(20, 40)])
     # Start a line somewhere else, then move along the vertical track of (20, 40).
     QTest.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=vp(window, 50, 70))
     QTest.mouseMove(viewport, vp(window, 20.6, 71.1))
