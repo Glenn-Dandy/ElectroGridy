@@ -55,6 +55,8 @@ parts:
       - python3-pyqt6.qtpdf
       - libqt6pdf6
       - python3-pdfminer
+      - tesseract-ocr
+      - tesseract-ocr-deu
       - qt6-wayland
       - qt6-qpa-plugins
       - libxcb-icccm4

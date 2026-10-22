@@ -4,11 +4,13 @@ The picture comes as one byte per pixel, 1 for ink, row after row. Circuit diagr
 are mostly horizontal and vertical strokes: runs of ink along the rows (and along the
 columns) of at least ``min_length`` pixels that continue on the neighbouring rows
 form one stroke; a stroke thicker than ``max_thickness`` and not much longer than
-thick is a filled area and left out. Each stroke becomes a line along its middle; ends close
-to a perpendicular line are drawn onto it, so that wires meet. What is left of the
-ink falls into connected pieces: a thin, long piece is a sloped line (a switch
-blade), a thin ring a circle. Everything else (lettering, filled symbols) is left
-out; the picture can stay underneath for reference.
+thick is a filled area and left out. Pieces of one line (overlapping, broken by small
+gaps, or evenly spaced dashes) become one line along their middle; ends close to a
+perpendicular line are drawn onto it, so that wires meet. What is left of the ink
+falls into connected pieces: a thin, long piece is a sloped line (a switch blade), a
+thin ring a circle. Small groups of lines touching nothing else are bits of
+lettering and left out, as is everything else (filled symbols); the picture can stay
+underneath for reference.
 """
 
 import math
@@ -25,6 +27,7 @@ class Stroke:
     x2: float
     y2: float
     thickness: float
+    dashed: bool = False
 
 
 @dataclass(frozen=True)
@@ -81,25 +84,121 @@ def _strokes(lines: list[bytes], min_length: int, max_thickness: int) -> list[tu
     return out
 
 
+def _dashed(spans: list[tuple[float, float]], gaps: list[float]) -> bool:
+    """Evenly spaced dashes: at least four, gaps and inner dashes of about one size."""
+    if len(gaps) < 3 or min(gaps) < 2 or max(gaps) > 2 * min(gaps) + 2:
+        return False
+    inner = [b - a for a, b in spans[1:-1]]  # the outer ones may be cut by the region
+    return max(inner) <= 2 * min(inner) + 2
+
+
 def _join(strokes: list[Stroke], horizontal: bool, gap: float) -> list[Stroke]:
-    """Pieces of one line interrupted by small gaps (a broken scan) become one."""
-    key = (lambda s: (round(s.y1), s.x1)) if horizontal else (lambda s: (round(s.x1), s.y1))
+    """Pieces of one line become one: overlapping ones (the edges of a blurred line),
+    ones interrupted by small gaps (a broken scan) and evenly spaced dashes."""
+
+    def pos(s: Stroke) -> float:
+        return s.y1 if horizontal else s.x1
+
+    def span(s: Stroke) -> tuple[float, float]:
+        a, b = (s.x1, s.x2) if horizontal else (s.y1, s.y2)
+        return min(a, b), max(a, b)
+
+    def made(pieces: list[Stroke], dashed: bool) -> Stroke:
+        lengths = [max(1.0, span(p)[1] - span(p)[0]) for p in pieces]
+        middle = sum(pos(p) * n for p, n in zip(pieces, lengths, strict=True)) / sum(lengths)
+        lo = min(span(p)[0] for p in pieces)
+        hi = max(span(p)[1] for p in pieces)
+        thickness = max(pos(p) + p.thickness / 2 for p in pieces) - min(
+            pos(p) - p.thickness / 2 for p in pieces
+        )
+        if horizontal:
+            return Stroke(lo, middle, hi, middle, thickness, dashed)
+        return Stroke(middle, lo, middle, hi, thickness, dashed)
+
+    rows: list[list[Stroke]] = []
+    for s in sorted(strokes, key=pos):
+        if rows and pos(s) - pos(rows[-1][0]) <= 1.5:
+            rows[-1].append(s)
+        else:
+            rows.append([s])
     out: list[Stroke] = []
-    for s in sorted(strokes, key=key):
-        if out:
-            last = out[-1]
-            if horizontal:
-                same = abs(last.y1 - s.y1) <= 1.5 and 0 <= s.x1 - last.x2 <= gap
-                if same:
-                    out[-1] = Stroke(last.x1, last.y1, max(last.x2, s.x2), last.y2, last.thickness)
-                    continue
+    for row in rows:
+        # Chains with gaps up to dash spacing; kept whole only if they are dashes.
+        chains: list[tuple[list[Stroke], list[float]]] = []
+        end = None
+        for s in sorted(row, key=lambda s: span(s)[0]):
+            a, b = span(s)
+            if end is not None and a - end <= 3 * gap:
+                chains[-1][0].append(s)
+                chains[-1][1].append(a - end)
+                end = max(end, b)
             else:
-                same = abs(last.x1 - s.x1) <= 1.5 and 0 <= s.y1 - last.y2 <= gap
-                if same:
-                    out[-1] = Stroke(last.x1, last.y1, last.x2, max(last.y2, s.y2), last.thickness)
-                    continue
-        out.append(s)
+                chains.append(([s], []))
+                end = b
+        for pieces, gaps in chains:
+            if _dashed([span(p) for p in pieces], gaps):
+                out.append(made(pieces, True))
+                continue
+            part = [pieces[0]]
+            for p, g in zip(pieces[1:], gaps, strict=True):
+                if g > gap:
+                    out.append(made(part, False))
+                    part = []
+                part.append(p)
+            out.append(made(part, False))
     return out
+
+
+def _near(s: Stroke | Ring, t: Stroke | Ring, reach: float) -> bool:
+    """Whether two shapes touch, give or take ``reach``."""
+
+    def box(u):
+        if isinstance(u, Ring):
+            return u.cx - u.r, u.cy - u.r, u.cx + u.r, u.cy + u.r
+        return min(u.x1, u.x2), min(u.y1, u.y2), max(u.x1, u.x2), max(u.y1, u.y2)
+
+    a, b = box(s), box(t)
+    if a[0] > b[2] + reach or b[0] > a[2] + reach or a[1] > b[3] + reach or b[1] > a[3] + reach:
+        return False
+    if isinstance(s, Ring) or isinstance(t, Ring):
+        return True
+
+    def distance(px, py, u: Stroke) -> float:
+        dx, dy = u.x2 - u.x1, u.y2 - u.y1
+        n = dx * dx + dy * dy
+        f = 0.0 if n == 0 else max(0.0, min(1.0, ((px - u.x1) * dx + (py - u.y1) * dy) / n))
+        return math.hypot(px - u.x1 - f * dx, py - u.y1 - f * dy)
+
+    ends = [(s.x1, s.y1, t), (s.x2, s.y2, t), (t.x1, t.y1, s), (t.x2, t.y2, s)]
+    return min(distance(x, y, u) for x, y, u in ends) <= reach
+
+
+def _without_specks(shapes: list, reach: float, size: float) -> list:
+    """Without groups of touching lines smaller than ``size`` that touch nothing else:
+    bits of lettering."""
+    parent = list(range(len(shapes)))
+
+    def root(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i, s in enumerate(shapes):
+        for j in range(i + 1, len(shapes)):
+            if _near(s, shapes[j], reach):
+                parent[root(i)] = root(j)
+    boxes: dict[int, list[float]] = {}
+    for i, s in enumerate(shapes):
+        if isinstance(s, Ring):
+            b = [s.cx - s.r, s.cy - s.r, s.cx + s.r, s.cy + s.r]
+        else:
+            b = [min(s.x1, s.x2), min(s.y1, s.y2), max(s.x1, s.x2), max(s.y1, s.y2)]
+        r = boxes.setdefault(root(i), b)
+        r[:] = [min(r[0], b[0]), min(r[1], b[1]), max(r[2], b[2]), max(r[3], b[3])]
+    big = {k for k, b in boxes.items() if max(b[2] - b[0], b[3] - b[1]) >= size}
+    # Rings are checked closely enough when found (a lone one may be a symbol).
+    return [s for i, s in enumerate(shapes) if root(i) in big or isinstance(s, Ring)]
 
 
 def _merge_parallel(strokes: list[Stroke], horizontal: bool, reach: float) -> list[Stroke]:
@@ -145,7 +244,7 @@ def _meet(hs: list[Stroke], vs: list[Stroke], reach: float) -> tuple[list, list]
                     x1 = v.x1
                 if abs(x2 - v.x1) <= reach:
                     x2 = v.x1
-        return Stroke(x1, s.y1, x2, s.y2, s.thickness)
+        return Stroke(x1, s.y1, x2, s.y2, s.thickness, s.dashed)
 
     def snap_v(s: Stroke) -> Stroke:
         y1, y2 = s.y1, s.y2
@@ -155,7 +254,7 @@ def _meet(hs: list[Stroke], vs: list[Stroke], reach: float) -> tuple[list, list]
                     y1 = h.y1
                 if abs(y2 - h.y1) <= reach:
                     y2 = h.y1
-        return Stroke(s.x1, y1, s.x2, y2, s.thickness)
+        return Stroke(s.x1, y1, s.x2, y2, s.thickness, s.dashed)
 
     return [snap_h(s) for s in hs], [snap_v(s) for s in vs]
 
@@ -238,7 +337,8 @@ def vectorize(
     gap = max(4, 2 * max_thickness)
     hs = _join(_merge_parallel(hs, True, max_thickness), True, gap)
     vs = _join(_merge_parallel(vs, False, max_thickness), False, gap)
-    hs, vs = _meet(hs, vs, reach=max_thickness + 2)
+    reach = max_thickness + 2
+    hs, vs = _meet(hs, vs, reach)
     # The rest of the ink: sloped lines and circles.
     rest = bytearray(ink[: width * height])
     margin = 1
@@ -264,4 +364,4 @@ def vectorize(
         shape = _shape(piece, width, min_length, max_thickness)
         if shape is not None:
             others.append(shape)
-    return [*hs, *vs, *others]
+    return _without_specks([*hs, *vs, *others], reach, 4 * min_length)

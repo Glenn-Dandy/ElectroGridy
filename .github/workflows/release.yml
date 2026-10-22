@@ -26,7 +26,7 @@ jobs:
       - name: Install Ubuntu packages
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq python3-pyqt6 python3-pyqt6.qtsvg python3-pyqt6.qtpdf python3-pdfminer python3-pytest fonts-dejavu-core
+          sudo apt-get install -y -qq python3-pyqt6 python3-pyqt6.qtsvg python3-pyqt6.qtpdf python3-pdfminer tesseract-ocr tesseract-ocr-deu python3-pytest fonts-dejavu-core
       - name: Tests
         env:
           QT_QPA_PLATFORM: offscreen
@@ -86,6 +86,26 @@ jobs:
           Copy-Item "$src\ttf\DejaVuSans.ttf", "$src\ttf\DejaVuSans-Bold.ttf" $fonts
           Copy-Item "$src\LICENSE" "$fonts\LICENSE-DejaVu.txt"
           Copy-Item README.md src\sldgridy\resources\README.md
+      - name: Tesseract for texts in pictures
+        # Shipped in the program folder with German and English language data; on the
+        # PATH for the tests.
+        run: |
+          choco install tesseract --version 5.5.3.20260724 -y --no-progress
+          $exe = Get-ChildItem "$env:ProgramFiles\Tesseract-OCR\tesseract.exe", "${env:ProgramFiles(x86)}\Tesseract-OCR\tesseract.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { throw "tesseract.exe not found" }
+          $t = $exe.DirectoryName
+          Invoke-WebRequest https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/deu.traineddata -OutFile "$t\tessdata\deu.traineddata"
+          $dst = "build\tesseract"
+          New-Item -ItemType Directory -Force "$dst\tessdata" | Out-Null
+          Copy-Item "$t\tesseract.exe", "$t\*.dll" $dst
+          Copy-Item "$t\tessdata\configs" "$dst\tessdata\configs" -Recurse
+          Copy-Item "$t\tessdata\eng.traineddata", "$t\tessdata\osd.traineddata", "$t\tessdata\deu.traineddata" "$dst\tessdata"
+          $env:TESSDATA_PREFIX = (Resolve-Path "$dst\tessdata").Path
+          $langs = & "$dst\tesseract.exe" --list-langs
+          Write-Output $langs
+          if (-not ($langs -contains "deu")) { throw "German language data missing" }
+          Remove-Item Env:TESSDATA_PREFIX
+          $t | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
       - name: Tests
         env:
           QT_QPA_PLATFORM: offscreen
@@ -94,7 +114,7 @@ jobs:
       - name: Build program
         run: |
           python packaging\windows\make_icon.py src\sldgridy\resources\icons\sldgridy.svg build\sldgridy.ico
-          pyinstaller --noconfirm --windowed --name SLDGridy --icon build\sldgridy.ico --paths src --add-data "src\sldgridy\resources;sldgridy\resources" --collect-data pdfminer --hidden-import PyQt6.QtPdf packaging\windows\sldgridy_main.py
+          pyinstaller --noconfirm --windowed --name SLDGridy --icon build\sldgridy.ico --paths src --add-data "src\sldgridy\resources;sldgridy\resources" --add-data "build\tesseract;tesseract" --collect-data pdfminer --hidden-import PyQt6.QtPdf packaging\windows\sldgridy_main.py
       - name: Start the built program
         # Catches missing modules or files: the program must come up with its own
         # window, not with an error message, and keep running.
@@ -102,6 +122,7 @@ jobs:
           foreach ($dir in "library", "templates", "symbols", "i18n", "fonts") {
             if (-not (Test-Path "dist\SLDGridy\_internal\sldgridy\resources\$dir")) { throw "missing resources\$dir" }
           }
+          if (-not (Test-Path "dist\SLDGridy\_internal\tesseract\tessdata\deu.traineddata")) { throw "missing tesseract" }
           $p = Start-Process dist\SLDGridy\SLDGridy.exe -PassThru
           Start-Sleep -Seconds 20
           $p.Refresh()

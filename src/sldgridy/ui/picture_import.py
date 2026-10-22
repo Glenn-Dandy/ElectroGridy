@@ -6,6 +6,7 @@ PDF pages are shown with QtPdf (python3-pyqt6.qtpdf), their lines and texts read
 pdfminer (python3-pdfminer); both are optional, without them only pictures work.
 """
 
+import math
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +21,7 @@ from PyQt6.QtGui import (
     QPainter,
     QPen,
     QPixmap,
+    QPolygonF,
     QTransform,
 )
 from PyQt6.QtWidgets import (
@@ -30,7 +32,9 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QDoubleSpinBox,
     QFormLayout,
+    QGraphicsItem,
     QGraphicsPixmapItem,
+    QGraphicsPolygonItem,
     QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsView,
@@ -42,8 +46,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from sldgridy.fileio import pdf_import
-from sldgridy.model.entities import Circle, Entity, Line, RasterImage, new_id
+from sldgridy.fileio import ocr, pdf_import
+from sldgridy.model.entities import Circle, Entity, Line, RasterImage, Text, new_id
 from sldgridy.model.geometry import Point
 from sldgridy.model.vectorize import Ring, Stroke, vectorize
 
@@ -52,6 +56,9 @@ PREVIEW_DPI = 100
 IMAGE_DPI = 200  # PDF regions brought in as pictures
 TRACE_SIDE = 2000  # pixels of the longer side when converting a picture into lines
 TRACE_MIN_SIDE = 1600
+TEXT_SIDE = 2800  # pixels of the longer side for a first look at the texts
+TEXT_HEIGHT = 24  # pixels of capitals tesseract reads best
+TEXT_SIDES = (1600, 6000)
 MAX_PICTURE_SIDE = 2400  # pixels kept of a picture
 PICTURE_WIDTH = 250.0  # mm, first suggestion for pictures without a size
 VECTORS, PICTURE, TRACE = "vectors", "picture", "trace"
@@ -109,10 +116,26 @@ def _gray_bytes(image: QImage) -> tuple[int, int, bytes]:
     return w, h, b"".join(raw[y * stride : y * stride + w] for y in range(h))
 
 
+def _gray(image: QImage) -> QImage:
+    """Grey, transparent parts white, light on dark (a dark screen) turned round."""
+    if image.hasAlphaChannel():
+        white = QImage(image.size(), QImage.Format.Format_RGB32)
+        white.fill(QColor("white"))
+        painter = QPainter(white)
+        painter.drawImage(0, 0, image)
+        painter.end()
+        image = white
+    gray = image.convertToFormat(QImage.Format.Format_Grayscale8)
+    _w, _h, sample = _gray_bytes(limited(gray, 200))
+    if sample and sum(sample) / len(sample) < 100:
+        gray.invertPixels()
+    return gray
+
+
 def darkness(image: QImage) -> QImage:
     """How much darker each pixel is than the paper around it: uneven light on a photo
     and a grey scan background drop out."""
-    gray = image.convertToFormat(QImage.Format.Format_Grayscale8)
+    gray = _gray(image)
     w, h = gray.width(), gray.height()
     background = gray.scaled(
         max(1, w // 24),
@@ -197,7 +220,7 @@ def straightened(image: QImage, angle: float) -> QImage:
 
 
 def traced(image: QImage, width_mm: float) -> list[Entity]:
-    """Lines and circles from a picture, ``width_mm`` wide, top left at (0, 0)."""
+    """Lines, circles and texts from a picture, ``width_mm`` wide, top left at (0, 0)."""
     work = limited(image, TRACE_SIDE)
     if max(work.width(), work.height()) < TRACE_MIN_SIDE:
         # Small pictures: lines a pixel thin break apart; enlarge first.
@@ -209,13 +232,18 @@ def traced(image: QImage, width_mm: float) -> list[Entity]:
         )
     w, h, data = ink(work)
     k = width_mm / w
+    shapes = vectorize(w, h, data)
+    labels = read_texts(image, w, shapes) if ocr.available() else []
     out: list[Entity] = []
-    for shape in vectorize(w, h, data):
+    for shape in shapes:
+        if any(_covers(label, shape) for label in labels):
+            continue  # a letter
         if isinstance(shape, Stroke):
             p1 = Point(round(shape.x1 * k, 2), round(shape.y1 * k, 2))
             p2 = Point(round(shape.x2 * k, 2), round(shape.y2 * k, 2))
             if p1 != p2:
-                out.append(Line(id=new_id(), p1=p1, p2=p2))
+                linetype = "dashed" if shape.dashed else None
+                out.append(Line(id=new_id(), p1=p1, p2=p2, linetype=linetype))
         elif isinstance(shape, Ring):
             out.append(
                 Circle(
@@ -224,6 +252,194 @@ def traced(image: QImage, width_mm: float) -> list[Entity]:
                     radius=round(shape.r * k, 2),
                 )
             )
+    for label in labels:
+        x, y = {
+            0: (label.left, label.baseline),
+            90: (label.baseline, label.bottom),
+            270: (label.baseline, label.top),
+        }[label.rotation]
+        out.append(
+            Text(
+                id=new_id(),
+                position=Point(round(x * k, 2), round(y * k, 2)),
+                text=label.text,
+                height=round(label.cap_height * k, 2),
+                rotation=label.rotation,
+            )
+        )
+    return out
+
+
+@dataclass(frozen=True)
+class Label:
+    """A text read from the picture, in the pixels of the traced picture. The
+    baseline of upright texts is an x."""
+
+    text: str
+    left: float
+    top: float
+    right: float
+    bottom: float
+    baseline: float
+    cap_height: float
+    confidence: float
+    rotation: int = 0  # 90: reads upwards, 270: downwards
+
+
+def _covers(label: Label, shape: Stroke | Ring) -> bool:
+    m = 2
+    if isinstance(shape, Ring):
+        xs, ys = (shape.cx - shape.r, shape.cx + shape.r), (shape.cy - shape.r, shape.cy + shape.r)
+    else:
+        xs, ys = (shape.x1, shape.x2), (shape.y1, shape.y2)
+    return (
+        label.left - m <= min(xs)
+        and max(xs) <= label.right + m
+        and label.top - m <= min(ys)
+        and max(ys) <= label.bottom + m
+    )
+
+
+def _png(image: QImage) -> bytes:
+    buffer = QBuffer()
+    buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+    image.save(buffer, "PNG")
+    return bytes(buffer.data())
+
+
+def text_picture(
+    image: QImage, scale: float, shapes: list[Stroke | Ring], longer_than: float = 0
+) -> QImage:
+    """Black letters on white for reading: the picture ``scale`` times the traced one,
+    paper evened out, the lines found painted over (those ``longer_than`` traced
+    pixels: shorter ones may be part of a letter)."""
+    w, h, values = _gray_bytes(darkness(image))
+    # Black from where ink() sees ink, white well below: no specks from the paper.
+    t = max(20, int(_threshold(values) * 0.6))
+    table = bytes(
+        255 - round(255 * min(1.0, max(0.0, (v - 0.7 * t) / (0.8 * t)))) for v in range(256)
+    )
+    picture = QImage(values.translate(table), w, h, w, QImage.Format.Format_Grayscale8).copy()
+    f = scale
+    painter = QPainter(picture)
+    for shape in shapes:
+        if isinstance(shape, Stroke):
+            if math.hypot(shape.x2 - shape.x1, shape.y2 - shape.y1) <= longer_than:
+                continue
+            pen = QPen(QColor("white"), (shape.thickness + 3) * f)
+            pen.setCapStyle(Qt.PenCapStyle.SquareCap)
+            painter.setPen(pen)
+            painter.drawLine(
+                QPointF(shape.x1 * f, shape.y1 * f), QPointF(shape.x2 * f, shape.y2 * f)
+            )
+        else:
+            painter.setPen(QPen(QColor("white"), 4 * f))
+            painter.drawEllipse(QPointF(shape.cx * f, shape.cy * f), shape.r * f, shape.r * f)
+    painter.end()
+    return picture
+
+
+def read_texts(image: QImage, traced_width: int, shapes: list[Stroke | Ring]) -> list[Label]:
+    """Texts in the picture, across and upright, in the pixels of the traced picture
+    (``traced_width`` wide)."""
+    side = max(image.width(), image.height())
+
+    def scaled(longer: float) -> QImage:
+        return image.scaled(
+            round(image.width() * longer / side),
+            round(image.height() * longer / side),
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+
+    def prepared(big: QImage, longer_than: float) -> tuple[QImage, float]:
+        f = big.width() / traced_width
+        return text_picture(big, f, shapes, longer_than), f
+
+    # A first look tells how high the letters are; then read them at the size tesseract
+    # likes, with only the lines painted over that are longer than letters are high.
+    picture, f = prepared(scaled(TEXT_SIDE), traced_width / 64)
+    first = ocr.text_lines(ocr.read_words(_png(picture)))
+    # Measuring needs no sure reading, only one of a few letters.
+    sure = sorted(x.cap_height for x in first if x.confidence >= 60 and len(x.text) >= 3)
+    if sure:
+        cap = sure[len(sure) // 2]
+        longer = min(max(TEXT_SIDE * TEXT_HEIGHT / cap, TEXT_SIDES[0]), TEXT_SIDES[1], 4 * side)
+        picture, f = prepared(scaled(longer), max(traced_width / 64, 2.5 * cap / f))
+        first = None
+    # Upright texts read from left to right once the picture is turned a quarter:
+    # clockwise for those reading upwards, counter-clockwise for those reading down.
+    w, h = picture.width(), picture.height()
+    passes = (
+        (0, lambda x, y: (x, y)),
+        (90, lambda u, v: (v, h - u)),
+        (-90, lambda u, v: (w - v, u)),
+    )
+    found = []
+    for turn, back in passes:
+        if turn == 0 and first is not None:
+            lines = first
+        else:
+            turned = picture.transformed(QTransform().rotate(turn)) if turn else picture
+            lines = ocr.text_lines(ocr.read_words(_png(turned)))
+        for line in lines:
+            corners = [back(line.left, line.top), back(line.right, line.bottom)]
+            xs, ys = [c[0] / f for c in corners], [c[1] / f for c in corners]
+            base = back(line.left, line.baseline)
+            found.append(
+                Label(
+                    line.text,
+                    min(xs),
+                    min(ys),
+                    max(xs),
+                    max(ys),
+                    (base[1] if turn == 0 else base[0]) / f,
+                    line.cap_height / f,
+                    line.confidence,
+                    rotation=(0, 90, 270)[(0, 90, -90).index(turn)],
+                )
+            )
+    # Where two readings found something, the surer one wins; a long text read
+    # sideways rarely comes out long, bits of letters do.
+    out = []
+    for label in sorted(ocr.same_size(found), key=lambda a: -a.confidence * min(8, len(a.text))):
+        if not any(_overlap(label, kept) > 0.3 for kept in out):
+            out.append(label)
+    return out
+
+
+def _overlap(a: Label, b: Label) -> float:
+    """Shared area as a part of the smaller box."""
+    w = min(a.right, b.right) - max(a.left, b.left)
+    h = min(a.bottom, b.bottom) - max(a.top, b.top)
+    if w <= 0 or h <= 0:
+        return 0.0
+    smaller = min((a.right - a.left) * (a.bottom - a.top), (b.right - b.left) * (b.bottom - b.top))
+    return w * h / max(1e-9, smaller)
+
+
+def unslanted(image: QImage, quad: list[QPointF]) -> QImage:
+    """The part of the picture inside ``quad`` (corners top left, top right, bottom
+    right, bottom left) stretched to a rectangle: a sheet photographed at a slant,
+    straight."""
+    tl, tr, br, bl = quad
+
+    def distance(a: QPointF, b: QPointF) -> float:
+        return math.hypot(a.x() - b.x(), a.y() - b.y())
+
+    width = max(1, round((distance(tl, tr) + distance(bl, br)) / 2))
+    height = max(1, round((distance(tl, bl) + distance(tr, br)) / 2))
+    target = [QPointF(0, 0), QPointF(width, 0), QPointF(width, height), QPointF(0, height)]
+    transform = QTransform()
+    if not QTransform.quadToQuad(QPolygonF(quad), QPolygonF(target), transform):
+        return image
+    out = QImage(width, height, QImage.Format.Format_RGB32)
+    out.fill(QColor("white"))
+    painter = QPainter(out)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+    painter.setTransform(transform)
+    painter.drawImage(0, 0, image)
+    painter.end()
     return out
 
 
@@ -238,8 +454,13 @@ def picture_entity(image: QImage, width_mm: float, photo: bool) -> RasterImage:
 # -- dialog ---------------------------------------------------------------------
 
 
+HANDLE = 10  # screen pixels around a corner that grab it
+
+
 class RegionView(QGraphicsView):
-    """The page or picture; dragging marks the region to import (default: all)."""
+    """The page or picture; dragging marks the region to import (default: all). With
+    ``movable_corners`` each corner of the region can then be dragged on its own, onto
+    the corners of a sheet photographed at a slant."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -248,22 +469,58 @@ class RegionView(QGraphicsView):
         self.setBackgroundBrush(QBrush(QColor("#808080")))
         self._pixmap = QGraphicsPixmapItem()
         self.scene().addItem(self._pixmap)
-        self._mark = QGraphicsRectItem()
         pen = QPen(QColor("#1565c0"), 0)
         pen.setCosmetic(True)
         pen.setWidth(2)
+        self._mark = QGraphicsPolygonItem()
         self._mark.setPen(pen)
         self._mark.setBrush(QBrush(QColor(21, 101, 192, 40)))
         self._mark.setZValue(1)
         self.scene().addItem(self._mark)
+        self._handles = []
+        for _ in range(4):
+            handle = QGraphicsRectItem(-HANDLE / 2, -HANDLE / 2, HANDLE, HANDLE)
+            handle.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
+            handle.setPen(pen)
+            handle.setBrush(QBrush(QColor("white")))
+            handle.setZValue(2)
+            self.scene().addItem(handle)
+            self._handles.append(handle)
+        self.movable_corners = False
         self._start: QPointF | None = None
+        self._corner: int | None = None
+        self.quad: list[QPointF] = [QPointF()] * 4  # top left, top right, bottom right, bottom left
         self.region = QRectF()
+
+    @property
+    def region(self) -> QRectF:
+        """The marked region; with moved corners the rectangle around them."""
+        return QPolygonF(self.quad).boundingRect()
+
+    @region.setter
+    def region(self, rect: QRectF) -> None:
+        self.quad = [rect.topLeft(), rect.topRight(), rect.bottomRight(), rect.bottomLeft()]
+        self._show()
+
+    def slanted(self) -> bool:
+        """Whether the corners were moved off a rectangle."""
+        r = self.region
+        corners = [r.topLeft(), r.topRight(), r.bottomRight(), r.bottomLeft()]
+        return any(
+            abs(p.x() - q.x()) + abs(p.y() - q.y()) > 0.5
+            for p, q in zip(self.quad, corners, strict=True)
+        )
+
+    def _show(self) -> None:
+        self._mark.setPolygon(QPolygonF(self.quad))
+        for handle, corner in zip(self._handles, self.quad, strict=True):
+            handle.setPos(corner)
+            handle.setVisible(self.movable_corners and not self.region.isEmpty())
 
     def set_image(self, image: QImage) -> None:
         self._pixmap.setPixmap(QPixmap.fromImage(image))
         self.scene().setSceneRect(QRectF(image.rect().toRectF()))
         self.region = QRectF(image.rect().toRectF())
-        self._mark.setRect(self.region)
         self.fitInView(self.scene().sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
 
     def resizeEvent(self, event) -> None:  # noqa: N802 - Qt API
@@ -274,25 +531,41 @@ class RegionView(QGraphicsView):
         r = self.scene().sceneRect()
         return QPointF(min(max(p.x(), r.left()), r.right()), min(max(p.y(), r.top()), r.bottom()))
 
+    def _grabbed(self, pos: QPointF) -> int | None:
+        if not self.movable_corners:
+            return None
+        for i, corner in enumerate(self.quad):
+            on_screen = QPointF(self.mapFromScene(corner))
+            if abs(on_screen.x() - pos.x()) <= HANDLE and abs(on_screen.y() - pos.y()) <= HANDLE:
+                return i
+        return None
+
     def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt API
-        if event.button() == Qt.MouseButton.LeftButton:
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
+        self._corner = self._grabbed(event.position())
+        if self._corner is None:
             self._start = self._clamped(self.mapToScene(event.position().toPoint()))
-            self._mark.setRect(QRectF(self._start, self._start))
+            self.region = QRectF(self._start, self._start)
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 - Qt API
-        if self._start is not None:
-            end = self._clamped(self.mapToScene(event.position().toPoint()))
-            self._mark.setRect(QRectF(self._start, end).normalized())
+        p = self._clamped(self.mapToScene(event.position().toPoint()))
+        if self._corner is not None:
+            self.quad[self._corner] = p
+            self._show()
+        elif self._start is not None:
+            self.region = QRectF(self._start, p).normalized()
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802 - Qt API
-        if self._start is None:
+        if self._corner is not None:
+            self._corner = None
+        elif self._start is not None:
+            self._start = None
+            rect = self.region
+            if rect.width() < 5 or rect.height() < 5:  # a click: everything again
+                self.region = self.scene().sceneRect()
+        else:
             return
-        self._start = None
-        rect = self._mark.rect()
-        if rect.width() < 5 or rect.height() < 5:  # a click: everything again
-            rect = self.scene().sceneRect()
-            self._mark.setRect(rect)
-        self.region = rect
         changed = getattr(self.parent(), "_region_changed", None)
         if changed is not None:
             changed()
@@ -328,6 +601,7 @@ class ImportDialog(QDialog):
         self.pages.setFixedWidth(190)
         self.pages.setMovement(QListWidget.Movement.Static)
         self.view = RegionView(self)
+        self.view.movable_corners = pdf is None
         self.mode = QComboBox()
         self.mode.addItem(self.tr("Linien und Texte (PDF aus einem CAD-Programm)"), VECTORS)
         self.mode.addItem(self.tr("Bild"), PICTURE)
@@ -351,9 +625,12 @@ class ImportDialog(QDialog):
         form.addRow("", self.keep)
         form.addRow(self.tr("Breite des Bereichs:"), self.width_mm)
         right = QVBoxLayout()
-        right.addWidget(
-            QLabel(self.tr("Bereich mit der Maus aufziehen; ein Klick wählt wieder alles."))
-        )
+        how = self.tr("Bereich mit der Maus aufziehen; ein Klick wählt wieder alles.")
+        if pdf is None:
+            how += " " + self.tr(
+                "Schräg fotografiert: die Ecken einzeln auf die Ecken des Blatts ziehen."
+            )
+        right.addWidget(QLabel(how))
         right.addWidget(self.view, 1)
         right.addLayout(form)
         right.addWidget(self.hint)
@@ -465,8 +742,8 @@ class ImportDialog(QDialog):
             ),
             PICTURE: self.tr("Der Bereich kommt als Bild, zum Nachzeichnen oder so lassen."),
             TRACE: self.tr(
-                "Versuch: waagerechte, senkrechte und schräge Linien und Kreise werden "
-                "erkannt, Texte nicht. Am besten gerade von oben fotografieren."
+                "Versuch: Linien, gestrichelte Linien, Kreise und Texte werden erkannt. "
+                "Texte bitte prüfen, kleine Schrift wird oft falsch gelesen."
             ),
         }
         self.hint.setText(hints[mode])
@@ -481,6 +758,12 @@ class ImportDialog(QDialog):
         else:
             image, photo = self._picture, True
         w, h = image.width(), image.height()
+        if self.view.slanted():
+            scene = self.view.scene().sceneRect()
+            kx, ky = w / scene.width(), h / scene.height()
+            return unslanted(
+                image, [QPointF(p.x() * kx, p.y() * ky) for p in self.view.quad]
+            ), photo
         rect = QRectF(f.left() * w, f.top() * h, f.width() * w, f.height() * h).toRect()
         return image.copy(rect), photo
 

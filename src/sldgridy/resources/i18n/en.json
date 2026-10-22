@@ -930,7 +930,8 @@
  "Schaltplan &importieren (PDF, Bild) …": "&Import circuit diagram (PDF, picture) …",
  "Schaltplan importieren": "Import circuit diagram",
  "Seite wählen, Bereich markieren: als Linien und Texte (CAD-PDF), als Bild oder vom Bild in Linien umgewandelt": "Choose a page, mark a region: as lines and texts (CAD PDF), as a picture or converted from the picture into lines",
- "Versuch: waagerechte, senkrechte und schräge Linien und Kreise werden erkannt, Texte nicht. Am besten gerade von oben fotografieren.": "Experimental: horizontal, vertical and sloped lines and circles are recognised, texts are not. Best photographed straight from above.",
+ "Versuch: Linien, gestrichelte Linien, Kreise und Texte werden erkannt. Texte bitte prüfen, kleine Schrift wird oft falsch gelesen.": "Experimental: lines, dashed lines, circles and texts are recognised. Please check the texts, small print is often misread.",
+ "Schräg fotografiert: die Ecken einzeln auf die Ecken des Blatts ziehen.": "Photographed at a slant: drag the corners one by one onto the corners of the sheet.",
  "{n} Objekte: linke obere Ecke setzen": "{n} objects: place the top left corner",
  "Übernehmen als:": "Bring in as:",
  "Die Datei konnte nicht gelesen werden.": "The file could not be read."
