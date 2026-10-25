@@ -178,6 +178,7 @@ WORKSPACE_GRID = {
 }
 
 OPEN_VIEW_KEY = "view/on_open"
+SNAP_PARTS_KEPT = 64  # symbols whose parts the object snap keeps
 RECENT_KEY, RECENT_COUNT = "files/recent", 10
 # Rails end this far inside the frame, room for the interruption arrows and references.
 RAIL_INSET_LEFT, RAIL_INSET_RIGHT = 15.0, 22.5
@@ -193,6 +194,7 @@ class MainWindow(QMainWindow):
         self.document = Document.new(self.tr("Blatt 1"), title_labels())
         self.document._revision = 0  # counts changes; generated content follows it
         self._interruption_refresh_pending = False
+        self._snap_parts: dict[tuple, tuple[Entity, list[Entity]]] = {}
         self._watched_pages: dict[int, EntityContainer] = {}
         self.file_path: Path | None = None
         self.current_layer = DEFAULT_LAYER
@@ -1079,9 +1081,21 @@ class MainWindow(QMainWindow):
         return [entity]
 
     def _decompose(self, entity: Entity) -> list[Entity]:
+        """Parts for the object snap. Kept per entity and document state: a detailed
+        symbol (an imported device drawing) would be taken apart on every mouse move."""
         if isinstance(entity, ConnectionPoint):
             return []
-        return self._expand(entity)
+        if not isinstance(entity, BlockReference):
+            return self._expand(entity)
+        key = (entity.id, getattr(self.document, "_revision", 0), id(self.block_definitions))
+        cached = self._snap_parts.get(key)
+        if cached is not None and cached[0] is entity:
+            return cached[1]
+        parts = self._expand(entity)
+        if len(self._snap_parts) > SNAP_PARTS_KEPT:
+            self._snap_parts.clear()
+        self._snap_parts[key] = (entity, parts)
+        return parts
 
     def _snap_extra(self, entity: Entity) -> list[SnapHit]:
         if isinstance(entity, ConnectionPoint):

@@ -19,6 +19,7 @@ from sldgridy.view.render import (
 )
 
 SELECTION_COLOR = QColor("#1e88e5")
+DETAILED_PARTS = 200  # more parts than this: the item keeps a picture of itself
 
 StyleResolver = Callable[[Entity], Style]
 # Resolves compound entities (block references) into simple ones; identity otherwise.
@@ -63,6 +64,14 @@ class EntityItem(QGraphicsItem):
 
     def _update_geometry(self) -> None:
         self._parts = self._expand(self.entity)
+        # A detailed symbol (an imported device drawing) is drawn once into a picture
+        # and reused while only the crosshair moves; zoom draws it anew.
+        detailed = len(self._parts) > DETAILED_PARTS
+        self.setCacheMode(
+            QGraphicsItem.CacheMode.DeviceCoordinateCache
+            if detailed
+            else QGraphicsItem.CacheMode.NoCache
+        )
         # Styles are looked up once here, not on every repaint.
         self._styles = [self._resolve_style(part) for part in self._parts]
         bounds = QRectF()
