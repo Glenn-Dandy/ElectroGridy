@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 
 from PyQt6.QtCore import QRectF
-from PyQt6.QtGui import QColor, QIcon, QImage, QPainter, QPixmap
+from PyQt6.QtGui import QColor, QGuiApplication, QIcon, QImage, QPainter, QPalette, QPixmap
 
 from sldgridy.model.blocks import BlockDefinition, BlockError, expand
 from sldgridy.model.entities import BlockReference
@@ -14,7 +14,7 @@ THUMB_LINEWEIGHT = 0.25
 
 def block_image(name: str, blocks: Mapping[str, BlockDefinition], size: int = 64) -> QImage:
     image = QImage(size, size, QImage.Format.Format_ARGB32)
-    image.fill(QColor("white"))
+    image.fill(QColor(0, 0, 0, 0))  # the list shows through, light or dark
     definition = blocks.get(name)
     if definition is None:
         return image
@@ -41,7 +41,7 @@ def block_image(name: str, blocks: Mapping[str, BlockDefinition], size: int = 64
     painter.translate(size / 2, size / 2)
     painter.scale(scale, scale)
     painter.translate(-bounds.center())
-    style = Style(QColor("black"), THUMB_LINEWEIGHT)
+    style = Style(QGuiApplication.palette().color(QPalette.ColorRole.Text), THUMB_LINEWEIGHT)
     for p in parts:
         paint_entity(painter, p, style, scale)
     painter.end()

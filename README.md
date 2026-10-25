@@ -13,7 +13,7 @@
 
 CAD-style editor for single-line electrical diagrams on Linux and Windows: photovoltaic systems, transformer stations and low-voltage distribution. Drawing in real millimetres with model space and sheet layouts, grid and object snap, layers, blocks with attributes and connection points, a symbol library to DIN EN 60617, and printing up to A0.
 
-The user interface is available in **English and German** (Settings > Sprache / Language); the Settings menu also holds “Fast display”, “Drawing area” (light, dark, or like the system: a dark drawing area is easier on the eyes in the evening, printing and export stay on white paper), on Linux the window system (Wayland or X11) and what to show when a drawing is opened (whole drawing, last view of the file, or sheet 1 from the origin).
+The user interface is available in **English and German** (Settings > Sprache / Language); the Settings menu also holds “Dark mode” (whole program and drawing area dark, easier on the eyes in the evening; also the DARK button in the status bar; printing and export stay on white paper), “Drawing area” (light or dark on its own), “Fast display”, on Linux the window system (Wayland or X11) and what to show when a drawing is opened (whole drawing, last view of the file, or sheet 1 from the origin).
 
 License: GPL-3.0-or-later. Target system: Ubuntu 24.04 LTS and 26.04 LTS (X11 and Wayland).
 
@@ -176,7 +176,7 @@ GPL-3.0-or-later, see [LICENSE](LICENSE). © Glenn-Dandy
 
 Einpolige Übersichtsschaltpläne (Single-Line-Diagramme) für Photovoltaikanlagen, Transformatorstationen und Niederspannungsverteilungen unter Linux und Windows, gezeichnet wie in einem CAD-Programm: maßhaltig in Millimetern, mit Modell und Zeichnungsrahmen, Raster und Objektfang, Ebenen, Blöcken mit Attributen und Anschlusspunkten, einer Symbolbibliothek nach DIN EN 60617 und Drucken bis A0.
 
-Die Oberfläche gibt es auf **Deutsch und Englisch** (Einstellungen > Sprache / Language); im Menü Einstellungen stehen außerdem „Schnelle Darstellung“, „Zeichenfläche“ (hell, dunkel oder wie das System: eine dunkle Zeichenfläche schont abends die Augen, Druck und Export bleiben auf weißem Papier), unter Linux das Fenstersystem (Wayland oder X11) und was beim Öffnen einer Zeichnung gezeigt wird (ganze Zeichnung, letzte Ansicht der Datei oder Blatt 1 ab Nullpunkt).
+Die Oberfläche gibt es auf **Deutsch und Englisch** (Einstellungen > Sprache / Language); im Menü Einstellungen stehen außerdem „Dunkler Modus“ (ganzes Programm und Zeichenfläche dunkel, schont abends die Augen; auch der Knopf DUNKEL in der Statusleiste; Druck und Export bleiben auf weißem Papier), „Zeichenfläche“ (hell oder dunkel für sich allein), „Schnelle Darstellung“, unter Linux das Fenstersystem (Wayland oder X11) und was beim Öffnen einer Zeichnung gezeigt wird (ganze Zeichnung, letzte Ansicht der Datei oder Blatt 1 ab Nullpunkt).
 
 Lizenz: GPL-3.0-or-later. Zielsystem: Ubuntu 24.04 LTS und 26.04 LTS (X11 und Wayland).
 

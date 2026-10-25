@@ -13,8 +13,8 @@ from dataclasses import dataclass
 
 from PyQt6.QtGui import QColor
 
-LIGHT, DARK, SYSTEM = "light", "dark", "system"
-CHOICES = (LIGHT, DARK, SYSTEM)
+LIGHT, DARK = "light", "dark"
+CHOICES = (LIGHT, DARK)
 SETTINGS_KEY = "view/canvas_theme"
 
 GREY_SATURATION = 0.2  # below this a colour counts as black, grey or white
@@ -87,15 +87,6 @@ def set_dark(dark: bool) -> None:
 
 def is_dark() -> bool:
     return current.dark
-
-
-def resolve(choice: str, system_dark: bool) -> bool:
-    """Whether the drawing area is dark for a stored choice."""
-    if choice == DARK:
-        return True
-    if choice == SYSTEM:
-        return system_dark
-    return False
 
 
 def ink(color: QColor) -> QColor:

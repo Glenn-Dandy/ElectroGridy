@@ -25,9 +25,7 @@ from PyQt6.QtGui import (
     QCloseEvent,
     QColor,
     QCursor,
-    QGuiApplication,
     QKeySequence,
-    QPalette,
     QUndoCommand,
     QUndoGroup,
     QUndoStack,
@@ -115,7 +113,7 @@ from sldgridy.tools.edit import (
     RotateTool,
     ScaleTool,
 )
-from sldgridy.ui import clipboard
+from sldgridy.ui import appearance, clipboard
 from sldgridy.ui.about_dialog import AboutDialog, app_icon, issue_url, open_url
 from sldgridy.ui.autosave import AutoSaver, orphaned_backups, remove_backup
 from sldgridy.ui.block_controller import BlockController
@@ -620,6 +618,13 @@ class MainWindow(QMainWindow):
         self.act_otrack.setCheckable(True)
         self.act_otrack.setChecked(self.canvas.otrack_enabled)
         self.act_otrack.toggled.connect(self.canvas.set_otrack_enabled)
+        self.act_dark_mode = self._action(
+            self.tr("Dunkler &Modus"), self.set_dark_mode, None, self.tr("DUNKEL")
+        )
+        self.act_dark_mode.setCheckable(True)
+        self.act_dark_mode.setToolTip(
+            self.tr("Ganzes Programm und Zeichenfläche dunkel, schont abends die Augen")
+        )
         self.act_layer_cache = self._action(self.tr("Schnelle Darstellung"), lambda: None)
         self.act_layer_cache.setCheckable(True)
         self.act_layer_cache.setToolTip(
@@ -707,6 +712,8 @@ class MainWindow(QMainWindow):
         # Program settings (kept between sessions) in one menu.
         m = bar.addMenu(self.tr("&Einstellungen"))
         display_menu = m
+        m.addAction(self.act_dark_mode)
+        m.addSeparator()
         m.addActions([self.act_grid_settings, self.act_osnap_settings])
         m.addSeparator()
         m.addAction(self.act_layer_cache)
@@ -714,16 +721,14 @@ class MainWindow(QMainWindow):
         self.theme_menu = m.addMenu(self.tr("&Zeichenfläche"))
         group = QActionGroup(self)
         current = self._canvas_theme_choice()
-        for code, label in (
-            (theme.LIGHT, self.tr("Hell")),
-            (theme.DARK, self.tr("Dunkel")),
-            (theme.SYSTEM, self.tr("Wie das System")),
-        ):
+        self.canvas_theme_actions = {}
+        for code, label in ((theme.LIGHT, self.tr("Hell")), (theme.DARK, self.tr("Dunkel"))):
             action = self.theme_menu.addAction(label)
             action.setCheckable(True)
             action.setChecked(code == current)
             action.setData(code)
             group.addAction(action)
+            self.canvas_theme_actions[code] = action
         group.triggered.connect(self._choose_canvas_theme)
         m.addSeparator()
         # Deliberately bilingual: findable whatever language is active.
@@ -979,6 +984,7 @@ class MainWindow(QMainWindow):
             self.act_ortho,
             self.act_osnap,
             self.act_otrack,
+            self.act_dark_mode,
         ):
             with_menu = action in (self.act_osnap, self.act_grid, self.act_snap)
             button = HoverMenuButton() if with_menu else QToolButton()
@@ -1260,20 +1266,21 @@ class MainWindow(QMainWindow):
         QSettings().setValue(theme.SETTINGS_KEY, action.data())
         self.apply_canvas_theme()
 
-    @staticmethod
-    def _system_dark() -> bool:
-        hints = QGuiApplication.styleHints()
-        scheme = getattr(hints, "colorScheme", None)  # Qt 6.5 and later
-        if scheme is not None and scheme() != Qt.ColorScheme.Unknown:
-            return scheme() == Qt.ColorScheme.Dark
-        return QApplication.palette().color(QPalette.ColorRole.Window).lightness() < 128
-
-    def _on_color_scheme(self, _scheme) -> None:
+    def set_dark_mode(self, dark: bool) -> None:
+        """Whole program dark or light; the drawing area goes along and can be set apart
+        afterwards (Settings > Drawing area)."""
+        QSettings().setValue(appearance.SETTINGS_KEY, dark)
+        appearance.apply(dark)
+        choice = theme.DARK if dark else theme.LIGHT
+        QSettings().setValue(theme.SETTINGS_KEY, choice)
+        self.canvas_theme_actions[choice].setChecked(True)
+        self.act_dark_mode.setChecked(dark)
         self.apply_canvas_theme()
+        self.library_dock.refresh_icons()
 
     def apply_canvas_theme(self) -> None:
         """Light or dark drawing area (screen only; printing stays on white paper)."""
-        dark = theme.resolve(self._canvas_theme_choice(), self._system_dark())
+        dark = self._canvas_theme_choice() == theme.DARK
         if dark == theme.is_dark():
             return
         theme.set_dark(dark)
@@ -2123,10 +2130,8 @@ class MainWindow(QMainWindow):
         self.canvas.polar_increment = settings.value("view/polar_increment", 15.0, type=float)
         self.canvas.set_dynamic_enabled(self.act_dynamic_input.isChecked())
         self.canvas.decimal_comma = i18n.ui_locale().decimalPoint() == ","
+        self.act_dark_mode.setChecked(appearance.is_dark())
         self.apply_canvas_theme()
-        hints = QGuiApplication.styleHints()
-        if hasattr(hints, "colorSchemeChanged"):  # follows the system while running
-            hints.colorSchemeChanged.connect(self._on_color_scheme)
         self._apply_document_kind()
 
     def _set_grid_spacing(self, value: float) -> None:

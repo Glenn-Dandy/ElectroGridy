@@ -238,6 +238,11 @@ class LibraryDock(QDockWidget):
         self.source.blockSignals(False)
         self._fill()
 
+    def refresh_icons(self) -> None:
+        """Preview images again, e.g. after switching to dark mode (they use its colours)."""
+        self._icons.clear()
+        self._fill()
+
     def refresh_document(self) -> None:
         for key in [k for k in self._icons if k[0] == DOCUMENT_SOURCE]:
             del self._icons[key]

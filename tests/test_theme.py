@@ -1,10 +1,11 @@
 import pytest
 from PyQt6.QtCore import QSettings
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QPalette
 
 from sldgridy.model.document import Document
 from sldgridy.model.entities import Line
 from sldgridy.model.geometry import Point
+from sldgridy.ui import appearance
 from sldgridy.ui.main_window import MainWindow
 from sldgridy.view import theme
 from sldgridy.view.display import OutputOptions, resolve_style
@@ -39,13 +40,6 @@ def test_output_keeps_drawing_colours_in_dark_theme(dark):
     assert resolve_style(doc, line).color.lightness() > 220  # screen
 
 
-def test_resolve_choice():
-    assert theme.resolve(theme.DARK, system_dark=False)
-    assert not theme.resolve(theme.LIGHT, system_dark=True)
-    assert theme.resolve(theme.SYSTEM, system_dark=True)
-    assert not theme.resolve(theme.SYSTEM, system_dark=False)
-
-
 def test_menu_switches_the_drawing_area(qapp):
     QSettings().clear()
     w = MainWindow()
@@ -64,6 +58,29 @@ def test_menu_switches_the_drawing_area(qapp):
         assert not theme.is_dark()
         assert item._styles[0].color == QColor("black")
     finally:
+        theme.set_dark(False)
+        w.undo_stack.setClean()
+        w.close()
+
+
+def test_dark_mode_darkens_program_and_drawing_area(qapp):
+    QSettings().clear()
+    w = MainWindow()
+    try:
+        assert w.act_dark_mode.iconText()  # also a button in the status bar
+        light_window = qapp.palette().color(QPalette.ColorRole.Window)
+        w.act_dark_mode.trigger()
+        assert appearance.is_dark() and theme.is_dark()
+        assert qapp.palette().color(QPalette.ColorRole.Window).lightness() < 80
+        assert QSettings().value(appearance.SETTINGS_KEY, type=bool)
+        # The drawing area can still be set apart.
+        w.canvas_theme_actions[theme.LIGHT].trigger()
+        assert appearance.is_dark() and not theme.is_dark()
+        w.act_dark_mode.trigger()
+        assert not appearance.is_dark()
+        assert qapp.palette().color(QPalette.ColorRole.Window) == light_window
+    finally:
+        appearance.apply(False)
         theme.set_dark(False)
         w.undo_stack.setClean()
         w.close()
