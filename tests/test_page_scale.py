@@ -83,3 +83,32 @@ def test_symbols_and_dimensions_follow_the_page_scale(window):
     # Back to 1:1: new symbols at full size again.
     window.push(ChangeSheetCommand(window.document, page.id, "", scale=1.0))
     assert window.drawing_scale() == 1.0
+
+
+def test_changing_the_scale_rescales_what_is_drawn(window, monkeypatch):
+    from dataclasses import replace
+
+    from sldgridy.model.entities import Rectangle, Text
+
+    page = window.document.sheets[0]
+    box = Rectangle(id="box", p1=Point(50, 50), p2=Point(650, 850))
+    label = Text(id="t", position=Point(60, 40), text="Gehäuse", height=3.5)
+    dim = Dimension(id="d", p1=Point(50, 50), p2=Point(650, 50), position=Point(350, 45))
+    ref = BlockReference(id="r", name="X", insert=Point(250, 250))
+    for e in (box, label, dim, ref):
+        page.entities.add(e)
+    current = window.sheets.current_sheet()
+    spec = PageSpec(current.kind or "enclosure", "", "", "", "A3", Orientation.LANDSCAPE, False)
+    monkeypatch.setattr(window.sheets, "_page_spec", lambda *a: replace(spec, scale=0.2))
+    window.sheets.rename_sheet()
+    assert page.scale == 0.2
+    corner = Point(50, 40)  # upper left of the content
+    new_box = page.entities.get("box")
+    assert (new_box.p1, new_box.p2) == (
+        Point(corner.x, corner.y + 2), Point(corner.x + 120, corner.y + 162)
+    )  # fmt: skip
+    assert page.entities.get("t").height == 3.5  # stays readable on paper
+    assert measured_text(page.entities.get("d")) == "600"  # same real length
+    assert page.entities.get("r").scale == pytest.approx(0.2)
+    window.act_undo.trigger()  # one step back
+    assert page.scale == 1.0 and page.entities.get("box") == box

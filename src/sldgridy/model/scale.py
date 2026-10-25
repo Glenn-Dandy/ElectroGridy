@@ -81,3 +81,29 @@ def scale_entity(e: Entity, center: Point, factor: float) -> Entity:
         case BlockReference():
             return replace(e, insert=s(e.insert), scale=e.scale * factor)
     return e
+
+
+def rescaled_for_page(entities: list[Entity], ratio: float) -> list[Entity]:
+    """Page content after its drawing scale changed by ``ratio`` (new over old paper mm
+    per real mm; 0.2 from 1:1 to 1:5). Geometry shrinks or grows around the upper left
+    corner of the content, so it stays where it was; texts, dimension values and labels
+    keep their size on paper, and dimensions still show the same real length."""
+    from sldgridy.model.grips import grip_points
+
+    content = [e for e in entities if not isinstance(e, Viewport)]
+    points = [p for e in content for p in grip_points(e)]
+    if not points or ratio <= 0 or abs(ratio - 1.0) < 1e-12:
+        return []
+    corner = Point(min(p.x for p in points), min(p.y for p in points))
+    out = []
+    for e in content:
+        new = scale_entity(e, corner, ratio)
+        match e:
+            case Text() | AttributeDefinition() | InterruptionPoint() | CableMark():
+                new = replace(new, height=e.height)
+            case Dimension():
+                new = replace(new, height=e.height, factor=round(e.factor / ratio, 9))
+            case Wire():
+                new = replace(new, label_height=e.label_height)
+        out.append(new)
+    return out

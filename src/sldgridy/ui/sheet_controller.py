@@ -56,6 +56,7 @@ from sldgridy.model.document import (
 from sldgridy.model.entities import Entity, Rectangle, Viewport, new_id
 from sldgridy.model.geometry import Point
 from sldgridy.model.paper import Orientation, sheet_size
+from sldgridy.model.scale import rescaled_for_page
 from sldgridy.model.sheet import schematic_title_width, schematic_viewport
 from sldgridy.model.title_block import (
     TITLE_BLOCK_NAME,
@@ -851,6 +852,11 @@ class SheetController(QObject):
         self.w.begin_macro(self.tr("Seite bearbeiten"))
         for definition in needed:
             self.w.push(AddBlockCommand(self.doc, definition, ""))
+        if "scale" in changes and current.scale > 0:
+            # What is drawn keeps its real size: it shrinks or grows with the scale.
+            moved = rescaled_for_page(list(current.entities), changes["scale"] / current.scale)
+            if moved:
+                self.w.push(ReplaceEntitiesCommand(current.entities, moved, ""))
         self.w.push(ChangeSheetCommand(self.doc, current.id, "", **changes))
         self.w.end_macro()
 
