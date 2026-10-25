@@ -8,20 +8,18 @@ from PyQt6.QtWidgets import QGraphicsItem
 
 from sldgridy.model.document import Document, SheetLayout
 from sldgridy.model.entities import Viewport
+from sldgridy.view import theme
 from sldgridy.view.display import SCREEN, paint_frame, paint_viewport, viewport_rect
 from sldgridy.view.items import EntityItem, Expander, StyleResolver
 
 PAPER_Z = -1e9
 FRAME_Z = 1e8
-PAPER_COLOR = QColor("white")
-PAPER_EDGE = QColor("#606060")
-SHADOW = QColor(0, 0, 0, 60)
-SHEET_BACKGROUND = QColor("#c8c8c8")
+SHEET_BACKGROUND = theme.LIGHT_PALETTE.sheet_background  # follows the theme on screen
 ACTIVE_VIEWPORT_COLOR = QColor("#1e88e5")
 
 
 class PaperItem(QGraphicsItem):
-    """The white sheet on the grey background (helper display)."""
+    """The sheet on the grey background (helper display)."""
 
     def __init__(self, sheet_getter: Callable[[], SheetLayout]) -> None:
         super().__init__()
@@ -45,11 +43,12 @@ class PaperItem(QGraphicsItem):
         return self._rect
 
     def paint_paper(self, painter: QPainter) -> None:
-        """Shadow, white paper and edge; drawn by the canvas as background so that the
+        """Shadow, paper and edge; drawn by the canvas as background so that the
         grid shows on the paper too."""
-        painter.fillRect(self._rect.translated(1.5, 1.5), SHADOW)
-        painter.fillRect(self._rect, PAPER_COLOR)
-        pen = QPen(PAPER_EDGE, 0)
+        colors = theme.current
+        painter.fillRect(self._rect.translated(1.5, 1.5), colors.shadow)
+        painter.fillRect(self._rect, colors.paper)
+        pen = QPen(colors.paper_edge, 0)
         pen.setCosmetic(True)
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)

@@ -41,6 +41,7 @@ from sldgridy.model.terminal_plan import terminal_plan
 from sldgridy.model.terminals import row_labels, terminal_center
 from sldgridy.model.title_block import CAPTIONS, FIELD_LABELS
 from sldgridy.model.wires import junction_diameter, junctions, label_text
+from sldgridy.view import theme
 from sldgridy.view.render import Style, entity_bounds, make_pen, paint_entity
 
 BLACK = QColor("black")
@@ -59,9 +60,16 @@ class OutputOptions:
 SCREEN = OutputOptions()
 
 
-def resolve_style(doc: Document, e: Entity, monochrome: bool = False) -> Style:
-    color = BLACK if monochrome else QColor(doc.effective_color(e))
-    return Style(color, doc.effective_lineweight(e), doc.effective_linetype(e))
+def resolve_style(doc: Document, e: Entity, options: OutputOptions = SCREEN) -> Style:
+    color = BLACK if options.monochrome else QColor(doc.effective_color(e))
+    return Style(
+        _shown_color(color, options), doc.effective_lineweight(e), doc.effective_linetype(e)
+    )
+
+
+def _shown_color(color: QColor, options: OutputOptions) -> QColor:
+    """Screen colours follow the theme (dark drawing area); output keeps the drawing's."""
+    return theme.ink(color) if options.helpers else color
 
 
 def _page_key(doc: Document) -> tuple:
@@ -260,13 +268,13 @@ def paint_entities(
         for part in expand_for_display(doc, e):
             if not _shown(doc, part, options):
                 continue
-            style = resolve_style(doc, part, options.monochrome)
+            style = resolve_style(doc, part, options)
             if weight_factor != 1.0:
                 style = Style(style.color, style.lineweight * weight_factor, style.linetype)
             paint_entity(painter, part, style, px_per_mm, options.helpers)
     painter.setPen(Qt.PenStyle.NoPen)
     for p, wire in junctions(shown):
-        style = resolve_style(doc, wire, options.monochrome)
+        style = resolve_style(doc, wire, options)
         d = junction_diameter(style.lineweight) * weight_factor
         painter.setBrush(QBrush(style.color))
         painter.drawEllipse(QPointF(p.x, p.y), d / 2, d / 2)
@@ -297,7 +305,7 @@ def paint_viewport(
     )
     painter.restore()
     if vp.print_border and _shown(doc, vp, options):
-        style = resolve_style(doc, vp, options.monochrome)
+        style = resolve_style(doc, vp, options)
         painter.setPen(make_pen(style.color, style.lineweight, px_per_mm if options.helpers else 0))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRect(rect)
@@ -358,7 +366,9 @@ def frame_parts(doc: Document, sheet: SheetLayout, helpers: bool = False) -> lis
 
 def _style(part: Entity, options: OutputOptions, default_weight: float) -> Style:
     return Style(
-        BLACK if options.monochrome or part.color is None else QColor(part.color),
+        _shown_color(
+            BLACK if options.monochrome or part.color is None else QColor(part.color), options
+        ),
         part.lineweight if part.lineweight is not None else default_weight,
         part.linetype or "continuous",
     )
@@ -380,7 +390,7 @@ def paint_frame(
     bounds = QRectF()
     for part in parts:
         bounds = bounds.united(entity_bounds(part, part.lineweight or 0.35))
-    painter.fillRect(bounds, QColor("white"))
+    painter.fillRect(bounds, theme.current.paper if options.helpers else QColor("white"))
     for part in parts:
         paint_entity(painter, part, _style(part, options, 0.25), px_per_mm, options.helpers)
 

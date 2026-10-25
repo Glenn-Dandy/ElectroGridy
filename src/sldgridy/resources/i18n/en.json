@@ -934,5 +934,9 @@
  "Schräg fotografiert: die Ecken einzeln auf die Ecken des Blatts ziehen.": "Photographed at a slant: drag the corners one by one onto the corners of the sheet.",
  "{n} Objekte: linke obere Ecke setzen": "{n} objects: place the top left corner",
  "Übernehmen als:": "Bring in as:",
- "Die Datei konnte nicht gelesen werden.": "The file could not be read."
+ "Die Datei konnte nicht gelesen werden.": "The file could not be read.",
+ "&Zeichenfläche": "&Drawing area",
+ "Hell": "Light",
+ "Dunkel": "Dark",
+ "Wie das System": "Like the system"
 }

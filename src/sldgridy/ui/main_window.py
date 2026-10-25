@@ -25,7 +25,9 @@ from PyQt6.QtGui import (
     QCloseEvent,
     QColor,
     QCursor,
+    QGuiApplication,
     QKeySequence,
+    QPalette,
     QUndoCommand,
     QUndoGroup,
     QUndoStack,
@@ -139,6 +141,7 @@ from sldgridy.ui.space import BLOCK, MODEL, SHEET, Space
 from sldgridy.ui.start_dialog import StartDialog
 from sldgridy.ui.styles import MIXED, HeightCombo
 from sldgridy.ui.text_dialog import TextDialog
+from sldgridy.view import theme
 from sldgridy.view.canvas import BACKGROUND_COLOR, EMPTY_EXTENTS, Canvas, select_items
 from sldgridy.view.display import (
     crossrefs_of,
@@ -708,6 +711,20 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         m.addAction(self.act_layer_cache)
         m.addAction(self.act_dynamic_input)
+        self.theme_menu = m.addMenu(self.tr("&Zeichenfläche"))
+        group = QActionGroup(self)
+        current = self._canvas_theme_choice()
+        for code, label in (
+            (theme.LIGHT, self.tr("Hell")),
+            (theme.DARK, self.tr("Dunkel")),
+            (theme.SYSTEM, self.tr("Wie das System")),
+        ):
+            action = self.theme_menu.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(code == current)
+            action.setData(code)
+            group.addAction(action)
+        group.triggered.connect(self._choose_canvas_theme)
         m.addSeparator()
         # Deliberately bilingual: findable whatever language is active.
         language_menu = display_menu.addMenu("Sprache / Language")
@@ -991,7 +1008,7 @@ class MainWindow(QMainWindow):
     def _resolve_style(self, entity: Entity) -> Style:
         doc = self.document
         return Style(
-            QColor(doc.effective_color(entity)),
+            theme.ink(QColor(doc.effective_color(entity))),
             doc.effective_lineweight(entity),
             doc.effective_linetype(entity),
         )
@@ -1233,6 +1250,35 @@ class MainWindow(QMainWindow):
 
     def _choose_open_view(self, action) -> None:
         QSettings().setValue(OPEN_VIEW_KEY, action.data())
+
+    @staticmethod
+    def _canvas_theme_choice() -> str:
+        value = str(QSettings().value(theme.SETTINGS_KEY, theme.LIGHT))
+        return value if value in theme.CHOICES else theme.LIGHT
+
+    def _choose_canvas_theme(self, action) -> None:
+        QSettings().setValue(theme.SETTINGS_KEY, action.data())
+        self.apply_canvas_theme()
+
+    @staticmethod
+    def _system_dark() -> bool:
+        hints = QGuiApplication.styleHints()
+        scheme = getattr(hints, "colorScheme", None)  # Qt 6.5 and later
+        if scheme is not None and scheme() != Qt.ColorScheme.Unknown:
+            return scheme() == Qt.ColorScheme.Dark
+        return QApplication.palette().color(QPalette.ColorRole.Window).lightness() < 128
+
+    def _on_color_scheme(self, _scheme) -> None:
+        self.apply_canvas_theme()
+
+    def apply_canvas_theme(self) -> None:
+        """Light or dark drawing area (screen only; printing stays on white paper)."""
+        dark = theme.resolve(self._canvas_theme_choice(), self._system_dark())
+        if dark == theme.is_dark():
+            return
+        theme.set_dark(dark)
+        self._refresh_all_spaces()  # items keep their resolved colours
+        self.canvas.resetCachedContent()
 
     def _update_title(self) -> None:
         name = self.file_path.name if self.file_path else self.tr("Unbenannt")
@@ -2077,6 +2123,10 @@ class MainWindow(QMainWindow):
         self.canvas.polar_increment = settings.value("view/polar_increment", 15.0, type=float)
         self.canvas.set_dynamic_enabled(self.act_dynamic_input.isChecked())
         self.canvas.decimal_comma = i18n.ui_locale().decimalPoint() == ","
+        self.apply_canvas_theme()
+        hints = QGuiApplication.styleHints()
+        if hasattr(hints, "colorSchemeChanged"):  # follows the system while running
+            hints.colorSchemeChanged.connect(self._on_color_scheme)
         self._apply_document_kind()
 
     def _set_grid_spacing(self, value: float) -> None:

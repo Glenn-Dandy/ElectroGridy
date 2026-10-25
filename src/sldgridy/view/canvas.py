@@ -28,6 +28,7 @@ from sldgridy.model.tracking import TrackLine, toggle_acquired, track
 from sldgridy.tools.controller import ToolController
 from sldgridy.tools.dynamic_input import DynamicInput, angle_of
 from sldgridy.tools.edit import GripEditTool, MoveTool
+from sldgridy.view import theme
 from sldgridy.view.grid import grid_lines, visible_grid_step
 from sldgridy.view.items import SELECTION_COLOR, EntityItem, StyleResolver
 from sldgridy.view.render import Style, mpt, paint_entity, qpt
@@ -50,16 +51,11 @@ MAJOR_GRID_EVERY = 10
 
 ORIGIN_ARM_PX = 40.0
 
-BACKGROUND_COLOR = QColor("#ffffff")
-GRID_MINOR_COLOR = QColor("#e6e6e6")
-GRID_MAJOR_COLOR = QColor("#c8c8c8")
+# Light background of the model; on screen it follows the theme (view/theme.py).
+BACKGROUND_COLOR = theme.LIGHT_PALETTE.background
 AXIS_X_COLOR = QColor("#d03030")
 AXIS_Y_COLOR = QColor("#20a040")
 
-# Translucent, so points and lines under a preview (e.g. a block being placed) stay visible.
-PREVIEW_COLOR = QColor(110, 110, 110, 150)
-RUBBER_LINE_COLOR = QColor("#9e9e9e")
-CROSSHAIR_COLOR = QColor("#303030")
 WINDOW_SELECT_COLOR = QColor(30, 136, 229)
 CROSSING_SELECT_COLOR = QColor(56, 142, 60)
 
@@ -262,7 +258,7 @@ class Canvas(QGraphicsView):
             dpr = vp.devicePixelRatioF()
             pixmap = QPixmap(max(1, round(vp.width() * dpr)), max(1, round(vp.height() * dpr)))
             pixmap.setDevicePixelRatio(dpr)
-            pixmap.fill(self.background_color)
+            pixmap.fill(theme.surface(self.background_color))
             self._rendering_layer = True
             try:
                 p = QPainter(pixmap)
@@ -1024,7 +1020,7 @@ class Canvas(QGraphicsView):
     # -- helper display (never printed) -------------------------------------
 
     def drawBackground(self, painter: QPainter, rect: QRectF) -> None:
-        painter.fillRect(rect, self.background_color)
+        painter.fillRect(rect, theme.surface(self.background_color))
         paper = self.paper_item
         if paper is not None:
             paper.paint_paper(painter)
@@ -1047,7 +1043,8 @@ class Canvas(QGraphicsView):
 
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-        for color, want_major in ((GRID_MINOR_COLOR, False), (GRID_MAJOR_COLOR, True)):
+        colors = theme.current
+        for color, want_major in ((colors.grid_minor, False), (colors.grid_major, True)):
             pen = QPen(color, 0)
             pen.setCosmetic(True)
             painter.setPen(pen)
@@ -1078,7 +1075,7 @@ class Canvas(QGraphicsView):
             painter.setPen(pen)
             painter.drawLine(o, end)
             painter.drawText(label_pos, label)
-        painter.setPen(QPen(QColor("#404040"), 1))
+        painter.setPen(QPen(theme.current.origin_box, 1))
         painter.drawRect(QRectF(o.x() - 3, o.y() - 3, 6, 6))
         painter.restore()
 
@@ -1091,7 +1088,7 @@ class Canvas(QGraphicsView):
         if self.controller is not None:
             base = self.controller.base_point()
             if base is not None and self._cursor_scene is not None:
-                pen = QPen(RUBBER_LINE_COLOR, 0, Qt.PenStyle.DashLine)
+                pen = QPen(theme.current.rubber_line, 0, Qt.PenStyle.DashLine)
                 pen.setCosmetic(True)
                 painter.setPen(pen)
                 painter.drawLine(qpt(base), self._cursor_scene)
@@ -1136,9 +1133,9 @@ class Canvas(QGraphicsView):
         for e in entities:
             if self.resolve_style:
                 style = self.resolve_style(e)
-                style = Style(PREVIEW_COLOR, style.lineweight, style.linetype)
+                style = Style(theme.current.preview, style.lineweight, style.linetype)
             else:
-                style = Style(PREVIEW_COLOR, 0.25)
+                style = Style(theme.current.preview, 0.25)
             paint_entity(painter, e, style, scale)
 
     def _draw_grips(self, painter: QPainter) -> None:
@@ -1315,9 +1312,10 @@ class Canvas(QGraphicsView):
             painter.setPen(
                 QPen(QColor("#1e88e5") if active else QColor("#8a8a8a"), 2 if active else 1)
             )
-            painter.setBrush(QBrush(QColor("#fff3c4") if typed else QColor("#ffffff")))
+            colors = theme.current
+            painter.setBrush(QBrush(colors.field_typed if typed else colors.field))
             painter.drawRoundedRect(rect, 3, 3)
-            painter.setPen(QColor("#202020"))
+            painter.setPen(colors.field_text)
             painter.drawText(rect, int(Qt.AlignmentFlag.AlignCenter), label)
         painter.restore()
 
@@ -1329,7 +1327,7 @@ class Canvas(QGraphicsView):
         painter.save()
         painter.resetTransform()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-        painter.setPen(QPen(CROSSHAIR_COLOR, 1))
+        painter.setPen(QPen(theme.current.crosshair, 1))
         painter.drawLine(QPointF(c.x() - arm, c.y()), QPointF(c.x() + arm, c.y()))
         painter.drawLine(QPointF(c.x(), c.y() - arm), QPointF(c.x(), c.y() + arm))
         if self._selecting():

@@ -66,6 +66,7 @@ from sldgridy.tools.base import PREVIEW_ID, Tool, tr
 from sldgridy.ui.page_dialog import PageDialog, PageSpec, kind_name
 from sldgridy.ui.sheet_dialogs import FieldsDialog, FormatDialog, TemplateChooserDialog
 from sldgridy.ui.space import SHEET, Space
+from sldgridy.view import theme
 from sldgridy.view.display import title_labels
 from sldgridy.view.items import EntityItem
 from sldgridy.view.sheet_items import SHEET_BACKGROUND, FrameItem, PaperItem, ViewportItem
@@ -515,7 +516,7 @@ class SheetController(QObject):
         """Sheet outlines in the model: what each viewport shows (never printed)."""
         if not self.show_outlines:
             return
-        pen = QPen(OUTLINE_COLOR, 0, Qt.PenStyle.DashLine)
+        pen = QPen(theme.ink(OUTLINE_COLOR), 0, Qt.PenStyle.DashLine)
         pen.setCosmetic(True)
         font = QFont("DejaVu Sans")
         font.setPixelSize(11)
@@ -529,7 +530,7 @@ class SheetController(QObject):
                 painter.resetTransform()
                 corner = self.w.canvas.map_from_scene_f(QPointF(a.x, a.y))
                 painter.setFont(font)
-                painter.setPen(OUTLINE_COLOR)
+                painter.setPen(theme.ink(OUTLINE_COLOR))
                 painter.drawText(corner + QPointF(4, 14), sheet.name)
                 painter.restore()
 
