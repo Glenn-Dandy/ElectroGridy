@@ -709,7 +709,11 @@ class BlockController(QObject):
     def _show_bar(self, name: str) -> None:
         if self._editor_bar is None:
             bar = QFrame()
-            bar.setStyleSheet("QFrame { background: #fff3c4; border-bottom: 1px solid #d0b050; }")
+            # Dark text of its own: the bar stays yellow in dark mode too.
+            bar.setStyleSheet(
+                "QFrame { background: #fff3c4; border-bottom: 1px solid #d0b050; }"
+                " QLabel { color: #202020; }"
+            )
             layout = QHBoxLayout(bar)
             layout.setContentsMargins(8, 4, 8, 4)
             self._bar_label = QLabel()

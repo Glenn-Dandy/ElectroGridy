@@ -73,6 +73,12 @@ def test_dark_mode_darkens_program_and_drawing_area(qapp):
         assert appearance.is_dark() and theme.is_dark()
         assert qapp.palette().color(QPalette.ColorRole.Window).lightness() < 80
         assert QSettings().value(appearance.SETTINGS_KEY, type=bool)
+        # Dock titles follow the palette (a style sheet had kept them dark).
+        w.show()
+        qapp.processEvents()
+        title = w.layers_dock.titleBarWidget().label
+        assert title.palette().color(QPalette.ColorRole.WindowText).lightness() > 180
+        assert title.font().bold()
         # The drawing area can still be set apart.
         w.canvas_theme_actions[theme.LIGHT].trigger()
         assert appearance.is_dark() and not theme.is_dark()

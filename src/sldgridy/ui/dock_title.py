@@ -33,7 +33,11 @@ class DockTitleBar(QWidget):
         super().__init__(dock)
         self._dock = dock
         self.label = QLabel(dock.windowTitle())
-        self.label.setStyleSheet("font-weight: bold")
+        # A font, not a style sheet: widgets with a style sheet keep the palette they had
+        # then, the title stayed dark in dark mode.
+        font = self.label.font()
+        font.setBold(True)
+        self.label.setFont(font)
         style = self.style()
         self.btn_float = QToolButton()
         self.btn_float.setAutoRaise(True)
