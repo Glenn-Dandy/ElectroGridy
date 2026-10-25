@@ -1,11 +1,13 @@
 """Dialog for "Klemme setzen": strip (existing or new) and a free terminal number, or
-PE, N, PEN instead of a number."""
+PE, N, PEN instead of a number (ticking one greys out the numbers)."""
 
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
 )
 
@@ -25,14 +27,21 @@ class TerminalDialog(QDialog):
         self.strip.setCurrentText(last or (next(iter(strips), "") or "-X1"))
         self.strip.setToolTip(self.tr("Vorhandene Leiste wählen oder neue eintippen, z. B. X2"))
         self.number = QComboBox()
-        self.number.setToolTip(
-            self.tr("Freie Nummern dieser Leiste, oder PE, N, PEN statt einer Nummer")
-        )
+        self.number.setToolTip(self.tr("Nur freie Klemmen dieser Leiste"))
+        # Instead of a number: at most one ticked, the numbers are greyed out then.
+        self.named = {name: QCheckBox(name) for name in NAMED}
+        named_row = QHBoxLayout()
+        for name, box in self.named.items():
+            box.setToolTip(self.tr("Klemme {name} statt einer Nummer").format(name=name))
+            box.toggled.connect(lambda on, name=name: self._named_toggled(name, on))
+            named_row.addWidget(box)
+        named_row.addStretch(1)
         self.used = QLabel()
         self.used.setWordWrap(True)
         form = QFormLayout(self)
         form.addRow(self.tr("Klemmleiste:"), self.strip)
         form.addRow(self.tr("Klemme:"), self.number)
+        form.addRow(self.tr("Statt Nummer:"), named_row)
         form.addRow(self.used)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -48,14 +57,23 @@ class TerminalDialog(QDialog):
         used = self._strips.get(normalized_strip(self.strip.currentText()), [])
         self.number.clear()
         self.number.addItems(free_numbers(used))
-        self.number.insertSeparator(self.number.count())
-        self.number.addItems(NAMED)
         self.used.setText(
             self.tr("Belegt: {numbers}").format(numbers=", ".join(used))
             if used
             else self.tr("Neue Leiste")
         )
 
+    def _named_toggled(self, name: str, on: bool) -> None:
+        if on:
+            for other, box in self.named.items():
+                if other != name:
+                    box.setChecked(False)
+        self.number.setEnabled(not self.named_choice())
+
+    def named_choice(self) -> str:
+        return next((name for name, box in self.named.items() if box.isChecked()), "")
+
     def values(self) -> tuple[str, str]:
         """Strip ("-X1") and number ("4", or "PE", "N", "PEN")."""
-        return normalized_strip(self.strip.currentText()), self.number.currentText()
+        number = self.named_choice() or self.number.currentText()
+        return normalized_strip(self.strip.currentText()), number

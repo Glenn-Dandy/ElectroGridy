@@ -10,6 +10,7 @@ from PyQt6.QtCore import QCoreApplication, QPointF, QRectF, Qt
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 
 from sldgridy.model.blocks import BlockDefinition, BlockError, bounds, expand
+from sldgridy.model.cables import cable_mark_geometry, mark_cores
 from sldgridy.model.devices import crossref_texts, crossrefs
 from sldgridy.model.dimensions import dimension_geometry
 from sldgridy.model.document import (
@@ -21,6 +22,7 @@ from sldgridy.model.document import (
 )
 from sldgridy.model.entities import (
     BlockReference,
+    CableMark,
     Dimension,
     Entity,
     InterruptionPoint,
@@ -133,6 +135,13 @@ def crossrefs_of(doc: Document) -> dict[str, list[str]]:
     return cache["xrefs"]
 
 
+def cable_cores_of(doc: Document) -> dict[str, list]:
+    cache = page_cache(doc)
+    if "cables" not in cache:
+        cache["cables"] = mark_cores(doc)
+    return cache["cables"]
+
+
 def terminal_labels_of(doc: Document) -> dict[str, tuple[str, str]]:
     cache = page_cache(doc)
     if "terminals" not in cache:
@@ -220,6 +229,8 @@ def expand_for_display(doc: Document, e: Entity) -> list[Entity]:
     if isinstance(e, InterruptionPoint):
         target = interruption_targets_of(doc).get(e.id)
         return interruption_geometry(e, target[0] if target else None)
+    if isinstance(e, CableMark):
+        return cable_mark_geometry(e, cable_cores_of(doc).get(e.id, []))
     if isinstance(e, BlockReference):
         try:
             parts = expand(e, doc.blocks)

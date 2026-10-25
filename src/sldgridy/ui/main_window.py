@@ -58,6 +58,7 @@ from sldgridy.fileio.files import DRAWING_SUFFIX, load_document, save_document
 from sldgridy.fileio.json_format import FileFormatError
 from sldgridy.i18n import ui_locale
 from sldgridy.model.blocks import BlockDefinition, BlockError, expand, world_connections
+from sldgridy.model.cables import cable_mark_geometry
 from sldgridy.model.container import EntityContainer
 from sldgridy.model.devices import crossref_texts
 from sldgridy.model.dimensions import dimension_geometry, format_value, measured_text, scale_at
@@ -72,6 +73,7 @@ from sldgridy.model.document import (
 from sldgridy.model.entities import (
     BlockReference,
     Busbar,
+    CableMark,
     ConnectionPoint,
     Dimension,
     Entity,
@@ -94,6 +96,7 @@ from sldgridy.tools.draw import (
     AngularDimensionTool,
     ArcTool,
     BusbarTool,
+    CableTool,
     CircleTool,
     DimensionTool,
     InterruptionTool,
@@ -117,6 +120,7 @@ from sldgridy.ui import appearance, clipboard
 from sldgridy.ui.about_dialog import AboutDialog, app_icon, issue_url, open_url
 from sldgridy.ui.autosave import AutoSaver, orphaned_backups, remove_backup
 from sldgridy.ui.block_controller import BlockController
+from sldgridy.ui.cable_dialog import place_cable
 from sldgridy.ui.command_line import CommandLine
 from sldgridy.ui.devices_dock import DevicesDock
 from sldgridy.ui.dock_title import install_title_bar
@@ -142,6 +146,7 @@ from sldgridy.ui.text_dialog import TextDialog
 from sldgridy.view import theme
 from sldgridy.view.canvas import BACKGROUND_COLOR, EMPTY_EXTENTS, Canvas, select_items
 from sldgridy.view.display import (
+    cable_cores_of,
     crossrefs_of,
     interruption_targets_of,
     terminal_labels_of,
@@ -389,6 +394,9 @@ class MainWindow(QMainWindow):
     def message(self, text: str) -> None:
         self.statusBar().showMessage(text, 5000)
 
+    def place_cable(self, p1: Point, p2: Point) -> None:
+        place_cable(self, p1, p2)
+
     def ask_interruption_name(self) -> str | None:
         """Name of a new interruption point; names placed only once so far come first
         (usually the partner that is being placed)."""
@@ -543,6 +551,13 @@ class MainWindow(QMainWindow):
                 "Gleichnamige Punkte zeigen gegenseitig ihre Seite und Spalte."
             )
         )
+        self.act_cable = self._tool_action(self.tr("&Kabel"), CableTool)
+        self.act_cable.setToolTip(
+            self.tr(
+                "Kabelabgang: Linie quer über die Leitungen eines Kabels ziehen, "
+                "dann Kabel (z. B. -W1), Kabeltyp und Adern. Füllt Klemmenplan und Kabelliste."
+            )
+        )
         self.act_module_field = self._action(self.tr("&Modulfeld …"), self.module_field)
         self.act_module_field.setToolTip(self.tr("Dachfläche automatisch mit PV-Modulen belegen"))
         self.act_rails = self._action(self.tr("Potential&schienen …"), self.start_rails)
@@ -550,12 +565,13 @@ class MainWindow(QMainWindow):
             self.tr("Hauptstrompfad L1, L2, L3, N, PE im festen Abstand über die Seite")
         )
         # Shown in circuit diagram projects only.
-        self.project_actions = [self.act_interruption, self.act_rails]
+        self.project_actions = [self.act_interruption, self.act_rails, self.act_cable]
         self.draw_actions = [
             self.act_wire,
             self.act_busbar,
             self.act_rails,
             self.act_interruption,
+            self.act_cable,
             self.act_line,
             self.act_polyline,
             self.act_rectangle,
@@ -1037,6 +1053,8 @@ class MainWindow(QMainWindow):
         if isinstance(entity, InterruptionPoint):
             target = self.interruption_targets().get(entity.id)
             return interruption_geometry(entity, target[0] if target else None)
+        if isinstance(entity, CableMark):
+            return cable_mark_geometry(entity, cable_cores_of(self.document).get(entity.id, []))
         if isinstance(entity, BlockReference):
             definitions = blocks if blocks is not None else self.document.blocks
             try:
@@ -1131,7 +1149,7 @@ class MainWindow(QMainWindow):
         self._interruption_refresh_pending = False
         for space in self.sheets.all_spaces():
             for item in space.sync.items():
-                if isinstance(item.entity, InterruptionPoint | BlockReference):
+                if isinstance(item.entity, InterruptionPoint | BlockReference | CableMark):
                     item.refresh()
             space.extra["frame"].update()  # title block, cover and lists
         if hasattr(self, "devices_dock"):
@@ -1775,6 +1793,9 @@ class MainWindow(QMainWindow):
                         name=entity.name
                     )
                 )
+            return
+        if isinstance(entity, CableMark):
+            place_cable(self, entity.p1, entity.p2, entity)
             return
         if isinstance(entity, Wire):
             label, ok = QInputDialog.getText(

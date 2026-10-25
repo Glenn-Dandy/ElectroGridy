@@ -18,6 +18,7 @@ import math
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 
+from sldgridy.model.cables import cable_types
 from sldgridy.model.devices import MODEL, SHEET, _natural, devices, place
 from sldgridy.model.document import Document, SheetLayout
 from sldgridy.model.entities import (
@@ -167,6 +168,8 @@ def terminal_plan(doc: Document, nl: Netlist | None = None) -> list[StripPlan]:
             wires_at.setdefault(node, []).append(wire)
         if wire.cable and wire.label and wire.cable not in cable_type:
             cable_type[wire.cable] = wire.label
+    for cable, kind in cable_types(doc).items():  # given at the cable marks
+        cable_type.setdefault(cable, kind)
 
     def cores(node) -> dict[str, str]:
         return {w.cable: w.core for w in wires_at.get(node, []) if w.cable}

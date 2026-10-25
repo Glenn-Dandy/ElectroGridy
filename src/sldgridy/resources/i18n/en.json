@@ -944,6 +944,20 @@
  "NH-Sicherungslasttrennschalter, drei Pole": "NH fuse switch disconnector, three poles",
  "NH-Sicherungslasttrennschalter, drei abgesicherte Pole, Neutralleiter durchgehend (nicht geschaltet)": "NH fuse switch disconnector, three fused poles, neutral passing through (not switched)",
  "NH-Sicherungslasttrennschalter, vier Pole, Neutralleiter mit Sicherung": "NH fuse switch disconnector, four poles, neutral with fuse",
- "Freie Nummern dieser Leiste, oder PE, N, PEN statt einer Nummer": "Free numbers of this strip, or PE, N, PEN instead of a number",
- "Schutzleiterklemme; BMK mit Leiste und PE, z. B. -X1:PE": "Protective earth terminal; tag with strip and PE, e.g. -X1:PE"
+ "Schutzleiterklemme; BMK mit Leiste und PE, z. B. -X1:PE": "Protective earth terminal; tag with strip and PE, e.g. -X1:PE",
+ "Nur freie Klemmen dieser Leiste": "Only free terminals of this strip",
+ "Klemme {name} statt einer Nummer": "Terminal {name} instead of a number",
+ "Statt Nummer:": "Instead of a number:",
+ "&Kabel": "Ca&ble",
+ "Kabelabgang: Linie quer über die Leitungen eines Kabels ziehen, dann Kabel (z. B. -W1), Kabeltyp und Adern. Füllt Klemmenplan und Kabelliste.": "Cable: draw a line across the conductors of one cable, then cable (e.g. -W1), cable type and cores. Fills the terminal plan and the cable list.",
+ "Kabel: Punkt neben der ersten Leitung angeben": "Cable: point beside the first conductor",
+ "Kabel: Punkt hinter der letzten Leitung angeben": "Cable: point beyond the last conductor",
+ "Kabeltyp:": "Cable type:",
+ "Betriebsmittelkennzeichen des Kabels, z. B. -W1": "Reference designation of the cable, e.g. -W1",
+ "Kabeltyp für Klemmenplan und Kabelliste, z. B. NYM-J 5x2,5": "Cable type for terminal plan and cable list, e.g. NYM-J 5x2,5",
+ "Adern, in Reihenfolge der Leitungen:": "Cores, in the order of the conductors:",
+ "Aderfarbe oder Adernummer, z. B. BN, BU, GNYE, 3": "Core colour or number, e.g. BN, BU, GNYE, 3",
+ "Leitung {n}:": "Conductor {n}:",
+ "Die Linie kreuzt keine Leitung": "The line crosses no conductor",
+ "Kabel {name}": "Cable {name}"
 }

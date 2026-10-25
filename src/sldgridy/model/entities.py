@@ -279,6 +279,22 @@ class Wire(Entity):
 
 
 @dataclass(frozen=True, kw_only=True)
+class CableMark(Entity):
+    """A cable (e.g. "-W1") drawn as a line across its conductors, the name at the start
+    of the line. The cores belong to the crossed wires (``Wire.cable``, ``Wire.core``)
+    and are written next to each crossing; ``cable_type`` is for the lists."""
+
+    p1: Point
+    p2: Point
+    name: str
+    cable_type: str = ""
+    height: float = 2.5
+
+    def _mapped(self, fn, quarters):
+        return replace(self, p1=fn(self.p1), p2=fn(self.p2))
+
+
+@dataclass(frozen=True, kw_only=True)
 class Busbar(Entity):
     """Bus bar; wires may connect anywhere along it."""
 

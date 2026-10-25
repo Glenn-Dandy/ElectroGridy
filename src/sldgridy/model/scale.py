@@ -11,6 +11,7 @@ from sldgridy.model.entities import (
     AttributeDefinition,
     BlockReference,
     Busbar,
+    CableMark,
     Circle,
     ConnectionPoint,
     Dimension,
@@ -51,6 +52,8 @@ def scale_entity(e: Entity, center: Point, factor: float) -> Entity:
             return replace(e, p1=s(e.p1), p2=s(e.p2))
         case Polyline():
             return replace(e, points=tuple(s(p) for p in e.points))
+        case CableMark():
+            return replace(e, p1=s(e.p1), p2=s(e.p2), height=e.height * factor)
         case Wire():
             return replace(
                 e,

@@ -7,6 +7,7 @@ from sldgridy.model.entities import (
     AttributeDefinition,
     BlockReference,
     Busbar,
+    CableMark,
     Circle,
     ConnectionPoint,
     Dimension,
@@ -27,7 +28,7 @@ from sldgridy.model.primitives import arc_endpoints, rect_corners
 
 def grip_points(e: Entity) -> list[Point]:
     match e:
-        case Line() | Busbar():
+        case Line() | Busbar() | CableMark():
             return [e.p1, e.p2]
         case Wire():
             return [p for _, p in _wire_grips(e)]
@@ -77,6 +78,13 @@ def move_grip(e: Entity, index: int, p: Point) -> Entity | None:
     match e:
         case Line() | Busbar():
             new = replace(e, p1=p) if index == 0 else replace(e, p2=p)
+            return new if new.p1 != new.p2 else None
+        case CableMark():
+            # Stays across the conductors: only along its own direction.
+            other = e.p2 if index == 0 else e.p1
+            horizontal = abs(e.p2.x - e.p1.x) >= abs(e.p2.y - e.p1.y)
+            q = Point(p.x, other.y) if horizontal else Point(other.x, p.y)
+            new = replace(e, p1=q) if index == 0 else replace(e, p2=q)
             return new if new.p1 != new.p2 else None
         case Wire():
             from sldgridy.model.wires import drag_end, project_on_path

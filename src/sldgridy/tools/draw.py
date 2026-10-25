@@ -8,6 +8,7 @@ from sldgridy.model.entities import (
     DEFAULT_BUSBAR_WEIGHT,
     Arc,
     Busbar,
+    CableMark,
     Circle,
     Dimension,
     Entity,
@@ -663,6 +664,51 @@ class InterruptionTool(_DrawTool):
                 position=position,
                 name="?",
                 direction=direction,
+            )
+        ]
+
+
+class CableTool(_DrawTool):
+    """Cable mark: a line across the conductors of one cable, from beside the first to
+    beyond the last (kept horizontal or vertical); then name, type and cores."""
+
+    def __init__(self, ctx) -> None:
+        super().__init__(ctx)
+        self._start: Point | None = None
+
+    def prompt(self) -> str:
+        if self._start is None:
+            return tr("Kabel: Punkt neben der ersten Leitung angeben")
+        return tr("Kabel: Punkt hinter der letzten Leitung angeben")
+
+    def base_point(self) -> Point | None:
+        return self._start
+
+    def _end(self, p: Point) -> Point:
+        assert self._start is not None
+        return ortho(self._start, p)
+
+    def pick(self, p: Point) -> None:
+        if self._start is None:
+            self._start = p
+            return
+        end = self._end(p)
+        if end == self._start:
+            return
+        start, self._start = self._start, None
+        place = getattr(self.ctx, "place_cable", None)
+        if place is not None:
+            place(start, end)
+
+    def preview(self) -> list[Entity]:
+        if self._start is None or self.cursor is None:
+            return []
+        end = self._end(self.cursor)
+        if end == self._start:
+            return []
+        return [
+            CableMark(
+                id=PREVIEW_ID, layer=self.ctx.current_layer, p1=self._start, p2=end, name="-W?"
             )
         ]
 

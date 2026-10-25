@@ -26,6 +26,7 @@ from sldgridy.model.entities import (
     AttributeDefinition,
     BlockReference,
     Busbar,
+    CableMark,
     Circle,
     ConnectionPoint,
     Dimension,
@@ -123,6 +124,7 @@ _TYPE_NAMES: dict[type, str] = {
     Viewport: "viewport",
     JunctionMark: "junction",
     InterruptionPoint: "interruption",
+    CableMark: "cable_mark",
     Dimension: "dimension",
 }
 
@@ -194,6 +196,10 @@ def entity_to_dict(e: Entity) -> dict[str, Any]:
         case InterruptionPoint():
             d["name"], d["position"] = e.name, _pt(e.position)
             d["direction"], d["height"] = _angle(e.direction), e.height
+        case CableMark():
+            d["p1"], d["p2"], d["name"], d["height"] = _pt(e.p1), _pt(e.p2), e.name, e.height
+            if e.cable_type:
+                d["cable_type"] = e.cable_type
         case Viewport():
             d["p1"], d["p2"], d["center"] = _pt(e.p1), _pt(e.p2), _pt(e.center)
             d["scale"], d["locked"], d["print_border"] = e.scale, e.locked, e.print_border
@@ -259,6 +265,15 @@ def entity_from_dict(d: dict[str, Any]) -> Entity:
                 name=str(d["name"]),
                 position=_to_pt(d["position"]),
                 direction=_angle(d.get("direction", 0)),
+                height=float(d.get("height", 2.5)),
+                **common,
+            )
+        case "cable_mark":
+            return CableMark(
+                p1=_to_pt(d["p1"]),
+                p2=_to_pt(d["p2"]),
+                name=str(d.get("name", "")),
+                cable_type=str(d.get("cable_type", "")),
                 height=float(d.get("height", 2.5)),
                 **common,
             )
@@ -469,7 +484,11 @@ def _layer_from_dict(d: dict[str, Any]) -> Layer:
 def _needs_version_3(doc: Document) -> bool:
     if doc.kind != DOC_SLD or any(s.kind or s.frame for s in doc.sheets):
         return True
-    return any(isinstance(e, InterruptionPoint | RasterImage) for c in doc.containers() for e in c)
+    return any(
+        isinstance(e, InterruptionPoint | RasterImage | CableMark)
+        for c in doc.containers()
+        for e in c
+    )
 
 
 def _layer_workspace(d: dict[str, Any]) -> str:

@@ -140,7 +140,13 @@ def test_set_terminal_pe_n_pen_instead_of_a_number(window, monkeypatch):
 
     dialog = TerminalDialog({"-X1": ["1", "2"]}, "-X1")
     offered = [dialog.number.itemText(i) for i in range(dialog.number.count())]
-    assert offered[0] == "3" and offered[-3:] == ["PE", "N", "PEN"]
+    assert offered[0] == "3" and "PE" not in offered
+    dialog.named["PE"].setChecked(True)
+    assert not dialog.number.isEnabled() and dialog.values() == ("-X1", "PE")
+    dialog.named["N"].setChecked(True)  # one at a time
+    assert not dialog.named["PE"].isChecked() and dialog.values() == ("-X1", "N")
+    dialog.named["N"].setChecked(False)
+    assert dialog.number.isEnabled() and dialog.values() == ("-X1", "3")
     for x in (40, 50, 60):
         window.container.add(Wire(id=f"w{x}", points=(Point(x, 30), Point(x, 100))))
     answers = iter([("-X1", "PE"), ("-X1", "N"), ("-X1", "PE")])

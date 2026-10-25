@@ -14,6 +14,7 @@ from sldgridy.model.entities import (
     AttributeDefinition,
     BlockReference,
     Busbar,
+    CableMark,
     Circle,
     ConnectionPoint,
     Dimension,
@@ -31,7 +32,7 @@ from sldgridy.model.entities import (
 from sldgridy.model.geometry import Point
 
 EPS = 1e-9
-QUARTER_ONLY = (BlockReference, Wire, Busbar, Viewport, RasterImage)
+QUARTER_ONLY = (BlockReference, Wire, Busbar, Viewport, RasterImage, CableMark)
 
 
 def rotate_point(p: Point, center: Point, degrees: float) -> Point:
