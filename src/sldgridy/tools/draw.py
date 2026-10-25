@@ -3,6 +3,7 @@
 from dataclasses import replace
 
 from sldgridy.commands.entities import AddEntitiesCommand, ReplaceEntitiesCommand
+from sldgridy.model.cables import fitted
 from sldgridy.model.dimensions import PAPER_TEXT_HEIGHT, auto_orientation, default_height
 from sldgridy.model.entities import (
     DEFAULT_BUSBAR_WEIGHT,
@@ -706,11 +707,10 @@ class CableTool(_DrawTool):
         end = self._end(self.cursor)
         if end == self._start:
             return []
-        return [
-            CableMark(
-                id=PREVIEW_ID, layer=self.ctx.current_layer, p1=self._start, p2=end, name="-W?"
-            )
-        ]
+        mark = CableMark(
+            id=PREVIEW_ID, layer=self.ctx.current_layer, p1=self._start, p2=end, name="-W?"
+        )
+        return [fitted(mark, self.ctx.container)]
 
 
 class RailsTool(_DrawTool):

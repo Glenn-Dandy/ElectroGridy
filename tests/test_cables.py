@@ -121,3 +121,45 @@ def test_cable_tool_sets_cable_and_cores_on_the_wires(window, monkeypatch):
     window.act_undo.trigger()
     assert not [e for e in window.container if isinstance(e, CableMark)]
     assert {w.cable for w in window.container if isinstance(w, Wire)} == {""}
+
+
+def test_clicked_on_the_outer_conductors_with_cores_from_the_terminals(window, monkeypatch):
+    from sldgridy.ui import point_menu
+
+    xs = [100, 105, 110, 115]
+    for wire in conductors(xs, 60, 140):
+        window.container.add(wire)
+    numbers = iter([("-X1", "1"), ("-X1", "2"), ("-X1", "3"), ("-X1", "PEN")])
+
+    class FakeTerminal:
+        DialogCode = point_menu.TerminalDialog.DialogCode
+
+        def __init__(self, *args):
+            pass
+
+        def exec(self):
+            return self.DialogCode.Accepted
+
+        def values(self):
+            return next(numbers)
+
+    monkeypatch.setattr(point_menu, "TerminalDialog", FakeTerminal)
+    for x in xs:
+        wire = next(
+            e
+            for e in window.container
+            if isinstance(e, Wire) and e.points[0] == Point(x, 60) and e.points[-1].y == 140
+        )
+        point_menu.set_terminal(window, Point(x, 80), [wire])
+    fake = answer(monkeypatch, ("-W1", "", ["BN", "BK", "GY", "GNYE"]))
+    window.act_cable.trigger()
+    for p in (Point(100, 120), Point(115, 120)):  # right on the outer conductors
+        window.tools.active.pick(p)
+    assert fake.offered[2] == ["BN", "BK", "GY", "GNYE"]  # PEN is the protective one
+    (mark,) = [e for e in window.container if isinstance(e, CableMark)]
+    assert (mark.p1, mark.p2) == (Point(97.5, 120), Point(117.5, 120))  # beyond them
+    # The tool stays for the next cable.
+    answer(monkeypatch, ("-W2", "", ["BN", "BK", "GY", "GNYE"]))
+    for p in (Point(100, 130), Point(115, 130)):
+        window.tools.active.pick(p)
+    assert sorted(e.name for e in window.container if isinstance(e, CableMark)) == ["-W1", "-W2"]

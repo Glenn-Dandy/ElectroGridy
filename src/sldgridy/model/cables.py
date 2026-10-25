@@ -10,13 +10,14 @@ from collections.abc import Iterable
 from dataclasses import replace
 
 from sldgridy.model.document import Document
-from sldgridy.model.entities import CableMark, Entity, Line, Text, Wire
+from sldgridy.model.entities import CableMark, Entity, InterruptionPoint, Line, Text, Wire
 from sldgridy.model.geometry import Point
 from sldgridy.model.wires import EPS, segments
 
 CORE_HEIGHT = 1.5  # mm, fits between conductors 5 mm apart ("GNYE")
 NAME_GAP = 1.5  # mm between the line and the cable name
 CORE_GAP = 0.6  # mm between conductor or line and a core text
+OVERHANG = 2.5  # mm the line reaches beyond the outer conductors
 
 # Core colours to IEC 60757 for the usual low voltage cables, by number of cores.
 COLOR_CORES = {
@@ -58,20 +59,86 @@ def crossings(mark: CableMark, entities: Iterable[Entity]) -> list[tuple[Point, 
         for s, t in segments(e.points):
             if horizontal:
                 y = a.y
-                if abs(s.x - t.x) > EPS or not a.x + EPS < s.x < b.x - EPS:
+                if abs(s.x - t.x) > EPS or not a.x - EPS <= s.x <= b.x + EPS:
                     continue
                 if min(s.y, t.y) - EPS <= y <= max(s.y, t.y) + EPS:
                     found.append((Point(s.x, y), e))
                     break
             else:
                 x = a.x
-                if abs(s.y - t.y) > EPS or not a.y + EPS < s.y < b.y - EPS:
+                if abs(s.y - t.y) > EPS or not a.y - EPS <= s.y <= b.y + EPS:
                     continue
                 if min(s.x, t.x) - EPS <= x <= max(s.x, t.x) + EPS:
                     found.append((Point(x, s.y), e))
                     break
     found.sort(key=lambda pw: pw[0].x if horizontal else pw[0].y)
     return found
+
+
+def fitted(mark: CableMark, entities: Iterable[Entity]) -> CableMark:
+    """The mark reaching ``OVERHANG`` beyond the outer conductors it crosses (clicked
+    right on them, it would end on the conductor)."""
+    found = crossings(mark, entities)
+    if not found:
+        return mark
+    a, b = _span(mark)
+    if is_horizontal(mark):
+        xs = [p.x for p, _w in found]
+        lo, hi = min(a.x, min(xs) - OVERHANG), max(b.x, max(xs) + OVERHANG)
+        return replace(mark, p1=Point(lo, a.y), p2=Point(hi, a.y))
+    ys = [p.y for p, _w in found]
+    lo, hi = min(a.y, min(ys) - OVERHANG), max(b.y, max(ys) + OVERHANG)
+    return replace(mark, p1=Point(a.x, lo), p2=Point(a.x, hi))
+
+
+PROTECTIVE = {"PE", "PEN", "GNYE"}
+OUTER_CORES = ["BN", "BK", "GY"]
+
+
+def _role(names: set[str]) -> str:
+    """ "PE", "N" or "L" from the terminal and interruption names of a conductor's net;
+    "" when nothing tells."""
+    upper = {n.upper() for n in names}
+    if upper & PROTECTIVE:
+        return "PE"
+    if "N" in upper:
+        return "N"
+    if upper & {"L", "L1", "L2", "L3", "L+", "L-"} or any(n.isdigit() for n in upper):
+        return "L"
+    return ""
+
+
+def suggested_cores(doc: Document, area: str, wires: list[Wire]) -> list[str]:
+    """Cores for the crossed ``wires`` from what they connect to: a PE or PEN terminal
+    or rail gives GNYE, N gives BU, the outer conductors BN, BK, GY in order. Without
+    any hint the colours by number of cores (``default_cores``)."""
+    from sldgridy.model.netlist import netlist
+
+    nl = netlist(doc)
+    net_of = {(w.id, a): nl.net(first) for w, a, first, _last in nl.wires}
+    names_of: dict[object, set[str]] = {}
+    for pin, node in nl.pins:
+        _strip, colon, number = pin.bmk.partition(":")
+        if colon and number.strip():
+            names_of.setdefault(nl.net(node), set()).add(number.strip())
+    for container in (doc.model_space, *(s.entities for s in doc.sheets)):
+        for e in container:
+            if isinstance(e, InterruptionPoint) and e.name.strip():
+                net = nl.net(("interruption", e.name.strip()))
+                names_of.setdefault(net, set()).add(e.name.strip().rpartition(":")[2])
+    roles = [_role(names_of.get(net_of.get((w.id, area)), set())) for w in wires]
+    if not any(roles):
+        return default_cores(len(wires))
+    out, outer = [], 0
+    for role in roles:
+        if role == "PE":
+            out.append("GNYE")
+        elif role == "N":
+            out.append("BU")
+        else:
+            out.append(OUTER_CORES[outer] if outer < len(OUTER_CORES) else str(outer + 1))
+            outer += 1
+    return out
 
 
 def cable_mark_geometry(mark: CableMark, cores: list[tuple[Point, str]]) -> list[Entity]:

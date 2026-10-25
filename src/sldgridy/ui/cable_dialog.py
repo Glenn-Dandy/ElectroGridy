@@ -19,8 +19,9 @@ from sldgridy.model.cables import (
     assigned,
     cable_types,
     crossings,
-    default_cores,
+    fitted,
     next_cable_name,
+    suggested_cores,
     used_cables,
 )
 from sldgridy.model.devices import _natural
@@ -76,32 +77,33 @@ def place_cable(w: "MainWindow", p1: Point, p2: Point, mark: CableMark | None = 
     """Ask for name, type and cores of the cable crossing the wires between ``p1`` and
     ``p2``, then add the mark (or change ``mark``) and set cable and core on the wires."""
     container = w.container
-    probe = mark or CableMark(id="", layer=w.current_layer, p1=p1, p2=p2, name="")
+    probe = mark or fitted(
+        CableMark(id="", layer=w.current_layer, p1=p1, p2=p2, name=""), container
+    )
     crossed = [wire for _p, wire in crossings(probe, container)]
     if not crossed:
         w.message(tr("Die Linie kreuzt keine Leitung"))
         return
     doc = w.document
     types = sorted(set(cable_types(doc).values()), key=_natural)
+    area = next((s.id for s in doc.sheets if s.entities is container), "model")
+    proposed = suggested_cores(doc, area, crossed)
     if mark is not None:
         name, kind = mark.name, mark.cable_type
-        proposed = default_cores(len(crossed))
         cores = [wire.core or proposed[i] for i, wire in enumerate(crossed)]
     else:
         name, kind = next_cable_name(used_cables(doc)), types[-1] if types else ""
-        cores = default_cores(len(crossed))
+        cores = proposed
     dialog = CableDialog(name, kind, types, cores, w)
     if dialog.exec() != CableDialog.DialogCode.Accepted:
         return
     name, kind, cores = dialog.values()
     if not name:
         return
-    w.tools.cancel()
+    # The cable tool stays active for the next cable.
     w.begin_macro(tr("Kabel {name}").format(name=name))
     if mark is None:
-        new = CableMark(
-            id=new_id(), layer=w.current_layer, p1=p1, p2=p2, name=name, cable_type=kind
-        )
+        new = replace(probe, id=new_id(), name=name, cable_type=kind)
         w.push(AddEntitiesCommand(container, [new], ""))
     else:
         w.push(ReplaceEntitiesCommand(container, [replace(mark, name=name, cable_type=kind)], ""))
