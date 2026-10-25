@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from PyQt6.QtCore import QT_VERSION_STR, QObject, QSize, Qt, QUrl, pyqtSignal
-from PyQt6.QtGui import QDesktopServices, QGuiApplication, QIcon
+from PyQt6.QtGui import QDesktopServices, QGuiApplication, QIcon, QPalette
 from PyQt6.QtWidgets import (
     QDialog,
     QFrame,
@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QPushButton,
     QSizePolicy,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -24,7 +25,9 @@ from PyQt6.QtWidgets import (
 from sldgridy import __version__, project
 from sldgridy.update import UpdateResult, check
 
-ICON_PATH = Path(__file__).resolve().parent.parent / "resources" / "icons" / "sldgridy.svg"
+ICONS = Path(__file__).resolve().parent.parent / "resources" / "icons"
+ICON_PATH = ICONS / "sldgridy.svg"
+LOGO_SIZE = 56  # wozise logo under the footer, as in BoatSpeedy
 SUPPORT_COLOR = "#c62828"
 
 
@@ -163,9 +166,19 @@ class AboutDialog(QDialog):
         buttons.addStretch(1)
         ul.addLayout(buttons)
 
-        footer = QLabel(f"{project.LICENSE} · © {project.OWNER}")
+        footer = QLabel(
+            f"<span style='color: gray'>{project.LICENSE} · © {project.OWNER} · </span>"
+            f"<a href='{project.WEBSITE_URL}'>{project.WEBSITE_LABEL}</a>"
+        )
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        footer.setStyleSheet("color: gray")
+        footer.linkActivated.connect(lambda _link: self._open(project.WEBSITE_URL))
+        self.btn_website = QToolButton()
+        self.btn_website.setIcon(QIcon(str(ICONS / self._logo_file())))
+        self.btn_website.setIconSize(QSize(LOGO_SIZE, LOGO_SIZE))
+        self.btn_website.setAutoRaise(True)
+        self.btn_website.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_website.setToolTip(project.WEBSITE_LABEL)
+        self.btn_website.clicked.connect(lambda: self._open(project.WEBSITE_URL))
         close = QPushButton(self.tr("Schließen"))
         close.clicked.connect(self.accept)
 
@@ -182,6 +195,7 @@ class AboutDialog(QDialog):
         layout.addWidget(_section(self.tr("Update"), [self.btn_update, update_row]))
         layout.addSpacing(6)
         layout.addWidget(footer)
+        layout.addWidget(self.btn_website, alignment=Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(close, alignment=Qt.AlignmentFlag.AlignRight)
         self._fit()
 
@@ -198,6 +212,10 @@ class AboutDialog(QDialog):
         self.setMinimumSize(width, layout.totalHeightForWidth(width))
         if self.height() < self.minimumHeight() or not self.isVisible():
             self.resize(width, self.minimumHeight())
+
+    def _logo_file(self) -> str:
+        dark = self.palette().color(QPalette.ColorRole.Window).lightness() < 128
+        return "wozise_dark.svg" if dark else "wozise.svg"
 
     def _open(self, url: str) -> None:
         self.opened.append(url)

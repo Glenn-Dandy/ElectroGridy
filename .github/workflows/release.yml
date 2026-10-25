@@ -1,7 +1,7 @@
 name: Release packages
 
 # Publishing a GitHub release builds the packages:
-#   pre-release vX.Y.Z-devN -> .deb and Windows installer attached (no snap)
+#   pre-release vX.Y.Z-devN -> .deb attached (no Windows installer, no snap)
 #   release vX.Y.Z          -> .deb and Windows installer attached, snap published to "stable"
 # Once the packages are attached, all other pre-releases are deleted with their tags:
 # only the newest development build stays.
@@ -58,6 +58,8 @@ jobs:
           release: stable
 
   windows:
+    # Real releases and runs by hand only: development builds come without the installer.
+    if: ${{ github.event_name != 'release' || !github.event.release.prerelease }}
     runs-on: windows-2022
     defaults:
       run:
@@ -153,7 +155,8 @@ jobs:
           path: dist/SLDGridy-*-setup.exe
 
   cleanup:
-    if: ${{ github.event_name == 'release' }}
+    # Also after a skipped windows job (pre-releases), but not after a failed one.
+    if: ${{ github.event_name == 'release' && !failure() && !cancelled() }}
     runs-on: ubuntu-24.04
     needs: [deb, windows]
     steps:

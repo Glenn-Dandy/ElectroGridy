@@ -48,6 +48,15 @@ def test_buttons_open_project_links(dialog):
     assert dialog.opened[3].startswith(project.ISSUES_NEW_URL)
 
 
+def test_footer_links_to_website(dialog):
+    dialog.btn_website.click()
+    assert dialog.opened == [project.WEBSITE_URL]
+    assert dialog.btn_website.iconSize().width() == about_dialog.LOGO_SIZE
+    assert not dialog.btn_website.icon().isNull()
+    for name in ("wozise.svg", "wozise_dark.svg"):
+        assert (about_dialog.ICONS / name).exists()
+
+
 def test_update_result_display(dialog):
     dialog.show_update_result(UpdateResult(ok=True, available=False))
     assert "aktuell" in dialog.lbl_update.text()
