@@ -940,5 +940,11 @@
  "Dunkel": "Dark",
  "Dunkler &Modus": "Dark &mode",
  "DUNKEL": "DARK",
- "Ganzes Programm und Zeichenfläche dunkel, schont abends die Augen": "Whole program and drawing area dark, easier on the eyes in the evening"
+ "Ganzes Programm und Zeichenfläche dunkel, schont abends die Augen": "Whole program and drawing area dark, easier on the eyes in the evening",
+ "Sicherungslasttrennschalter 3-polig": "Fuse switch disconnector 3-pole",
+ "Sicherungslasttrennschalter 4-polig N durchgehend": "Fuse switch disconnector 4-pole, N through",
+ "Sicherungslasttrennschalter 4-polig N abgesichert": "Fuse switch disconnector 4-pole, N fused",
+ "NH-Sicherungslasttrennschalter, drei Pole": "NH fuse switch disconnector, three poles",
+ "NH-Sicherungslasttrennschalter, drei abgesicherte Pole, Neutralleiter durchgehend (nicht geschaltet)": "NH fuse switch disconnector, three fused poles, neutral passing through (not switched)",
+ "NH-Sicherungslasttrennschalter, vier Pole, Neutralleiter mit Sicherung": "NH fuse switch disconnector, four poles, neutral with fuse"
 }
