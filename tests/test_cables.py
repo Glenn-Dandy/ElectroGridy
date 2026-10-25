@@ -163,3 +163,26 @@ def test_clicked_on_the_outer_conductors_with_cores_from_the_terminals(window, m
     for p in (Point(100, 130), Point(115, 130)):
         window.tools.active.pick(p)
     assert sorted(e.name for e in window.container if isinstance(e, CableMark)) == ["-W1", "-W2"]
+
+
+def test_outlet_label_names_where_the_cable_goes(window, monkeypatch):
+    for wire in conductors([100, 105, 110], 60, 140):
+        window.container.add(wire)
+    answer(monkeypatch, ("-W2", "NYY-J 3x2,5", ["BN", "BU", "GNYE"]))
+    window.act_cable.trigger()
+    for p in (Point(95, 120), Point(115, 120)):
+        window.tools.active.pick(p)
+    window.tools.cancel()
+    monkeypatch.setattr(window, "ask_outlet", lambda *a: ("Abgang zur NSA", 5.0, "-W2"))
+    window.act_outlet.trigger()
+    window.tools.active.pick(Point(100, 170))
+    (label,) = [e for e in window.container if isinstance(e, Text)]
+    assert (label.text, label.height, label.cable) == ("Abgang zur NSA", 5.0, "-W2")
+    row = next(r for r in cable_rows(window.document) if r[0] == "-W2")
+    assert "Abgang zur NSA" in row[4]  # "Nach"
+    loaded = document_from_dict(document_to_dict(window.document))
+    assert any(isinstance(e, Text) and e.cable == "-W2" for e in loaded.sheets[-1].entities)
+    # Double click: text, size and cable again.
+    monkeypatch.setattr(window, "ask_outlet", lambda *a: ("Wechselrichter 3", 2.5, "-W2"))
+    window._edit_entity(label.id)
+    assert window.container.get(label.id).text == "Wechselrichter 3"

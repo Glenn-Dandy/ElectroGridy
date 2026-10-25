@@ -137,6 +137,9 @@ class Text(Entity):
     rotation: float = 0
     halign: str = "left"
     valign: str = "baseline"
+    # Cable outlet label: the text says where this cable goes (e.g. "-W2"), for the
+    # cable list. Placed and sized by hand like any text.
+    cable: str = ""
 
     def _mapped(self, fn, quarters):
         return replace(

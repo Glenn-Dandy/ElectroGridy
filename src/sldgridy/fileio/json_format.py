@@ -185,6 +185,8 @@ def entity_to_dict(e: Entity) -> dict[str, Any]:
                 d["halign"] = e.halign
             if e.valign != "baseline":
                 d["valign"] = e.valign
+            if e.cable:
+                d["cable"] = e.cable
         case AttributeDefinition():
             d["tag"], d["prompt"], d["default"] = e.tag, e.prompt, e.default
             d["position"], d["height"], d["rotation"] = _pt(e.position), e.height, e.rotation
@@ -352,6 +354,7 @@ def entity_from_dict(d: dict[str, Any]) -> Entity:
                 rotation=_angle(d.get("rotation", 0)),
                 halign=str(d.get("halign", "left")),
                 valign=str(d.get("valign", "baseline")),
+                cable=str(d.get("cable", "")),
                 **common,
             )
         case "attdef":

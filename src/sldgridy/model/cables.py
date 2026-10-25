@@ -248,3 +248,13 @@ def next_cable_name(names: Iterable[str]) -> str:
 def assigned(wires: list[Wire], name: str, cores: list[str]) -> list[Wire]:
     """The crossed wires with cable and core set."""
     return [replace(w, cable=name, core=core) for w, core in zip(wires, cores, strict=False)]
+
+
+def cable_outlets(doc: Document) -> dict[str, list[str]]:
+    """Cable name -> texts of its outlet labels ("Abgang zur NSA")."""
+    out: dict[str, list[str]] = {}
+    for container in (doc.model_space, *(s.entities for s in doc.sheets)):
+        for e in container:
+            if isinstance(e, Text) and e.cable.strip() and e.text.strip():
+                out.setdefault(e.cable.strip(), []).append(" ".join(e.text.split()))
+    return out

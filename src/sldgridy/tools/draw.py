@@ -713,6 +713,32 @@ class CableTool(_DrawTool):
         return [fitted(mark, self.ctx.container)]
 
 
+class OutletTool(_DrawTool):
+    """Cable outlet label: where a cable goes ("Abgang zur NSA"), placed and sized by
+    hand like a text and belonging to a cable. Stays active for the next one."""
+
+    def prompt(self) -> str:
+        return tr("Kabelabgang: Stelle der Beschriftung angeben")
+
+    def pick(self, p: Point) -> None:
+        ask = getattr(self.ctx, "ask_outlet", None)
+        result = ask() if ask is not None else None
+        if result is None or not result[0].strip():
+            return
+        content, height, cable = result
+        self._add(
+            Text(
+                id=new_id(),
+                layer=self.ctx.current_layer,
+                position=p,
+                text=content,
+                height=height,
+                cable=cable,
+            ),
+            tr("Kabelabgang"),
+        )
+
+
 class RailsTool(_DrawTool):
     """Main circuit conductors (L1, L2, L3, N, PE) across the page, one pole spacing
     apart. On a page with the circuit diagram frame one click sets the height of the

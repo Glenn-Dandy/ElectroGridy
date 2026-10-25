@@ -58,9 +58,9 @@ from sldgridy.fileio.files import DRAWING_SUFFIX, load_document, save_document
 from sldgridy.fileio.json_format import FileFormatError
 from sldgridy.i18n import ui_locale
 from sldgridy.model.blocks import BlockDefinition, BlockError, expand, world_connections
-from sldgridy.model.cables import cable_mark_geometry
+from sldgridy.model.cables import cable_mark_geometry, used_cables
 from sldgridy.model.container import EntityContainer
-from sldgridy.model.devices import crossref_texts
+from sldgridy.model.devices import _natural, crossref_texts
 from sldgridy.model.dimensions import dimension_geometry, format_value, measured_text, scale_at
 from sldgridy.model.document import (
     DOC_DRAWING,
@@ -101,6 +101,7 @@ from sldgridy.tools.draw import (
     DimensionTool,
     InterruptionTool,
     LineTool,
+    OutletTool,
     PolylineTool,
     RailsTool,
     RectangleTool,
@@ -195,6 +196,7 @@ class MainWindow(QMainWindow):
         self.document._revision = 0  # counts changes; generated content follows it
         self._interruption_refresh_pending = False
         self._snap_parts: dict[tuple, tuple[Entity, list[Entity]]] = {}
+        self.last_outlet_cable = ""
         self._watched_pages: dict[int, EntityContainer] = {}
         self.file_path: Path | None = None
         self.current_layer = DEFAULT_LAYER
@@ -399,6 +401,18 @@ class MainWindow(QMainWindow):
     def place_cable(self, p1: Point, p2: Point) -> None:
         place_cable(self, p1, p2)
 
+    def ask_outlet(
+        self, text: str = "", height: float | None = None, cable: str = ""
+    ) -> tuple[str, float, str] | None:
+        """Text, height and cable of a cable outlet label."""
+        cables = sorted(used_cables(self.document), key=_natural)
+        dialog = TextDialog(self, text, height, cables, cable or self.last_outlet_cable)
+        if dialog.exec() != TextDialog.DialogCode.Accepted:
+            return None
+        if dialog.cable():
+            self.last_outlet_cable = dialog.cable()
+        return dialog.text(), dialog.text_height(), dialog.cable()
+
     def ask_interruption_name(self) -> str | None:
         """Name of a new interruption point; names placed only once so far come first
         (usually the partner that is being placed)."""
@@ -560,6 +574,13 @@ class MainWindow(QMainWindow):
                 "dann Kabel (z. B. -W1), Kabeltyp und Adern. Füllt Klemmenplan und Kabelliste."
             )
         )
+        self.act_outlet = self._tool_action(self.tr("Kabel&abgang"), OutletTool)
+        self.act_outlet.setToolTip(
+            self.tr(
+                "Beschriftung, wohin ein Kabel geht (z. B. Abgang zur NSA): Stelle anklicken, "
+                "Text, Größe und Kabel. Steht in der Kabelliste unter Nach."
+            )
+        )
         self.act_module_field = self._action(self.tr("&Modulfeld …"), self.module_field)
         self.act_module_field.setToolTip(self.tr("Dachfläche automatisch mit PV-Modulen belegen"))
         self.act_rails = self._action(self.tr("Potential&schienen …"), self.start_rails)
@@ -567,13 +588,19 @@ class MainWindow(QMainWindow):
             self.tr("Hauptstrompfad L1, L2, L3, N, PE im festen Abstand über die Seite")
         )
         # Shown in circuit diagram projects only.
-        self.project_actions = [self.act_interruption, self.act_rails, self.act_cable]
+        self.project_actions = [
+            self.act_interruption,
+            self.act_rails,
+            self.act_cable,
+            self.act_outlet,
+        ]
         self.draw_actions = [
             self.act_wire,
             self.act_busbar,
             self.act_rails,
             self.act_interruption,
             self.act_cable,
+            self.act_outlet,
             self.act_line,
             self.act_polyline,
             self.act_rectangle,
@@ -1821,6 +1848,15 @@ class MainWindow(QMainWindow):
                         self.container, [replace(entity, label=label)], self.tr("Beschriftung")
                     )
                 )
+            return
+        if isinstance(entity, Text) and entity.cable:
+            outlet = self.ask_outlet(entity.text, entity.height, entity.cable)
+            if outlet is None or not outlet[0].strip():
+                return
+            content, height, cable = outlet
+            changed = replace(entity, text=content, height=height, cable=cable)
+            if changed != entity:
+                self.push(ReplaceEntitiesCommand(self.container, [changed], self.tr("Kabelabgang")))
             return
         if not isinstance(entity, Text):
             return

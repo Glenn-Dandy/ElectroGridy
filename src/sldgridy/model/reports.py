@@ -10,7 +10,7 @@ import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-from sldgridy.model.cables import cable_types
+from sldgridy.model.cables import cable_outlets, cable_types
 from sldgridy.model.devices import MODEL, SHEET, devices, place
 from sldgridy.model.document import (
     CABLES,
@@ -182,6 +182,9 @@ def cable_rows(doc: Document, nl: Netlist | None = None) -> list[list[str]]:
     for cable, kind in cable_types(doc).items():  # given at the cable marks
         if cable in cables:
             cables[cable]["types"].add(kind)
+    for cable, texts in cable_outlets(doc).items():  # where an outlet goes
+        if cable in cables:
+            cables[cable]["to"] |= set(texts)
     rows = []
     for cable in sorted(cables, key=_natural):
         e = cables[cable]

@@ -959,5 +959,11 @@
  "Aderfarbe oder Adernummer, z. B. BN, BU, GNYE, 3": "Core colour or number, e.g. BN, BU, GNYE, 3",
  "Leitung {n}:": "Conductor {n}:",
  "Die Linie kreuzt keine Leitung": "The line crosses no conductor",
- "Kabel {name}": "Cable {name}"
+ "Kabel {name}": "Cable {name}",
+ "Beschriftung, wohin ein Kabel geht (z. B. Abgang zur NSA): Stelle anklicken, Text, Größe und Kabel. Steht in der Kabelliste unter Nach.": "Label saying where a cable goes (e.g. outgoing to the LV board): click the place, then text, size and cable. Appears in the cable list under To.",
+ "Kabel&abgang": "Cable &outlet",
+ "Kabelabgang": "Cable outlet",
+ "Kabelabgang: Stelle der Beschriftung angeben": "Cable outlet: place of the label",
+ "Wohin das Kabel geht, z. B. Abgang zur NSA": "Where the cable goes, e.g. outgoing to the LV board",
+ "Kabel, zu dem der Abgang gehört, z. B. -W1": "Cable this outlet belongs to, e.g. -W1"
 }
