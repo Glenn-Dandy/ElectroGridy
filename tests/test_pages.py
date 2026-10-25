@@ -501,7 +501,7 @@ def test_terminal_plan_targets_bridges_and_cables():
     assert (rows["6"].target1, rows["6"].cores1) == ("-Y4:1", {"-W1": "bl"})
     assert plan.cables1 == [("-W1", "ÖLFLEX 3G1,5")] and plan.cables2 == []
     assert [first for _p, first in plan_pages([plan] * 2)] == [0, 0]
-    many = plan.rows * 8  # 48 rows: three pages
+    many = plan.rows * 9  # 54 rows, 24 per page: three pages
     assert len(plan_pages([type(plan)("-X2", many, [], [], [], [])])) == 3
 
 

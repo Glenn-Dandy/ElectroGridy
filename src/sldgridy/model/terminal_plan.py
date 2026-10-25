@@ -37,7 +37,7 @@ from sldgridy.model.sheet import schematic_inner
 from sldgridy.model.terminals import TERMINAL_PE
 from sldgridy.model.title_block import SCHEMATIC_TITLE_HEIGHT
 
-ROWS = 21  # terminals per page
+ROWS = 24  # terminals per page (21 with the title on two lines up to 1.3.1.dev12)
 COLOR, NOTE = "FARBE", "BEMERKUNG"  # attributes of the terminal symbol
 
 # -- rows ---------------------------------------------------------------------------
@@ -296,8 +296,11 @@ def plan_pages(plans: list[StripPlan]) -> list[tuple[StripPlan, int]]:
 # The form in millimetres on an A3 page, from the left top corner of the table (the
 # inner frame) to the title block; scaled to the actual table size.
 FORM_WIDTH, FORM_HEIGHT = 397.12, 241.26
-TITLE_BOTTOM = 54.48  # strip title and cable names above this line
-HEAD_BOTTOM = 87.55  # column captions and cable types above this line
+# The title takes one line ("Klemmleiste: -X1"); the band is three rows lower than in
+# the template, so three more terminals fit on a page.
+TITLE_BOTTOM = 32.52  # strip title and cable names above this line
+HEAD_BOTTOM = 65.59  # column captions and cable types above this line
+TITLE_BASELINE = 21.3
 NOTE_COLUMN = (0.0, 38.22)
 OUTER_CABLES = [38.22 + 10.6 * i for i in range(9)]  # 8 columns, the last ends at 123.02
 TARGET1 = (128.86, 191.84)
@@ -314,6 +317,7 @@ LOWER_LINES = [191.84, 210.52, 222.07, 239.16]  # start below the strip title
 RADIUS = 1.85  # terminal circle
 GRID, THIN = 0.35, 0.25
 BIG, NORMAL, SMALL, TINY = 10.0, 5.0, 3.5, 2.0
+CAPTION = 7.0  # "Klemmleiste:", a little smaller than the strip name
 CHAR_WIDTH = 0.75  # rough text width per character as a multiple of the height
 
 
@@ -402,19 +406,30 @@ def plan_page_entities(
 ) -> list[Entity]:
     """One page of the terminal plan: the form, the strip and rows ``first`` on."""
     f = _form(page)
-    right, bottom = f.x(FORM_WIDTH), f.y(FORM_HEIGHT)
+    rows = plan.rows[first : first + ROWS] if plan is not None else []
+    # Like the other lists the table ends after its last row.
+    right, bottom = f.x(FORM_WIDTH), f.row_top(len(rows))
     out: list[Entity] = []
     for v in FULL_LINES:
         out.append(_line(f.x(v), f.y(0), f.x(v), bottom))
     for v in LOWER_LINES:
         out.append(_line(f.x(v), f.y(TITLE_BOTTOM), f.x(v), bottom))
-    for v in (TITLE_BOTTOM, HEAD_BOTTOM, FORM_HEIGHT):
+    for v in (TITLE_BOTTOM, HEAD_BOTTOM):
         out.append(_line(f.x(0), f.y(v), right, f.y(v)))
-    for i in range(1, ROWS):
+    for i in range(1, len(rows) + 1):
         out.append(_line(f.x(0), f.row_top(i), right, f.row_top(i)))
-    # Title and captions.
-    out.append(_text(f.x(TARGET1[0] + 8.4), f.y(22.2), tr("Klemmleiste:"), BIG * f.k))
+    # Title on one line, centred over the targets, and the captions.
     middle = (f.x(TARGET1[0]) + f.x(TARGET2[1])) / 2
+    caption = tr("Klemmleiste:")
+    strip = plan.strip if plan is not None else ""
+    gap = 0.4 * CAPTION * f.k
+    width = len(caption) * CHAR_WIDTH * CAPTION * f.k + gap + len(strip) * CHAR_WIDTH * BIG * f.k
+    start = middle - width / 2
+    baseline = f.y(TITLE_BASELINE)
+    out.append(_text(start, baseline, caption, CAPTION * f.k))
+    if strip:
+        x = start + len(caption) * CHAR_WIDTH * CAPTION * f.k + gap
+        out.append(_text(x, baseline, strip, BIG * f.k))
     head_middle = f.y((TITLE_BOTTOM + HEAD_BOTTOM) / 2)
     for columns, caption in ((TARGET1, tr("Ziel 1")), (TARGET2, tr("Ziel 2"))):
         x = (f.x(columns[0]) + f.x(columns[1])) / 2
@@ -432,8 +447,6 @@ def plan_page_entities(
         )
     if plan is None:
         return out
-    out.append(_text(middle, f.y(42.3), plan.strip, BIG * f.k, halign="center"))
-    rows = plan.rows[first : first + ROWS]
     # Cables: name above, type below, core per row.
     outer = _cable_columns(plan.cables1, OUTER_CABLES, nearest_right=True)
     inner = _cable_columns(plan.cables2, INNER_CABLES, nearest_right=False)
