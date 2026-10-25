@@ -1,7 +1,9 @@
 """Minimal DXF reader for importing symbols. Pure Python, no third-party packages.
 
-Each named block of the DXF becomes a block definition; a file without blocks
-becomes one definition from its model space. Supported entities: LINE,
+Each named block of the DXF becomes a block definition; the model space becomes one
+named after the file when it has drawing objects of its own (not only inserted
+blocks). Helper blocks nobody inserts whose names start with "_" (dimension arrows
+such as "_Closed") are left out. Supported entities: LINE,
 LWPOLYLINE, POLYLINE/VERTEX (bulges become arcs), CIRCLE, ARC, TEXT, MTEXT,
 ATTDEF, INSERT (resolved into geometry) and POINT (becomes a connection
 point). Coordinates are converted to mm via $INSUNITS and the Y axis is
@@ -542,10 +544,18 @@ def read_dxf(path: Path) -> DxfImport:
     conv = _Converter(parsed, k)
     t = _Transform(k)
     result: list[BlockDefinition] = []
+    inserted = {
+        r.first(2)
+        for raws in [parsed.entities, *(ents for *_rest, ents in parsed.blocks)]
+        for r in raws
+        if r.kind == "INSERT"
+    }
     for name, flags, base, ents in parsed.blocks:
         # Skip model/paper space and anonymous, external or layout blocks.
         if not name or name.startswith("*") or flags & (1 | 4 | 32):
             continue
+        if name.startswith("_") and name not in inserted:
+            continue  # dimension arrow and other helper blocks
         entities = _name_connections(conv.convert(ents, t))
         if not entities:
             continue
@@ -554,7 +564,8 @@ def read_dxf(path: Path) -> DxfImport:
                 name=name, base_point=t.point(base.x, base.y), entities=EntityContainer(entities)
             )
         )
-    if not result and parsed.entities:
+    own_drawing = any(r.kind != "INSERT" for r in parsed.entities)
+    if parsed.entities and (own_drawing or not result):
         entities = _name_connections(conv.convert(parsed.entities, t))
         if entities:
             pts = [p for e in entities for p in _points_of(e)]

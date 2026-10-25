@@ -209,3 +209,21 @@ def test_ellipse_as_circle_or_polyline(tmp_path):
     xs = [p.x for p in poly.points]
     assert max(xs) == pytest.approx(24) and min(xs) == pytest.approx(16)
     assert max(ys) == pytest.approx(2, abs=0.01) and min(ys) == pytest.approx(-2, abs=0.01)
+
+
+def test_model_space_drawing_next_to_a_dimension_arrow_block(tmp_path):
+    # Device drawings carry "_Closed" (the dimension arrow) as their only block.
+    arrow = ent("LINE", (10, 0), (20, 0), (11, -1), (21, 0.2))
+    drawing = ent("LINE", (10, 0), (20, 0), (11, 40), (21, 0)) + ent(
+        "CIRCLE", (10, 20), (20, 10), (40, 3)
+    )
+    text = dxf(section("BLOCKS", block("_Closed", arrow)), section("ENTITIES", drawing))
+    (d,) = read_dxf(write(tmp_path, text, "UMG604EP.dxf")).blocks
+    assert d.name == "UMG604EP" and kinds(d, Line) and kinds(d, Circle)
+
+
+def test_model_space_of_inserts_only_keeps_the_blocks(tmp_path):
+    body = ent("LINE", (10, 0), (20, 0), (11, 1), (21, 0))
+    inserts = ent("INSERT", (2, "_Sym"), (10, 0), (20, 0))
+    text = dxf(section("BLOCKS", block("_Sym", body)), section("ENTITIES", inserts))
+    assert [b.name for b in read_dxf(write(tmp_path, text)).blocks] == ["_Sym"]
