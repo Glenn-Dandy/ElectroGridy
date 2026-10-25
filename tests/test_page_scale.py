@@ -29,6 +29,11 @@ def test_typed_lengths_are_real_millimetres_on_a_scaled_page():
 def test_dimension_shows_the_real_length_and_files_keep_scales():
     d = Dimension(id="d", p1=Point(0, 0), p2=Point(120, 0), position=Point(60, -10), factor=5)
     assert measured_text(d) == "600"
+    # The value drawn on the page, not only the one in the properties (dev14/15 drew 120).
+    from sldgridy.model.dimensions import dimension_geometry
+    from sldgridy.model.entities import Text
+
+    assert [e.text for e in dimension_geometry(d) if isinstance(e, Text)] == ["600"]
     doc = Document.new("Blatt 1", kind=DOC_PROJECT)
     doc.sheets[0].scale = 0.2
     doc.sheets[0].entities.add(d)

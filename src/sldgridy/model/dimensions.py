@@ -235,7 +235,7 @@ def dimension_geometry(d: Dimension, decimal_comma: bool = True) -> list[Entity]
     r = math.radians(angle)
     up = (-math.sin(r), -math.cos(r))
     mid = Point((a.x + b.x) / 2, (a.y + b.y) / 2)
-    value = d.text or format_value(measured(d), decimal_comma)
+    value = d.text or measured_text(d, decimal_comma)  # real length on scaled pages
     parts.append(
         Text(
             id=f"{d.id}:text",
