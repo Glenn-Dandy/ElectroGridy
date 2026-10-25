@@ -212,6 +212,7 @@ class MainWindow(QMainWindow):
 
         self.canvas = Canvas(QGraphicsScene(self), parent=self)
         self.canvas.resolve_style = self._resolve_style
+        self.canvas.drawing_scale = self.drawing_scale
         self.canvas.expand = self._expand
         self.canvas.snap_decompose = self._decompose
         self.canvas.snap_extra = self._snap_extra
@@ -397,6 +398,11 @@ class MainWindow(QMainWindow):
 
     def message(self, text: str) -> None:
         self.statusBar().showMessage(text, 5000)
+
+    def drawing_scale(self) -> float:
+        """Paper mm per real mm of the page being drawn on (1 elsewhere)."""
+        sheet = self.sheets.current_sheet() if hasattr(self, "sheets") else None
+        return sheet.scale if sheet is not None and sheet.scale > 0 else 1.0
 
     def place_cable(self, p1: Point, p2: Point) -> None:
         place_cable(self, p1, p2)
@@ -1760,7 +1766,9 @@ class MainWindow(QMainWindow):
             return
         reference = self.tools.base_point() or self.tools.last_point
         try:
-            p = parse_coordinate(text, reference, self.canvas.ortho_direction())
+            p = parse_coordinate(
+                text, reference, self.canvas.ortho_direction(), self.drawing_scale()
+            )
         except CoordinateError:
             self.message(self.tr("Ungültige Eingabe: {text}").format(text=text))
             return

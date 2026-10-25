@@ -423,6 +423,8 @@ class Dimension(Entity):
     text: str = ""
     height: float = 2.5
     vertex: Point | None = None
+    # Real millimetres per drawn millimetre: 5 on a page drawn at 1:5.
+    factor: float = 1.0
 
     def _mapped(self, fn, quarters):
         orientation = self.orientation

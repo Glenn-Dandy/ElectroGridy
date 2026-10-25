@@ -152,6 +152,8 @@ def entity_to_dict(e: Entity) -> dict[str, Any]:
                 d["vertex"] = _pt(e.vertex)
             if e.text:
                 d["text"] = e.text
+            if e.factor != 1.0:
+                d["factor"] = e.factor
         case Wire():
             d["points"] = [_pt(p) for p in e.points]
             if e.label:
@@ -309,6 +311,7 @@ def entity_from_dict(d: dict[str, Any]) -> Entity:
                 orientation=orientation if orientation in DIMENSION_ORIENTATIONS else "aligned",
                 text=str(d.get("text", "")),
                 height=float(d.get("height", 2.5)),
+                factor=_page_scale(d.get("factor", 1.0)),
                 **common,
             )
         case "busbar":
@@ -593,6 +596,8 @@ def sheet_to_dict(s: SheetLayout) -> dict[str, Any]:
     for key in ("kind", "frame", "plant", "location", "columns"):  # set on pages only
         if getattr(s, key):
             d[key] = getattr(s, key)
+    if s.scale != 1.0:
+        d["scale"] = s.scale
     return d
 
 
@@ -602,6 +607,14 @@ def _dev_page(page: SheetLayout, report: str) -> SheetLayout:
     page.frame = SCHEMATIC_FRAME
     page.columns = page.columns or 10
     return page
+
+
+def _page_scale(value: Any) -> float:
+    try:
+        scale = float(value)
+    except (TypeError, ValueError):
+        return 1.0
+    return scale if 1e-4 <= scale <= 1e4 else 1.0
 
 
 def sheet_from_dict(s: dict[str, Any]) -> SheetLayout:
@@ -619,6 +632,7 @@ def sheet_from_dict(s: dict[str, Any]) -> SheetLayout:
         plant=str(s.get("plant", "")),
         location=str(s.get("location", "")),
         columns=max(0, int(s.get("columns", 0))),
+        scale=_page_scale(s.get("scale", 1.0)),
         kind=_choice(s.get("kind", ""), ("", *PAGE_KINDS)),
         frame=_choice(s.get("frame", ""), ("", SCHEMATIC_FRAME)),
     )

@@ -50,6 +50,8 @@ class DynamicInput:
     mode: str = XY
     texts: dict[str, str] = field(default_factory=dict)
     active: int = 0
+    # Paper mm per real mm of the page (0.2 at 1:5): lengths are typed and shown real.
+    scale: float = 1.0
 
     # -- editing ------------------------------------------------------------
 
@@ -101,6 +103,8 @@ class DynamicInput:
             return Point(cursor.x if x is None else x, cursor.y if y is None else y)
         if self.mode == SIZE:
             w, h = self.value("width"), self.value("height")
+            w = None if w is None else w * self.scale
+            h = None if h is None else h * self.scale
             sx = -1.0 if cursor.x < anchor.x else 1.0
             sy = -1.0 if cursor.y < anchor.y else 1.0
             x = cursor.x if w is None else anchor.x + sx * abs(w)
@@ -109,6 +113,8 @@ class DynamicInput:
         length, angle = self.value("length"), self.value("angle")
         if length is None and angle is None:
             return cursor
+        if length is not None:
+            length *= self.scale
         if length is None:
             # Fixed direction: the mouse decides how far along it.
             a = math.radians(angle)
@@ -130,10 +136,13 @@ class DynamicInput:
         if self.mode == XY or anchor is None:
             values = {"x": point.x, "y": point.y}
         elif self.mode == SIZE:
-            values = {"width": abs(point.x - anchor.x), "height": abs(point.y - anchor.y)}
+            values = {
+                "width": abs(point.x - anchor.x) / self.scale,
+                "height": abs(point.y - anchor.y) / self.scale,
+            }
         else:
             values = {
-                "length": math.hypot(point.x - anchor.x, point.y - anchor.y),
+                "length": math.hypot(point.x - anchor.x, point.y - anchor.y) / self.scale,
                 "angle": angle_of(anchor, point) if point != anchor else 0.0,
             }
         result = {}

@@ -36,6 +36,13 @@ class _DrawTool(Tool):
         self.ctx.push(AddEntitiesCommand(self.ctx.container, [entity], text))
 
 
+def _real_per_drawn(ctx) -> float:
+    """Real millimetres per drawn millimetre on the page (5 at 1:5)."""
+    scale = getattr(ctx, "drawing_scale", None)
+    value = scale() if scale is not None else 1.0
+    return round(1.0 / value, 9) if value > 0 else 1.0
+
+
 class LineTool(_DrawTool):
     """Chained line segments, each one a separate entity."""
 
@@ -454,6 +461,7 @@ class DimensionTool(_DrawTool):
             position=position,
             orientation=orientation,
             height=self._height(p1),
+            factor=_real_per_drawn(self.ctx),
         )
 
     def _height(self, p: Point) -> float:

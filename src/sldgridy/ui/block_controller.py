@@ -376,6 +376,7 @@ class BlockController(QObject):
             name=final_name,
             insert=Point(0.0, 0.0),
             attributes=default_attributes(definition),
+            scale=self.w.drawing_scale(),  # a page at 1:5 gets the symbol at 1:5
         )
         on_place = self._placer(prepare, merged)
         if at is not None:
@@ -485,6 +486,7 @@ class BlockController(QObject):
             insert=at,
             layer=self.w.current_layer,
             attributes=default_attributes(blocks[name]),
+            scale=self.w.drawing_scale(),
         )
         try:
             return expand(ref, blocks)
@@ -697,8 +699,10 @@ class BlockController(QObject):
         blocks: Mapping[str, BlockDefinition] | None = None,
     ) -> Space:
         stack = QUndoStack(self.w)
+        back = self.w.space  # where saving or discarding returns to
         space = self.w._make_space(BLOCK, working.entities, stack, blocks=blocks)
         space.extra["definition"] = working
+        space.extra["return_to"] = back
         space.extra["overlay"] = self._draw_base_point
         self.editor_space = space
         self._show_bar(label)
@@ -811,9 +815,10 @@ class BlockController(QObject):
         self.editor_space = None
         if self._editor_bar is not None:
             self._editor_bar.hide()
-        origin, replace_ids = space.extra.get("new_block", (None, []))
+        origin, replace_ids = space.extra.get("new_block", (space.extra.get("return_to"), []))
         if origin not in self.w.spaces():
-            origin, replace_ids = self.w.model_view, []
+            # The page or model it was opened from is gone; a project has no model view.
+            origin, replace_ids = self.w.sheets.fallback_space(), []
         self.w.activate_space(origin)
         self.w._drop_space(space)
         if save and "new_block" in space.extra:

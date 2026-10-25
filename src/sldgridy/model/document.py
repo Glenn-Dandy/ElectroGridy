@@ -55,6 +55,9 @@ class SheetLayout:
     plant: str = ""  # Anlage
     location: str = ""  # Ort
     columns: int = 0  # columns of the reference grid (schematic frame)
+    # Drawing scale of the page (paper mm per real mm, 0.2 = 1:5): symbols placed on it
+    # shrink, typed lengths and dimensions are real millimetres (enclosure layouts).
+    scale: float = 1.0
 
     @property
     def size(self) -> tuple[float, float]:

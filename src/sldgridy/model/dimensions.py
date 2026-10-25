@@ -45,8 +45,9 @@ def format_value(value: float, decimal_comma: bool = True) -> str:
 
 
 def measured_text(d: Dimension, decimal_comma: bool = True) -> str:
-    text = format_value(measured(d), decimal_comma)
-    return text + "°" if d.orientation == "angular" else text
+    if d.orientation == "angular":
+        return format_value(measured(d), decimal_comma) + "°"
+    return format_value(measured(d) * d.factor, decimal_comma)
 
 
 def _angle(center: Point, p: Point) -> float | None:

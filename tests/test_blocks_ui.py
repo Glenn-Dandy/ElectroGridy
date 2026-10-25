@@ -530,3 +530,22 @@ def test_dragged_block_is_previewed_in_the_drawing(window, qapp):
     canvas.viewport().repaint()
     canvas.dragLeaveEvent(QDragLeaveEvent())
     assert canvas._drag_preview_entities() == []
+
+
+def test_block_editor_returns_to_the_page_it_came_from(window):
+    from sldgridy.model.document import DOC_PROJECT
+
+    window.new_document(DOC_PROJECT)
+    page = window.document.sheets[-1]
+    window.sheets.show_sheet(page.id)
+    origin = window.space
+    with_blocks(window)
+    window.blocks.open_editor("Sicherung")
+    assert window.space is window.blocks.editor_space
+    window.container.add(Circle(id="extra", center=Point(0, 0), radius=1))
+    window.blocks.close_editor(save=True)
+    # A project has no model view: it used to land on an empty canvas.
+    assert window.space is origin
+    window.blocks.open_editor("Sicherung")
+    window.blocks.close_editor(save=False)
+    assert window.space is origin

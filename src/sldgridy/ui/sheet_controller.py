@@ -476,6 +476,16 @@ class SheetController(QObject):
     def all_spaces(self) -> list[Space]:
         return list(self.spaces.values())
 
+    def fallback_space(self) -> Space:
+        """Where to go when the place one came from is gone: the model where it is
+        shown, else the first page to draw on."""
+        if self.has_model_tab() or not self.doc.sheets:
+            return self.w.model_view
+        pages = self.doc.sheets
+        first = next((s for s in pages if s.kind not in GENERATED_KINDS), pages[0])
+        self.show_sheet(first.id)
+        return self.spaces[first.id]
+
     def reset(self) -> None:
         """New document: forget all sheet spaces."""
         self.deactivate_viewport()
@@ -727,6 +737,7 @@ class SheetController(QObject):
             )
             sheet.kind = DRAWING
             sheet.plant, sheet.location = spec.plant, spec.location
+            sheet.scale = spec.scale
             return sheet, needed
         sheet = new_page(
             spec.kind, spec.name, spec.plant, spec.location, spec.paper, spec.orientation
@@ -738,6 +749,7 @@ class SheetController(QObject):
             needed.append(schematic_title_block_definition(width, title_labels()))
         if spec.viewport:
             sheet.entities.add(schematic_viewport(w, h))
+        sheet.scale = spec.scale
         return sheet, needed
 
     def new_sheet(self) -> None:
@@ -800,6 +812,7 @@ class SheetController(QObject):
             paper=current.paper,
             orientation=current.orientation,
             viewport=bool(current.viewports()),
+            scale=current.scale,
         )
         new = self._page_spec(self.tr("Seite bearbeiten"), spec, False)
         if new is None:
@@ -811,6 +824,7 @@ class SheetController(QObject):
                 ("name", new.name),
                 ("plant", new.plant),
                 ("location", new.location),
+                ("scale", new.scale),
             )
             if getattr(current, k) != v
         }

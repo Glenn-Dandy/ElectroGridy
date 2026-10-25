@@ -61,12 +61,13 @@ _SHEET_ATTRIBUTES = (
     "plant",
     "location",
     "columns",
+    "scale",
 )
 
 
 class ChangeSheetCommand(QUndoCommand):
     """Change name, format, orientation, title block, field values, type, frame, plant,
-    location or columns of a page."""
+    location, columns or scale of a page."""
 
     def __init__(self, doc: Document, sheet_id: str, text: str, **changes) -> None:
         super().__init__(text)

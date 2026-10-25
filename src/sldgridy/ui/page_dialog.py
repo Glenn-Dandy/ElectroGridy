@@ -37,6 +37,7 @@ class PageSpec:
     paper: str
     orientation: Orientation
     viewport: bool
+    scale: float = 1.0  # paper mm per real mm (0.2 = 1:5)
 
 
 def kind_name(kind: str) -> str:
@@ -84,6 +85,18 @@ class PageDialog(QDialog):
         self.orientation.addItem(self.tr("quer"), Orientation.LANDSCAPE)
         self.orientation.addItem(self.tr("hoch"), Orientation.PORTRAIT)
         self.orientation.setCurrentIndex(0 if spec.orientation is Orientation.LANDSCAPE else 1)
+        from sldgridy.ui.sheet_controller import format_scale
+
+        self.scale = QComboBox()
+        self.scale.setEditable(True)
+        self.scale.addItems(["1:1", "1:2", "1:5", "1:10", "1:20", "1:50"])
+        self.scale.setCurrentText(format_scale(spec.scale))
+        self.scale.setToolTip(
+            self.tr(
+                "Zeichnungsmaßstab der Seite, z. B. 1:5 für den Gehäuseaufbau: Symbole werden "
+                "verkleinert eingefügt, getippte Längen und Bemaßungen sind echte Millimeter."
+            )
+        )
         self.viewport = QCheckBox(self.tr("Modell zeigen (Ansichtsfenster)"))
         self.viewport.setChecked(spec.viewport)
         self._viewport_offered = viewport
@@ -94,6 +107,7 @@ class PageDialog(QDialog):
         form.addRow(self.tr("Beschreibung:"), self.name)
         form.addRow(self.tr("Anlage (=):"), self.plant)
         form.addRow(self.tr("Ort (+):"), self.location)
+        form.addRow(self.tr("Maßstab:"), self.scale)
         if new:
             form.addRow(self.tr("Format:"), self.paper)
             form.addRow(self.tr("Ausrichtung:"), self.orientation)
@@ -146,4 +160,10 @@ class PageDialog(QDialog):
             viewport=self._viewport_offered
             and self.viewport.isChecked()
             and kind not in GENERATED_KINDS,
+            scale=self.scale_value(),
         )
+
+    def scale_value(self) -> float:
+        from sldgridy.ui.sheet_controller import parse_scale
+
+        return parse_scale(self.scale.currentText()) or 1.0

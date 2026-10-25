@@ -965,5 +965,6 @@
  "Kabelabgang": "Cable outlet",
  "Kabelabgang: Stelle der Beschriftung angeben": "Cable outlet: place of the label",
  "Wohin das Kabel geht, z. B. Abgang zur NSA": "Where the cable goes, e.g. outgoing to the LV board",
- "Kabel, zu dem der Abgang gehört, z. B. -W1": "Cable this outlet belongs to, e.g. -W1"
+ "Kabel, zu dem der Abgang gehört, z. B. -W1": "Cable this outlet belongs to, e.g. -W1",
+ "Zeichnungsmaßstab der Seite, z. B. 1:5 für den Gehäuseaufbau: Symbole werden verkleinert eingefügt, getippte Längen und Bemaßungen sind echte Millimeter.": "Drawing scale of the page, e.g. 1:5 for the enclosure layout: symbols are inserted smaller, typed lengths and dimensions are real millimetres."
 }

@@ -123,6 +123,8 @@ class Canvas(QGraphicsView):
         self._initial_view: Callable[[], None] | None = None
         # Typed length/angle (or X/Y, width/height) shown at the cursor.
         self.dynamic = DynamicInput()
+        # Paper mm per real mm of the page (typed lengths are real); set by the window.
+        self.drawing_scale: Callable[[], float] = lambda: 1.0
         self.dynamic_enabled = True
         self.decimal_comma = True
         # Directions snap to multiples of this angle near the cursor (0: off).
@@ -470,6 +472,7 @@ class Canvas(QGraphicsView):
                 self.dynamic.set_mode(mode[0])
                 if self.dynamic.has_input():
                     # Typed values win; the mouse only decides the remaining ones.
+                    self.dynamic.scale = self.drawing_scale()
                     fixed = self.dynamic.constrain(mode[1], mpt(self._cursor_scene))
                     self._cursor_scene = qpt(fixed)
             self._polar_snap(mode)
@@ -961,6 +964,7 @@ class Canvas(QGraphicsView):
                 self.dynamic.clear()
         elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self.dynamic.has_input():
             raw = self.map_to_scene_f(self._cursor_view) if self._cursor_view else QPointF()
+            self.dynamic.scale = self.drawing_scale()
             point = self.dynamic.constrain(mode[1], mpt(self._cursor_scene or raw))
             self.dynamic.clear()
             self._forget_tracking_point(point)
@@ -1271,6 +1275,7 @@ class Canvas(QGraphicsView):
         name, anchor = mode
         self.dynamic.set_mode(name)  # the tool may have changed since the last mouse move
         point = mpt(self._cursor_scene)
+        self.dynamic.scale = self.drawing_scale()
         shown = self.dynamic.shown(anchor, point, self.decimal_comma)
         cur = self.map_from_scene_f(self._cursor_scene)
         boxes: dict[str, QPointF] = {}
