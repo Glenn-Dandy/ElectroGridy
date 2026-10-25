@@ -146,6 +146,28 @@ def perpendicular_foot(base: Point, a: Point, b: Point) -> Point | None:
     return Point(a.x + t * dx, a.y + t * dy)
 
 
+# Intersections are searched pair by pair; with more edges than this near the cursor
+# (a detailed device drawing zoomed out) they are left out, the rest still snaps.
+MAX_INTERSECTION_PRIMITIVES = 300
+
+
+def _prim_near(prim, cursor: Point, r: float) -> bool:
+    """Whether a snap point of the primitive can lie within ``r`` of the cursor."""
+    if isinstance(prim, Segment):
+        return (
+            min(prim.a.x, prim.b.x) - r <= cursor.x <= max(prim.a.x, prim.b.x) + r
+            and min(prim.a.y, prim.b.y) - r <= cursor.y <= max(prim.a.y, prim.b.y) + r
+        )
+    # Arcs and circles: the curve or the centre near the cursor.
+    d = distance(cursor, prim.center)
+    return d <= r or abs(d - prim.radius) <= r
+
+
+def _near(e: Entity, cursor: Point, r: float) -> bool:
+    prims = primitives(e)
+    return not prims or any(_prim_near(p, cursor, r) for p in prims)
+
+
 def find_snap(
     cursor: Point,
     entities: Iterable[Entity],
@@ -168,7 +190,10 @@ def find_snap(
     for e in entities:
         if extra is not None:
             hits += [h for h in extra(e) if h.mode in modes]
-        simple += decompose(e) if decompose is not None else [e]
+        parts = decompose(e) if decompose is not None else [e]
+        # A symbol is found by its whole outline; only its parts near the cursor count
+        # (a device drawing has thousands).
+        simple += parts if len(parts) <= 1 else [q for q in parts if _near(q, cursor, aperture)]
     for e in simple:
         hits += candidates(e, modes)
         if isinstance(e, Busbar) and SnapMode.BUSBAR in modes:
@@ -188,7 +213,9 @@ def find_snap(
                     if on_arc is not None:
                         hits.append(SnapHit(on_arc, SnapMode.NEAREST))
     if SnapMode.INTERSECTION in modes:
-        prims = [p for e in simple for p in primitives(e)]
+        prims = [p for e in simple for p in primitives(e) if _prim_near(p, cursor, aperture)]
+        if len(prims) > MAX_INTERSECTION_PRIMITIVES:
+            prims = []
         for i, p in enumerate(prims):
             for q in prims[i + 1 :]:
                 hits += [SnapHit(x, SnapMode.INTERSECTION) for x in intersect(p, q)]

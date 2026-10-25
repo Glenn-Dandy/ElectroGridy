@@ -96,3 +96,25 @@ def test_characteristic_points_beat_nearest():
     line = Line(id="l", p1=Point(0, 0), p2=Point(40, -30))
     hit = find_snap(Point(1, -1.5), [line], aperture=3)
     assert hit.mode is SnapMode.ENDPOINT
+
+
+def test_detailed_symbol_does_not_hang_the_snap():
+    # A device drawing as one symbol: thousands of short edges close together. All
+    # pairs were tested for intersections on every mouse move (2026-10-25, hang).
+    import time
+
+    from sldgridy.model.blocks import BlockDefinition, expand
+    from sldgridy.model.container import EntityContainer
+    from sldgridy.model.entities import BlockReference, Line
+
+    lines = [
+        Line(id=f"l{i}", p1=Point(i % 60, i // 60), p2=Point(i % 60 + 0.7, i // 60 + 0.9))
+        for i in range(3000)
+    ]
+    blocks = {"Gerät": BlockDefinition(name="Gerät", entities=EntityContainer(lines))}
+    ref = BlockReference(id="r", name="Gerät", insert=Point(0, 0))
+    start = time.perf_counter()
+    for aperture in (1.0, 10.0, 100.0):
+        hit = find_snap(Point(30.1, 20.1), [ref], aperture, decompose=lambda e: expand(e, blocks))
+        assert hit is not None
+    assert time.perf_counter() - start < 2.0
