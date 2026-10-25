@@ -882,14 +882,12 @@
  "Maßstäbliche Zeichnung, z. B. Dachbelegung mit PV-Modulen": "Scaled drawing, e.g. roof layout with PV modules",
  "Neue Leiste": "New strip",
  "Noch keine Dateien": "No files yet",
- "Nur freie Klemmen dieser Leiste": "Only free terminals of this strip",
  "Potential&schienen …": "&Rails …",
  "Potentialschienen": "Rails",
  "Potentialschienen: Endpunkt angeben": "Rails: specify end point",
  "Potentialschienen: Höhe des ersten Leiters angeben": "Rails: specify the height of the first conductor",
  "Potentialschienen: Startpunkt des ersten Leiters angeben": "Rails: specify start point of the first conductor",
  "SLDGridy {version}": "SLDGridy {version}",
- "Schutzleiterklemme (PE)": "Protective earth terminal (PE)",
  "Unterbrechungspunkte an beiden Enden (Seitenübergang)": "Interruption points at both ends (continued on other pages)",
  "Vorhandene Leiste wählen oder neue eintippen, z. B. X2": "Choose a strip or type a new one, e.g. X2",
  "Zuletzt geöffnet": "Recently opened",
@@ -903,7 +901,6 @@
  "Klemme PE": "Terminal PE",
  "Klemmen": "Terminals",
  "Reihenklemme; BMK mit Leiste und Nummer, z. B. -X1:1": "Terminal block; tag with strip and number, e.g. -X1:1",
- "Schutzleiterklemme; BMK mit Leiste und Nummer, z. B. -X1:PE": "Protective earth terminal; tag with strip and number, e.g. -X1:PE",
  "Ziel 1": "Target 1",
  "Ziel 2": "Target 2",
  "Kabel Ziel 1": "Cable target 1",
@@ -946,5 +943,7 @@
  "Sicherungslasttrennschalter 4-polig N abgesichert": "Fuse switch disconnector 4-pole, N fused",
  "NH-Sicherungslasttrennschalter, drei Pole": "NH fuse switch disconnector, three poles",
  "NH-Sicherungslasttrennschalter, drei abgesicherte Pole, Neutralleiter durchgehend (nicht geschaltet)": "NH fuse switch disconnector, three fused poles, neutral passing through (not switched)",
- "NH-Sicherungslasttrennschalter, vier Pole, Neutralleiter mit Sicherung": "NH fuse switch disconnector, four poles, neutral with fuse"
+ "NH-Sicherungslasttrennschalter, vier Pole, Neutralleiter mit Sicherung": "NH fuse switch disconnector, four poles, neutral with fuse",
+ "Freie Nummern dieser Leiste, oder PE, N, PEN statt einer Nummer": "Free numbers of this strip, or PE, N, PEN instead of a number",
+ "Schutzleiterklemme; BMK mit Leiste und PE, z. B. -X1:PE": "Protective earth terminal; tag with strip and PE, e.g. -X1:PE"
 }

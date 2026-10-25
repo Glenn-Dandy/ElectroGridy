@@ -6,7 +6,7 @@ from PyQt6.QtCore import QSettings
 from sldgridy.fileio.paths import system_library_dir
 from sldgridy.model.devices import devices
 from sldgridy.model.document import DOC_PROJECT
-from sldgridy.model.entities import BlockReference, InterruptionPoint, Wire
+from sldgridy.model.entities import BlockReference, InterruptionPoint, Line, Wire
 from sldgridy.model.geometry import Point
 from sldgridy.ui.block_dialogs import AttributeValuesDialog
 from sldgridy.ui.main_window import MainWindow
@@ -103,7 +103,7 @@ def test_set_terminal_on_a_wire_offers_free_numbers(window, monkeypatch):
 
     window.container.add(Wire(id="w", points=(Point(50, 30), Point(50, 100))))
     window.container.add(Wire(id="h", points=(Point(80, 50), Point(160, 50))))
-    answers = iter([("-X2", "1", False), ("X2", "2", True)])
+    answers = iter([("-X2", "1"), ("X2", "2")])
 
     class Fake:
         DialogCode = point_menu.TerminalDialog.DialogCode
@@ -131,7 +131,45 @@ def test_set_terminal_on_a_wire_offers_free_numbers(window, monkeypatch):
     horizontal = sorted((w.points[0].x, w.points[-1].x) for w in page_wires(window) if
                         w.points[0].y == 50)  # fmt: skip
     assert horizontal == [(80, 117.5), (122.5, 160)]
-    assert "Klemme PE" in window.document.blocks
+
+
+def test_set_terminal_pe_n_pen_instead_of_a_number(window, monkeypatch):
+    from sldgridy.model.terminals import strips
+    from sldgridy.ui import point_menu
+    from sldgridy.ui.terminal_dialog import TerminalDialog
+
+    dialog = TerminalDialog({"-X1": ["1", "2"]}, "-X1")
+    offered = [dialog.number.itemText(i) for i in range(dialog.number.count())]
+    assert offered[0] == "3" and offered[-3:] == ["PE", "N", "PEN"]
+    for x in (40, 50, 60):
+        window.container.add(Wire(id=f"w{x}", points=(Point(x, 30), Point(x, 100))))
+    answers = iter([("-X1", "PE"), ("-X1", "N"), ("-X1", "PE")])
+
+    class Fake:
+        DialogCode = point_menu.TerminalDialog.DialogCode
+
+        def __init__(self, found, last, parent):
+            pass
+
+        def exec(self):
+            return self.DialogCode.Accepted
+
+        def values(self):
+            return next(answers)
+
+    monkeypatch.setattr(point_menu, "TerminalDialog", Fake)
+    for x in (40, 50, 60):
+        point_menu.set_terminal(window, Point(x, 60), [window.container.get(f"w{x}")])
+    refs = sorted(
+        (e for e in window.container if isinstance(e, BlockReference)), key=lambda e: e.insert.x
+    )
+    assert [(r.name, r.attribute("BMK"), r.attribute("FARBE", "")) for r in refs] == [
+        ("Klemme PE", "-X1:PE", ""), ("Klemme", "-X1:N", "N"), ("Klemme PE", "-X1:PE", "")
+    ]  # fmt: skip
+    assert strips(window.document) == {"-X1": ["N", "PE"]}
+    # The PE terminal is a plain circle like the others, no cross.
+    pe = window.document.blocks["Klemme PE"]
+    assert not [e for e in pe.entities if isinstance(e, Line) and e.p1.y == e.p2.y]
 
 
 def test_menu_cuts_a_wire(window):

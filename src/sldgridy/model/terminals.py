@@ -23,6 +23,9 @@ from sldgridy.model.routing import open_wires
 from sldgridy.model.wires import EPS, on_segment, segments
 
 TERMINAL, TERMINAL_PE = "Klemme", "Klemme PE"
+# Named terminals instead of a number; any number of them per strip.
+PE, N, PEN = "PE", "N", "PEN"
+NAMED = (PE, N, PEN)
 SPARE = 10  # free numbers offered beyond the highest one used
 ROW_GAP = 10.0  # mm: terminals further apart on one line start a new row (two poles)
 
@@ -50,12 +53,21 @@ def free_numbers(used: list[str], spare: int = SPARE) -> list[str]:
     return [str(n) for n in range(1, top + spare + 1) if n not in taken]
 
 
+def terminal_kind(number: str) -> tuple[str, str]:
+    """Block and terminal colour (FARBE) for a terminal number: PE gets the protective
+    conductor terminal, N and PEN their colour for the terminal plan."""
+    if number == PE:
+        return TERMINAL_PE, ""
+    return TERMINAL, number if number in (N, PEN) else ""
+
+
 def place_terminal(
     wires: list[Wire],
     p: Point,
     definition: BlockDefinition,
     bmk: str,
     layer: str,
+    color: str = "",
 ) -> tuple[BlockReference, list[str], list[Wire]] | None:
     """A terminal centred on ``p`` along the wire through it, and the wire change
     (ids removed, wires added); None if ``p`` is not on a straight piece of a wire."""
@@ -80,7 +92,7 @@ def place_terminal(
                     id=new_id(),
                     insert=Point(round(p.x - cx, 6), round(p.y - cy, 6)),
                     layer=layer,
-                    attributes=(("BMK", bmk),),
+                    attributes=(("BMK", bmk),) + ((("FARBE", color),) if color else ()),
                 )
                 placed = world_connections(ref, blocks)
                 if all(on_segment(c.position, a, b) for c in placed[:2]):

@@ -13,7 +13,7 @@ from sldgridy.commands.entities import (
     ReplaceEntitiesCommand,
 )
 from sldgridy.fileio.files import load_library
-from sldgridy.fileio.json_format import FileFormatError
+from sldgridy.fileio.json_format import FileFormatError, block_signature
 from sldgridy.fileio.paths import symbols_dir
 from sldgridy.i18n import library_text
 from sldgridy.model.blocks import BlockDefinition, dock_target, point_to_world
@@ -22,11 +22,11 @@ from sldgridy.model.entities import BlockReference, JunctionMark, Line, Polyline
 from sldgridy.model.geometry import Point
 from sldgridy.model.routing import split_wire
 from sldgridy.model.terminals import (
-    TERMINAL,
     TERMINAL_PE,
     normalized_strip,
     place_terminal,
     strips,
+    terminal_kind,
 )
 from sldgridy.model.wires import (
     entities_at,
@@ -162,21 +162,29 @@ def set_terminal(w: "MainWindow", p: Point, wires: list[Wire]) -> None:
     dialog = TerminalDialog(strips(w.document), w.last_terminal_strip, w)
     if dialog.exec() != TerminalDialog.DialogCode.Accepted:
         return
-    strip, number, pe = dialog.values()
+    strip, number = dialog.values()
     strip = normalized_strip(strip)
     if not strip or not number:
         return
     w.last_terminal_strip = strip
-    name = TERMINAL_PE if pe else TERMINAL
+    name, color = terminal_kind(number)
     shipped = terminal_definitions().get(name)
     own = w.document.blocks.get(name)
     # A terminal from an older version lacks attributes the terminal plan reads.
-    upgrade = own is not None and shipped is not None and _missing_tags(own, shipped)
+    upgrade = (
+        own is not None
+        and shipped is not None
+        and (
+            _missing_tags(own, shipped)
+            # PE terminals were a crossed circle up to 1.3.1.dev5.
+            or (name == TERMINAL_PE and block_signature(own) != block_signature(shipped))
+        )
+    )
     definition = shipped if upgrade or own is None else own
     if definition is None:
         w.message(tr("Klemmensymbol nicht gefunden"))
         return
-    placed = place_terminal(wires, p, definition, f"{strip}:{number}", w.current_layer)
+    placed = place_terminal(wires, p, definition, f"{strip}:{number}", w.current_layer, color)
     if placed is None:
         w.message(tr("Hier liegt kein gerades Stück Leitung"))
         return

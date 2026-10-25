@@ -1,7 +1,7 @@
-"""Dialog for "Klemme setzen": strip (existing or new) and a free terminal number."""
+"""Dialog for "Klemme setzen": strip (existing or new) and a free terminal number, or
+PE, N, PEN instead of a number."""
 
 from PyQt6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
 )
 
 from sldgridy.model.devices import _natural
-from sldgridy.model.terminals import free_numbers, normalized_strip
+from sldgridy.model.terminals import NAMED, free_numbers, normalized_strip
 
 
 class TerminalDialog(QDialog):
@@ -25,14 +25,14 @@ class TerminalDialog(QDialog):
         self.strip.setCurrentText(last or (next(iter(strips), "") or "-X1"))
         self.strip.setToolTip(self.tr("Vorhandene Leiste wählen oder neue eintippen, z. B. X2"))
         self.number = QComboBox()
-        self.number.setToolTip(self.tr("Nur freie Klemmen dieser Leiste"))
-        self.pe = QCheckBox(self.tr("Schutzleiterklemme (PE)"))
+        self.number.setToolTip(
+            self.tr("Freie Nummern dieser Leiste, oder PE, N, PEN statt einer Nummer")
+        )
         self.used = QLabel()
         self.used.setWordWrap(True)
         form = QFormLayout(self)
         form.addRow(self.tr("Klemmleiste:"), self.strip)
         form.addRow(self.tr("Klemme:"), self.number)
-        form.addRow(self.pe)
         form.addRow(self.used)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -48,16 +48,14 @@ class TerminalDialog(QDialog):
         used = self._strips.get(normalized_strip(self.strip.currentText()), [])
         self.number.clear()
         self.number.addItems(free_numbers(used))
+        self.number.insertSeparator(self.number.count())
+        self.number.addItems(NAMED)
         self.used.setText(
             self.tr("Belegt: {numbers}").format(numbers=", ".join(used))
             if used
             else self.tr("Neue Leiste")
         )
 
-    def values(self) -> tuple[str, str, bool]:
-        """Strip ("-X1"), number ("4") and whether it is a PE terminal."""
-        return (
-            normalized_strip(self.strip.currentText()),
-            self.number.currentText(),
-            (self.pe.isChecked()),
-        )
+    def values(self) -> tuple[str, str]:
+        """Strip ("-X1") and number ("4", or "PE", "N", "PEN")."""
+        return normalized_strip(self.strip.currentText()), self.number.currentText()
