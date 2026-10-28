@@ -301,7 +301,7 @@ Umsetzung (M7):
 Einmalig einrichten (Befehle mit `sudo` nicht selbst ausführen, sondern dem Benutzer nennen):
 
 ```bash
-sudo apt install python3-venv python3-pyqt6 python3-pyqt6.qtsvg python3-pyqt6.qtpdf python3-pdfminer tesseract-ocr tesseract-ocr-deu lintian
+sudo apt install python3-venv python3-pyqt6 python3-pyqt6.qtsvg python3-pyqt6.qtpdf python3-pdfminer tesseract-ocr tesseract-ocr-deu qt6-translations-l10n lintian
 python3 -m venv --system-site-packages .venv
 .venv/bin/pip install -e ".[dev]"
 ```
@@ -342,6 +342,7 @@ Architecture: all
 Section: graphics
 Priority: optional
 Depends: python3 (>= 3.12), python3-pyqt6, python3-pyqt6.qtsvg, python3-pyqt6.qtpdf, python3-pdfminer, tesseract-ocr, tesseract-ocr-deu
+Recommends: qt6-translations-l10n
 ```
 
 - Vor dem Eintragen der Abhängigkeiten unter Ubuntu 24.04 prüfen, welche Pakete die benötigten Qt-Module wirklich liefern (`dpkg -S`, `apt-cache show`).
@@ -385,7 +386,7 @@ Immer nur einen Meilenstein bearbeiten. Der deb-Build wird in M1 angelegt und bl
 
 - `src/sldgridy/i18n.py`: eigener `QTranslator` (`DictTranslator`), der den deutschen Quelltext unabhängig vom Kontext in `en.json` nachschlägt. Keine Qt-Übersetzungswerkzeuge nötig. Für fehlende Einträge gibt er `None` zurück (Null-String), damit Qt den Quelltext zeigt; ein leerer String würde den Text leeren.
 - Sprache: Ansicht > „Sprache / Language“ (Menütitel bewusst zweisprachig), gespeichert als `ui/language` in `QSettings`, Standard nach Systemsprache (`de*` → Deutsch, sonst Englisch). Die Umstellung wirkt nach einem Neustart.
-- Qts eigene Texte (Standardknöpfe Speichern/Verwerfen/Abbrechen, Druck- und Druckvorschaudialog) im deutschen Modus: `i18n.install_qt_german` lädt `qtbase_de` aus Qts Übersetzungsverzeichnis (Paket qt6-translations-l10n, keine Abhängigkeit) und darunter `QtButtonsTranslator` (Kontext QPlatformTheme, `QT_BUTTONS_DE`), damit die Knöpfe auch ohne das Paket deutsch sind (Florian 2026-10-28: Schließen-Abfrage zeigte Save/Discard/Cancel).
+- Qts eigene Texte (Standardknöpfe Speichern/Verwerfen/Abbrechen, Druck- und Druckvorschaudialog) im deutschen Modus: `i18n.install_qt_german` lädt `qtbase_de` aus Qts Übersetzungsverzeichnis (Paket qt6-translations-l10n, von Florian am 2026-10-28 freigegeben: im .deb `Recommends`, im Snap Stage-Paket; gesucht wird auch unter `$SNAP/usr/share/qt6/translations` und neben PyQt6 in `Qt6/translations` für Windows, `i18n.qt_translation_dirs`) und darunter `QtButtonsTranslator` (Kontext QPlatformTheme, `QT_BUTTONS_DE`), damit die Knöpfe auch ohne das Paket deutsch sind (Florian 2026-10-28: Schließen-Abfrage zeigte Save/Discard/Cancel).
 - Zahlenformat folgt der Sprache (`i18n.ui_locale()`: Dezimalkomma bzw. Dezimalpunkt), Längen über `styles.mm_label()`.
 - Texte, die in Bibliotheken und Zeichnungen gespeichert sind (Symbolnamen, Kategorien, Beschreibungen, Abfragetexte, Titel von Bibliotheken und Vorlagen), werden nur in der Anzeige übersetzt (`i18n.library_text()`); die gespeicherten Namen bleiben deutsch, damit Zeichnungen sprachunabhängig zusammenpassen.
 - Zeichnungsinhalt folgt der Sprache beim Anlegen: neue Zeichnungen bekommen Schriftfeld-Beschriftungen in der aktiven Sprache (`Document.new(..., title_labels)`); „Blatt x von y“/„Sheet x of y“, quer/landscape und die Kachelnummer `Z1/S2`/`R1/C2` werden beim Zeichnen übersetzt. Bereits gespeicherte Zeichnungen behalten ihre Beschriftungen.

@@ -59,6 +59,7 @@ parts:
       - tesseract-ocr-deu
       - qt6-wayland
       - qt6-qpa-plugins
+      - qt6-translations-l10n
       - libxcb-icccm4
       - libxcb-image0
       - libxcb-keysyms1

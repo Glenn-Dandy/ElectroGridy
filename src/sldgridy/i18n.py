@@ -6,6 +6,7 @@ translation tools are needed.
 """
 
 import json
+import os
 from pathlib import Path
 
 from PyQt6.QtCore import QCoreApplication, QLibraryInfo, QLocale, QSettings, QTranslator
@@ -102,11 +103,24 @@ def install_qt_german(app: QCoreApplication) -> QTranslator:
     buttons = QtButtonsTranslator(app)
     app.installTranslator(buttons)
     qt = QTranslator(app)
-    path = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
-    if qt.load("qtbase_de", path):
-        app.installTranslator(qt)  # installed last, asked first
-        return qt
+    for path in qt_translation_dirs():
+        if qt.load("qtbase_de", path):
+            app.installTranslator(qt)  # installed last, asked first
+            return qt
     return buttons
+
+
+def qt_translation_dirs() -> list[str]:
+    """Where Qt's translations may be: inside the snap, Qt's own directory, next to
+    PyQt6 (pip and the Windows build)."""
+    dirs = []
+    if os.environ.get("SNAP"):
+        dirs.append(os.path.join(os.environ["SNAP"], "usr", "share", "qt6", "translations"))
+    dirs.append(QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath))
+    import PyQt6
+
+    dirs.append(str(Path(PyQt6.__file__).parent / "Qt6" / "translations"))
+    return dirs
 
 
 def current() -> str:

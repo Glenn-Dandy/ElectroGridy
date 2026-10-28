@@ -161,3 +161,10 @@ def test_qt_buttons_are_german_in_german_mode(qapp, monkeypatch):
     finally:
         qapp.removeTranslator(buttons)
     assert QCoreApplication.translate("MainWindow", "Save") == "Save"  # only Qt's context
+
+
+def test_qt_translations_are_looked_for_in_the_snap(monkeypatch):
+    monkeypatch.setenv("SNAP", "/snap/sldgridy/7")
+    dirs = i18n.qt_translation_dirs()
+    assert dirs[0] == "/snap/sldgridy/7/usr/share/qt6/translations"
+    assert any(d.endswith("translations") for d in dirs[1:])

@@ -144,7 +144,7 @@ Modify commands without a selection first ask for objects: select them and press
 ### Development
 
 ```bash
-sudo apt install python3-venv python3-pyqt6 python3-pyqt6.qtsvg python3-pyqt6.qtpdf python3-pdfminer tesseract-ocr tesseract-ocr-deu lintian
+sudo apt install python3-venv python3-pyqt6 python3-pyqt6.qtsvg python3-pyqt6.qtpdf python3-pdfminer tesseract-ocr tesseract-ocr-deu qt6-translations-l10n lintian
 python3 -m venv --system-site-packages .venv
 .venv/bin/pip install -e ".[dev]"
 
