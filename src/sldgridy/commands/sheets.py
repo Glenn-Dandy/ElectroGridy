@@ -62,6 +62,7 @@ _SHEET_ATTRIBUTES = (
     "location",
     "columns",
     "scale",
+    "number",
 )
 
 

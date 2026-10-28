@@ -15,6 +15,7 @@ from sldgridy.model.devices import crossref_texts, crossrefs
 from sldgridy.model.dimensions import dimension_geometry
 from sldgridy.model.document import (
     GENERATED_KINDS,
+    NO_FRAME,
     PAGE_KINDS,
     SCHEMATIC_FRAME,
     Document,
@@ -359,7 +360,9 @@ def title_block_parts(doc: Document, sheet: SheetLayout) -> list[Entity]:
 def frame_parts(doc: Document, sheet: SheetLayout, helpers: bool = False) -> list[Entity]:
     """Frame lines (and band) plus the generated content of cover and list pages."""
     w, h = sheet.size
-    if sheet.frame == SCHEMATIC_FRAME:
+    if sheet.frame == NO_FRAME:
+        parts = []
+    elif sheet.frame == SCHEMATIC_FRAME:
         parts = schematic_frame_entities(w, h, sheet.columns or 10)
     else:
         parts = frame_entities(w, h)

@@ -969,5 +969,10 @@
  "Blattformat aller Seiten": "Sheet format of all pages",
  "{n} Objekte auf {pages} Seiten liegen ganz oder teilweise außerhalb des Blatts.": "{n} objects on {pages} pages lie completely or partly outside the sheet.",
  "Allpoliger Schaltplan mit nummerierten Seiten A4: Deckblatt, Stromlaufplan, Klemmenplan, Stückliste, Querverweise": "Multi-line circuit diagram with numbered A4 pages: cover, circuit diagram, terminal plan, parts list, cross references",
- "Skalieren: Faktor eintippen und Enter, oder Basispunkt angeben (Tab: X/Y)": "Scale: type a factor and Enter, or specify base point (Tab: X/Y)"
+ "Skalieren: Faktor eintippen und Enter, oder Basispunkt angeben (Tab: X/Y)": "Scale: type a factor and Enter, or specify base point (Tab: X/Y)",
+ "Leere Seite": "Blank page",
+ "automatisch": "automatic",
+ "Blattnummer von Hand, z. B. wie im übernommenen fremden Plan; „automatisch“ zählt nach der Reihenfolge der Seiten.": "Page number by hand, e.g. as in the plan taken over; \"automatic\" counts by the order of the pages.",
+ "Blattnummer:": "Page number:",
+ "Seite ohne Rahmen und Schriftfeld, z. B. für ein Blatt aus einem fremden Plan mit eigenem Rahmen.": "Page without frame and title block, e.g. for a sheet from another plan with a frame of its own."
 }

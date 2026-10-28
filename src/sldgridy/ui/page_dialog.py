@@ -11,9 +11,11 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QLabel,
     QLineEdit,
+    QSpinBox,
 )
 
 from sldgridy.model.document import (
+    BLANK,
     CIRCUIT,
     DRAWING,
     ENCLOSURE,
@@ -38,6 +40,7 @@ class PageSpec:
     orientation: Orientation
     viewport: bool
     scale: float = 1.0  # paper mm per real mm (0.2 = 1:5)
+    number: int = 0  # page number typed by hand, 0 = its place in the project
 
 
 def kind_name(kind: str) -> str:
@@ -97,6 +100,16 @@ class PageDialog(QDialog):
                 "verkleinert eingefügt, getippte Längen und Bemaßungen sind echte Millimeter."
             )
         )
+        self.number = QSpinBox()
+        self.number.setRange(0, 9999)
+        self.number.setSpecialValueText(self.tr("automatisch"))
+        self.number.setValue(spec.number)
+        self.number.setToolTip(
+            self.tr(
+                "Blattnummer von Hand, z. B. wie im übernommenen fremden Plan; "
+                "„automatisch“ zählt nach der Reihenfolge der Seiten."
+            )
+        )
         self.viewport = QCheckBox(self.tr("Modell zeigen (Ansichtsfenster)"))
         self.viewport.setChecked(spec.viewport)
         self._viewport_offered = viewport
@@ -108,6 +121,7 @@ class PageDialog(QDialog):
         form.addRow(self.tr("Anlage (=):"), self.plant)
         form.addRow(self.tr("Ort (+):"), self.location)
         form.addRow(self.tr("Maßstab:"), self.scale)
+        form.addRow(self.tr("Blattnummer:"), self.number)
         if new:
             form.addRow(self.tr("Format:"), self.paper)
             form.addRow(self.tr("Ausrichtung:"), self.orientation)
@@ -127,7 +141,14 @@ class PageDialog(QDialog):
 
     def _kind_changed(self, _index: int = 0, adjust: bool = True) -> None:
         kind = self.kind.currentData()
-        if kind in GENERATED_KINDS:
+        if kind == BLANK:
+            self.hint.setText(
+                self.tr(
+                    "Seite ohne Rahmen und Schriftfeld, z. B. für ein Blatt aus einem fremden "
+                    "Plan mit eigenem Rahmen."
+                )
+            )
+        elif kind in GENERATED_KINDS:
             self.hint.setText(
                 self.tr("Der Inhalt dieser Seite entsteht aus dem Projekt und bleibt aktuell.")
             )
@@ -161,6 +182,7 @@ class PageDialog(QDialog):
             and self.viewport.isChecked()
             and kind not in GENERATED_KINDS,
             scale=self.scale_value(),
+            number=self.number.value(),
         )
 
     def scale_value(self) -> float:

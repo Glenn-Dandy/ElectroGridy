@@ -259,3 +259,41 @@ def test_project_format_for_all_pages(window, monkeypatch):
     assert {s.paper for s in doc.sheets} == {"A3"}
     for space in window.spaces():
         space.stack.setClean()
+
+
+def test_page_number_by_hand_and_blank_page(window, monkeypatch):
+    from dataclasses import replace
+
+    from sldgridy.fileio.json_format import document_from_dict, document_to_dict
+    from sldgridy.model.document import BLANK, DOC_PROJECT, NO_FRAME
+    from sldgridy.model.paper import Orientation
+    from sldgridy.ui.page_dialog import PageDialog, PageSpec
+    from sldgridy.view.display import frame_parts, title_block_parts
+
+    window.new_document(DOC_PROJECT)
+    doc = window.document
+    # A blank page for a sheet taken over from another plan, numbered as there.
+    spec = PageSpec(BLANK, "Messung", "", "", "A4", Orientation.LANDSCAPE, False, number=17)
+    monkeypatch.setattr(window.sheets, "_page_spec", lambda title, default, new: spec)
+    window.sheets.act_new.trigger()
+    page = window.sheets.current_sheet()
+    assert (page.kind, page.frame, page.title_block) == (BLANK, NO_FRAME, "")
+    assert not frame_parts(doc, page) and not title_block_parts(doc, page)
+    assert doc.page_number(page.id) == 17 and doc.page_label(page.id) == "/17"
+    assert doc.page_number(doc.sheets[0].id) == 1  # the others count as before
+    assert window.sheets.tab_text(page).startswith("17 ")
+    loaded = document_from_dict(document_to_dict(doc))
+    assert (loaded.sheets[-1].number, loaded.sheets[-1].frame) == (17, NO_FRAME)
+    # Back to automatic and to a circuit diagram page: frame and title block come back.
+    monkeypatch.setattr(
+        window.sheets, "_page_spec", lambda t, d, n: replace(d, kind="circuit", number=0)
+    )
+    window.sheets.rename_sheet()
+    assert doc.page_number(page.id) == len(doc.sheets)
+    assert page.frame == "schematic" and page.title_block in doc.blocks
+    window.act_undo.trigger()
+    assert page.number == 17 and page.frame == NO_FRAME
+    # The dialog: 0 shows as "automatisch".
+    dialog = PageDialog("Seite", replace(spec, number=0), [], [], new=False)
+    assert dialog.number.text() == "automatisch" and dialog.spec().number == 0
+    window.undo_stack.setClean()

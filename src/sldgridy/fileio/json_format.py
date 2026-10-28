@@ -14,6 +14,7 @@ from sldgridy.model.document import (
     DOC_PROJECT,
     DOC_SLD,
     DRAWING,
+    NO_FRAME,
     PAGE_KINDS,
     SCHEMATIC_FRAME,
     Document,
@@ -598,6 +599,8 @@ def sheet_to_dict(s: SheetLayout) -> dict[str, Any]:
             d[key] = getattr(s, key)
     if s.scale != 1.0:
         d["scale"] = s.scale
+    if s.number:
+        d["number"] = s.number
     return d
 
 
@@ -633,6 +636,7 @@ def sheet_from_dict(s: dict[str, Any]) -> SheetLayout:
         location=str(s.get("location", "")),
         columns=max(0, int(s.get("columns", 0))),
         scale=_page_scale(s.get("scale", 1.0)),
+        number=max(0, int(s.get("number", 0))),
         kind=_choice(s.get("kind", ""), ("", *PAGE_KINDS)),
-        frame=_choice(s.get("frame", ""), ("", SCHEMATIC_FRAME)),
+        frame=_choice(s.get("frame", ""), ("", SCHEMATIC_FRAME, NO_FRAME)),
     )

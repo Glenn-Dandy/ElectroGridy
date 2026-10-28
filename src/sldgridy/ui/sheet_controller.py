@@ -43,10 +43,12 @@ from sldgridy.fileio.templates import TEMPLATE_SUFFIX, load_frame, save_frame
 from sldgridy.i18n import ui_locale
 from sldgridy.model.container import EntityContainer
 from sldgridy.model.document import (
+    BLANK,
     CIRCUIT,
     DOC_PROJECT,
     DRAWING,
     GENERATED_KINDS,
+    NO_FRAME,
     PAGE_FORMAT,
     PROJECT_PAGE_KINDS,
     SCHEMATIC_FRAME,
@@ -739,7 +741,14 @@ class SheetController(QObject):
             )
             sheet.kind = DRAWING
             sheet.plant, sheet.location = spec.plant, spec.location
-            sheet.scale = spec.scale
+            sheet.scale, sheet.number = spec.scale, spec.number
+            return sheet, needed
+        if spec.kind == BLANK:
+            sheet = new_page(
+                BLANK, spec.name, spec.plant, spec.location, spec.paper, spec.orientation
+            )
+            sheet.frame, sheet.title_block, sheet.columns = NO_FRAME, "", 0
+            sheet.scale, sheet.number = spec.scale, spec.number
             return sheet, needed
         sheet = new_page(
             spec.kind, spec.name, spec.plant, spec.location, spec.paper, spec.orientation
@@ -751,7 +760,7 @@ class SheetController(QObject):
             needed.append(schematic_title_block_definition(width, title_labels()))
         if spec.viewport:
             sheet.entities.add(schematic_viewport(w, h))
-        sheet.scale = spec.scale
+        sheet.scale, sheet.number = spec.scale, spec.number
         return sheet, needed
 
     def new_sheet(self) -> None:
@@ -815,6 +824,7 @@ class SheetController(QObject):
             orientation=current.orientation,
             viewport=bool(current.viewports()),
             scale=current.scale,
+            number=current.number,
         )
         new = self._page_spec(self.tr("Seite bearbeiten"), spec, False)
         if new is None:
@@ -827,6 +837,7 @@ class SheetController(QObject):
                 ("plant", new.plant),
                 ("location", new.location),
                 ("scale", new.scale),
+                ("number", new.number),
             )
             if getattr(current, k) != v
         }
@@ -836,10 +847,14 @@ class SheetController(QObject):
             return
         needed = []
         if "kind" in changes:
-            # Drawings keep the drawing frame, every other type gets the circuit
-            # diagram frame (with its title block).
-            schematic = new.kind != DRAWING
-            if schematic and current.frame != SCHEMATIC_FRAME:
+            # Drawings keep the drawing frame, blank pages have none, every other type
+            # gets the circuit diagram frame (with its title block).
+            schematic = new.kind not in (DRAWING, BLANK)
+            if new.kind == BLANK:
+                changes.update(frame=NO_FRAME, title_block="", columns=0)
+            elif new.kind == DRAWING and current.frame == NO_FRAME:
+                changes.update(frame="", title_block=TITLE_BLOCK_NAME)
+            elif schematic and current.frame != SCHEMATIC_FRAME:
                 w, h = current.size
                 width = schematic_title_width(w, h)
                 changes["frame"] = SCHEMATIC_FRAME
@@ -940,7 +955,9 @@ class SheetController(QObject):
             changes["paper"] = paper
         if orientation is not sheet.orientation:
             changes["orientation"] = orientation
-        if title_block is not None:
+        if sheet.frame == NO_FRAME:
+            pass  # blank pages have no title block
+        elif title_block is not None:
             if title_block != sheet.title_block:
                 changes["title_block"] = title_block
         elif sheet.frame == SCHEMATIC_FRAME and changes:

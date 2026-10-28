@@ -58,6 +58,9 @@ class SheetLayout:
     # Drawing scale of the page (paper mm per real mm, 0.2 = 1:5): symbols placed on it
     # shrink, typed lengths and dimensions are real millimetres (enclosure layouts).
     scale: float = 1.0
+    # Page number typed by hand (a page taken over from another plan keeps its number);
+    # 0 = its place in the project.
+    number: int = 0
 
     @property
     def size(self) -> tuple[float, float]:
@@ -70,15 +73,17 @@ class SheetLayout:
 PAGE_FORMAT = "A4"  # prints 1:1 with 5/5/5/15 mm margins (see sheet.schematic_margins)
 PAGE_COLUMNS = 10
 SCHEMATIC_FRAME = "schematic"
+NO_FRAME = "none"  # a blank page: no frame, no title block
 
 # Page types and their names (German source text, translated in the user interface).
 COVER, TOC, OVERVIEW, CIRCUIT = "cover", "toc", "overview", "circuit"
-ENCLOSURE, TERMINALS, CABLES, PARTS, DRAWING = (
+ENCLOSURE, TERMINALS, CABLES, PARTS, DRAWING, BLANK = (
     "enclosure",
     "terminals",
     "cables",
     "parts",
     "drawing",
+    "blank",
 )
 PAGE_KINDS = {
     COVER: "Deckblatt",
@@ -90,6 +95,7 @@ PAGE_KINDS = {
     CABLES: "Kabelliste",
     PARTS: "Stückliste",
     DRAWING: "Zeichnung",
+    BLANK: "Leere Seite",
 }
 # Pages whose content is generated from the project (and kept up to date).
 GENERATED_KINDS = (COVER, TOC, TERMINALS, CABLES, PARTS)
@@ -269,8 +275,9 @@ class Document:
     # -- page numbers -----------------------------------------------------------
 
     def page_number(self, sheet_id: str) -> int:
-        """Pages are numbered through the whole project."""
-        return self.sheet_index(sheet_id) + 1
+        """Pages are numbered through the whole project, unless typed by hand."""
+        index = self.sheet_index(sheet_id)
+        return self.sheets[index].number or index + 1
 
     def page_label(self, sheet_id: str) -> str:
         """ "/3" for page 3."""
