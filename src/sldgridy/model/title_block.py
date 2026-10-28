@@ -147,13 +147,21 @@ SCHEMATIC_TITLE_PREFIX = "Schriftfeld Schaltplan"
 # all as wide as each other (Florian 2026-10-28).
 _REVISION_COLUMNS = (15.0, 18.0, 18.0, 18.0, 18.0)
 _REVISION = sum(_REVISION_COLUMNS)
-_NUMBER = 30.0  # circuit diagram number, page type and title
-_RIGHT = 70.0  # plant, location, sheet number
-# Logo at the top right of the company and customer fields, the name below it across
-# the field (side by side they do not fit on A4).
-LOGO_WIDTH = 22.0
-LOGO_TOP, LOGO_BOTTOM = -19.4, -9.6
-NAME_Y = -7.6
+# Page type cell at the right: as wide as the longest type ("Übersichtsschaltbild" is
+# 34.6 mm at 2.5 mm), then sheet / of; plant and location above both. The circuit
+# diagram number with the project title below (short: "TST", "PV-Anlage") has a fixed
+# width; company and customer share the rest (Florian 2026-10-28).
+_TYPE = 37.0
+_SHEET = 18.0
+_RIGHT = _TYPE + _SHEET
+_NUMBER = 35.0
+_COMPANY_MIN = 30.0
+# A logo fills the height of the company or customer field, not distorted, at its left;
+# the name follows right of it, made smaller until it fits (``schematic_text_boxes``).
+LOGO_TOP, LOGO_BOTTOM = -19.4, -5.6
+LOGO_SHARE = 0.5  # with a name the logo takes at most half the field
+NAME_Y = -12.5
+NAME_GAP = 1.5  # between logo and name
 SMALL = 1.8
 VALUE = 2.5
 BIG = 3.5
@@ -168,20 +176,32 @@ def _schematic_columns(width: float) -> tuple[float, float, float, float, float]
     left = -width
     x_company = left + _REVISION
     x_right = -_RIGHT
-    x_number = max(x_right - _NUMBER, x_company + 80.0)  # very narrow: still two fields
-    x_customer = round((x_company + x_number) / 2, 3)
+    company = max(_COMPANY_MIN, (x_right - _NUMBER - x_company) / 2)
+    x_customer = round(x_company + company, 3)
+    x_number = round(x_customer + company, 3)
     return left, x_company, x_customer, x_number, x_right
+
+
+def schematic_text_boxes(width: float) -> dict[str, tuple[float, float, float]]:
+    """Texts whose size follows their field: left and right end of the room (block
+    coordinates) and the largest height. The name of company and customer starts
+    after a logo, the project title stands in the middle (a few letters: large)."""
+    _left, x_company, x_customer, x_number, x_right = _schematic_columns(width)
+    return {
+        "FIRMA": (x_company + 2.0, x_customer - 1.0, VALUE),
+        "KUNDE": (x_customer + 2.0, x_number - 1.0, VALUE),
+        "PROJEKT": (x_number + 1.0, x_right - 1.0, 5.0),
+    }
 
 
 def schematic_logo_boxes(width: float) -> dict[str, tuple[Point, Point]]:
     """Where the logos of company and customer go (block coordinates, top left and
-    bottom right): top right in each field, above the name."""
+    bottom right): the field above the "replaced" row."""
     _left, x_company, x_customer, x_number, _right = _schematic_columns(width)
-    boxes = {}
-    for start, right, tag in ((x_company, x_customer, "FIRMA"), (x_customer, x_number, "KUNDE")):
-        w = min(LOGO_WIDTH, (right - start) * 0.5)
-        boxes[tag] = (Point(right - 0.6 - w, LOGO_TOP), Point(right - 0.6, LOGO_BOTTOM))
-    return boxes
+    return {
+        tag: (Point(start + 0.6, LOGO_TOP), Point(right - 0.6, LOGO_BOTTOM))
+        for start, right, tag in ((x_company, x_customer, "FIRMA"), (x_customer, x_number, "KUNDE"))
+    }
 
 
 # Document properties naming the logo block of company and customer.
@@ -205,9 +225,11 @@ def logo_references(
         if box is None or box[2] - box[0] <= 0 or box[3] - box[1] <= 0:
             continue
         x0, y0, x1, y1 = box
-        k = min((b.x - a.x) / (x1 - x0), (b.y - a.y) / (y1 - y0))
-        # The logo's middle onto the middle of the box.
-        cx, cy = (a.x + b.x) / 2 + insert.x, (a.y + b.y) / 2 + insert.y
+        room = (b.x - a.x) * (LOGO_SHARE if properties.get(tag, "").strip() else 1.0)
+        k = min(room / (x1 - x0), (b.y - a.y) / (y1 - y0))
+        # At the left of the field, in the middle of its height.
+        cx = a.x + insert.x + (x1 - x0) * k / 2
+        cy = (a.y + b.y) / 2 + insert.y
         base = definition.base_point
         ref = BlockReference(
             id=f"logo_{tag.lower()}",
@@ -286,34 +308,32 @@ def schematic_title_block_definition(
     attribute("AENDNAME", cols[2] + 0.8, -7.5, SMALL + 0.2)
     # Company with "replaced by" below, customer with "replaces" below.
     line(x_company, -5, x_number, -5)
-    for x, tag, caption, replaced, replaced_tag in (
-        (x_company, "FIRMA", labels["FIRMA"], labels["_REPLACED"], "ERSD"),
-        (x_customer, "KUNDE", labels["KUNDE"], labels["_REPLACES"], "ERSF"),
+    for x, tag, replaced, replaced_tag in (
+        (x_company, "FIRMA", labels["_REPLACED"], "ERSD"),
+        (x_customer, "KUNDE", labels["_REPLACES"], "ERSF"),
     ):
-        text(x + 0.8, -17.6, caption)
         attribute(tag, x + 2, NAME_Y, VALUE)
         text(x + 0.8, -1.4, replaced)
         attribute(replaced_tag, x + 9, -2.5, SMALL + 0.2)
-    # Circuit diagram number, page type and page title.
+    # Circuit diagram number, below it the project title (one text, in the middle).
     line(x_number, -10, x_right, -10)
     text(x_number + 0.8, -16.6, labels["SCHALTPLANNR"] + ":")
     attribute("SCHALTPLANNR", x_number + 1.5, -12.5, VALUE)
-    attribute("SEITENTYP", x_number + 1.5, -6.8, SMALL + 0.2)
-    attribute("TITEL", x_number + 1.5, -2.5, SMALL + 0.2)
-    # Plant, location, sheet x of y.
+    attribute("PROJEKT", (x_number + x_right) / 2, -5.0, BIG, "center")
+    # Plant, location; page type (in the middle) and sheet x of y.
     for y in (-15.0, -10.0):
         line(x_right, y, 0, y)
-    line(-30, -10, -30, 0)
-    line(-30, -5, 0, -5)
+    line(-_SHEET, -10, -_SHEET, 0)
+    line(-_SHEET, -5, 0, -5)
+    attribute("SEITENTYP", x_right + _TYPE / 2, -5.0, VALUE, "center")
     text(x_right + 0.8, -16.6, labels["ANLAGE"] + ":")
-    attribute("ANLAGE", x_right + 12, -17.5, VALUE)
+    attribute("ANLAGE", x_right + 11, -17.5, VALUE)
     text(x_right + 0.8, -11.6, labels["ORT"] + ":")
-    attribute("ORT", x_right + 12, -12.5, VALUE)
-    attribute("FORMAT", x_right + 1, -5.0, SMALL + 0.2)
-    text(-29.2, -6.6, labels["BLATTNR"] + ":")
-    attribute("BLATTNR", -18, -7.5, VALUE)
-    text(-29.2, -1.6, labels["VON"])
-    attribute("VON", -18, -2.5, VALUE)
+    attribute("ORT", x_right + 11, -12.5, VALUE)
+    text(-_SHEET + 0.8, -6.6, labels["BLATTNR"] + ":")
+    attribute("BLATTNR", -_SHEET + 9, -7.5, VALUE)
+    text(-_SHEET + 0.8, -1.6, labels["VON"])
+    attribute("VON", -_SHEET + 9, -2.5, VALUE)
     return BlockDefinition(
         name=schematic_title_block_name(width),
         base_point=Point(0, 0),

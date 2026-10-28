@@ -84,6 +84,7 @@ from sldgridy.model.entities import (
 from sldgridy.model.geometry import Point
 from sldgridy.model.interruptions import interruption_geometry, partner, unpaired_names
 from sldgridy.model.layers import DEFAULT_LAYER
+from sldgridy.model.paper import Orientation
 from sldgridy.model.routing import GRID
 from sldgridy.model.sheet import schematic_inner
 from sldgridy.model.snap import ALL_MODES, SnapHit, SnapMode
@@ -1030,6 +1031,9 @@ class MainWindow(QMainWindow):
         )
         self.lbl_position.setMinimumWidth(width)
         self.lbl_layer = QLabel(self.tr("Ebene: {name}").format(name=DEFAULT_LAYER))
+        # Format of the page shown (A4 quer …), empty in the model.
+        self.lbl_paper = QLabel()
+        self.lbl_paper.setToolTip(self.tr("Format des Blatts; ändern über Seite > Format"))
         # Click: zoom steps, fit and a value of one's own.
         self.lbl_zoom = QToolButton()
         self.lbl_zoom.setAutoRaise(True)
@@ -1072,6 +1076,7 @@ class MainWindow(QMainWindow):
                 self.btn_osnap = button
             status.addPermanentWidget(button)
         status.addPermanentWidget(self.lbl_layer)
+        status.addPermanentWidget(self.lbl_paper)
         status.addPermanentWidget(self.lbl_zoom)
         self._show_cursor_position(QPointF(0.0, 0.0))
 
@@ -1367,6 +1372,15 @@ class MainWindow(QMainWindow):
         self._refresh_all_spaces()  # items keep their resolved colours
         self.canvas.resetCachedContent()
 
+    def _show_paper(self) -> None:
+        sheets = getattr(self, "sheets", None)
+        sheet = sheets.current_sheet() if sheets is not None else None
+        if sheet is None:
+            self.lbl_paper.clear()
+            return
+        turn = self.tr("quer") if sheet.orientation is Orientation.LANDSCAPE else self.tr("hoch")
+        self.lbl_paper.setText(f"{sheet.paper} {turn}")
+
     def _update_title(self) -> None:
         name = self.file_path.name if self.file_path else self.tr("Unbenannt")
         suffix = ""
@@ -1375,6 +1389,7 @@ class MainWindow(QMainWindow):
         kind = self.tr(DOC_KINDS.get(self.document.kind, ""))
         self.setWindowTitle(f"{name}[*] ({kind}){suffix} - {APP_NAME}")
         self.setWindowModified(not self.undo_stack.isClean())
+        self._show_paper()  # called on every change of page or space as well
 
     def _maybe_save(self) -> bool:
         """Ask to save unsaved changes. False means the user cancelled."""

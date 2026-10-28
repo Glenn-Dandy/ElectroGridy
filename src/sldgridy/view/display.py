@@ -43,10 +43,16 @@ from sldgridy.model.sheet import (
 )
 from sldgridy.model.terminal_plan import terminal_plan
 from sldgridy.model.terminals import row_labels, terminal_center
-from sldgridy.model.title_block import CAPTIONS, FIELD_LABELS, logo_references
+from sldgridy.model.title_block import (
+    CAPTIONS,
+    FIELD_LABELS,
+    NAME_GAP,
+    logo_references,
+    schematic_text_boxes,
+)
 from sldgridy.model.wires import junction_diameter, junctions, label_text
 from sldgridy.view import theme
-from sldgridy.view.render import Style, entity_bounds, make_pen, paint_entity
+from sldgridy.view.render import Style, entity_bounds, make_pen, paint_entity, text_width
 
 BLACK = QColor("black")
 VIEWPORT_HELPER_COLOR = QColor("#8a8a8a")
@@ -349,18 +355,58 @@ def title_block_parts(doc: Document, sheet: SheetLayout) -> list[Entity]:
         portrait=QCoreApplication.translate("display", "hoch"),
         kinds=kind_names(),
     )
-    ref = title_block_reference(sheet.title_block, w, h, values)
     logos = []
     if sheet.frame == SCHEMATIC_FRAME:
-        ref = replace(ref, insert=schematic_title_insert(w, h))
-        logos = logo_references(doc.properties, doc.blocks, schematic_title_width(w, h), ref.insert)
+        insert = schematic_title_insert(w, h)
+        logos = logo_references(doc.properties, doc.blocks, schematic_title_width(w, h), insert)
+    ref = title_block_reference(sheet.title_block, w, h, values)
+    if sheet.frame == SCHEMATIC_FRAME:
+        ref = replace(ref, insert=insert)
     try:
         parts = expand(ref, doc.blocks)
+        logo_right: dict[str, float] = {}
         for logo in logos:
-            parts += expand(logo, doc.blocks)
-        return parts
+            drawn = expand(logo, doc.blocks)
+            box = bounds(drawn)
+            if box is not None:
+                logo_right[logo.id.removeprefix("logo_").upper()] = box[2]
+            parts += drawn
     except BlockError:
         return []
+    if sheet.frame == SCHEMATIC_FRAME:
+        parts = _fitted_texts(parts, schematic_title_width(w, h), insert, logo_right)
+    return parts
+
+
+MIN_FITTED_HEIGHT = 1.2  # mm: smaller is not readable on paper
+
+
+def _fitted_texts(
+    parts: list[Entity], width: float, insert: Point, logo_right: dict[str, float]
+) -> list[Entity]:
+    """Company, customer and project title as large as their field allows: the name
+    starts after a logo and shrinks until it fits, the project title fills its field."""
+    boxes = schematic_text_boxes(width)
+    out = []
+    for part in parts:
+        tag = part.id.removeprefix("att_").upper() if isinstance(part, Text) else ""
+        if tag not in boxes or not part.text.strip():
+            out.append(part)
+            continue
+        left, right, largest = boxes[tag]
+        left, right = left + insert.x, right + insert.x
+        if tag in logo_right:
+            left = max(left, logo_right[tag] + NAME_GAP)
+        unit = text_width(part.text, 1.0)
+        height = min(largest, (right - left) / unit) if unit > 0 else largest
+        height = max(height, MIN_FITTED_HEIGHT)
+        if part.halign == "center":
+            out.append(
+                replace(part, height=height, position=Point((left + right) / 2, part.position.y))
+            )
+        else:
+            out.append(replace(part, height=height, position=Point(left, part.position.y)))
+    return out
 
 
 def frame_parts(doc: Document, sheet: SheetLayout, helpers: bool = False) -> list[Entity]:

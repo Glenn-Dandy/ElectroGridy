@@ -747,3 +747,41 @@ def test_logo_dialog_shows_the_library(qapp):
     dialog._none()
     assert dialog.chosen() == ""
     assert not LogoDialog("", lambda: {}, None).empty.isHidden()
+
+
+def test_title_block_texts_fit_their_fields(qapp):
+    from PyQt6.QtGui import QColor, QImage
+
+    from sldgridy.model.blocks import BlockDefinition
+    from sldgridy.model.container import EntityContainer
+    from sldgridy.model.entities import RasterImage, Text
+    from sldgridy.ui.picture_import import picture_entity
+    from sldgridy.view.display import title_block_parts
+    from sldgridy.view.render import text_width
+
+    doc = Document.new_project()
+    page = doc.sheets[1]
+    image = QImage(300, 300, QImage.Format.Format_ARGB32)
+    image.fill(QColor("#2e7d32"))
+    doc.blocks["Logo"] = BlockDefinition(
+        "Logo", entities=EntityContainer([picture_entity(image, 40, False)]), category="Logos"
+    )
+    long_name = "Stadtwerke Musterstadt GmbH"
+    doc.properties.update({"KUNDE": long_name, "KUNDE_LOGO": "Logo", "PROJEKT": "TST"})
+    parts = title_block_parts(doc, page)
+    texts = {p.text: p for p in parts if isinstance(p, Text)}
+    (logo,) = [p for p in parts if isinstance(p, RasterImage)]
+    name, project = texts[long_name], texts["TST"]
+    assert name.position.x > max(logo.p1.x, logo.p2.x)  # right of the logo
+    assert 1.2 < name.height < 2.5  # made smaller until it fits
+    from sldgridy.model.title_block import schematic_text_boxes
+
+    width = schematic_title_width(*page.size)
+    right = schematic_text_boxes(width)["KUNDE"][1] + schematic_inner(*page.size)[1].x
+    assert name.position.x + text_width(name.text, name.height) <= right + 0.01
+    # Far too long: not below the readable height.
+    doc.properties["KUNDE"] = "Stadtwerke Musterstadt Netzgesellschaft mbH und Co. KG"
+    parts = title_block_parts(doc, page)
+    assert min(p.height for p in parts if isinstance(p, Text) and p.id == "att_kunde") == 1.2
+    assert project.height == 5.0  # a few letters: large
+    assert "A4 quer" not in texts and "Stromlaufplan" in texts  # page type, no format

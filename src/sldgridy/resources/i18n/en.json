@@ -1016,5 +1016,6 @@
  "Logo importieren …": "Import logo …",
  "Logo {name} in „Eigene Logos“ gespeichert": "Logo {name} saved in \"My logos\"",
  "Noch keine Logos. Mit „Logo importieren …“ eines in „Eigene Logos“ ablegen.": "No logos yet. \"Import logo …\" puts one into \"My logos\".",
- "Einfügepunkt (Bezugspunkt von Texten)": "Insertion point (reference point of texts)"
+ "Einfügepunkt (Bezugspunkt von Texten)": "Insertion point (reference point of texts)",
+ "Format des Blatts; ändern über Seite > Format": "Format of the sheet; change it under Page > Format"
 }

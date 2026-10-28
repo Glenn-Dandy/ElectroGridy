@@ -137,6 +137,11 @@ def _text_scale(height: float) -> float:
     return height / _metrics().capHeight()
 
 
+def text_width(text: str, height: float) -> float:
+    """Width in mm of one line of text ``height`` mm high."""
+    return _advance(text) * _text_scale(height)
+
+
 def _text_lines(e: Text) -> list[str]:
     return e.text.split("\n")
 
