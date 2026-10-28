@@ -259,7 +259,7 @@ def test_import_dialog_with_a_cad_pdf(qapp, tmp_path):
     # Mark the right half: the width follows, the box on the left stays out.
     scene = dialog.view.scene().sceneRect()
     dialog.view.region = QRectF(scene.width() / 2, 0, scene.width() / 2, scene.height())
-    dialog._region_changed()
+    dialog.view.region_changed.emit()
     assert abs(dialog.width_mm.value() - 148.5) < 0.2
     assert not [e for e in dialog.entities() if isinstance(e, Rectangle)]
     dialog.mode.setCurrentIndex(dialog.mode.findData(PICTURE))
@@ -318,6 +318,39 @@ def test_dark_background_and_slanted_photo(qapp):
     )
     total = len(range(5, straight.width() - 5, 10)) * len(range(5, straight.height() - 5, 10))
     assert dark == total
+
+
+def test_marked_region_keeps_the_scale(qapp, tmp_path):
+    """Whole sheet or only the drawing inside: same size in the drawing (1.3.2.dev4 kept
+    the width of the whole sheet for a smaller region and enlarged it)."""
+    from PyQt6.QtCore import QPoint, QPointF, Qt
+    from PyQt6.QtGui import QColor, QImage
+    from PyQt6.QtTest import QTest
+
+    from sldgridy.ui.picture_import import PICTURE_WIDTH, ImportDialog
+
+    image = QImage(600, 300, QImage.Format.Format_RGB32)
+    image.fill(QColor("white"))
+    path = tmp_path / "plan.png"
+    image.save(str(path))
+    dialog = ImportDialog(path)
+    dialog.show()
+    view = dialog.view
+
+    def drag(x1, x2):
+        a = view.mapFromScene(QPointF(x1, 50))
+        b = view.mapFromScene(QPointF(x2, 250))
+        QTest.mousePress(view.viewport(), Qt.MouseButton.LeftButton, pos=a)
+        QTest.mouseMove(view.viewport(), b)
+        QTest.mouseRelease(view.viewport(), Qt.MouseButton.LeftButton, pos=b)
+
+    assert dialog.width_mm.value() == pytest.approx(PICTURE_WIDTH)
+    drag(150, 450)  # the middle half
+    assert dialog.width_mm.value() == pytest.approx(PICTURE_WIDTH / 2, abs=1)
+    dialog.width_mm.setValue(PICTURE_WIDTH)  # typed: twice as large
+    QTest.mouseClick(view.viewport(), Qt.MouseButton.LeftButton, pos=QPoint(10, 10))  # all
+    assert dialog.width_mm.value() == pytest.approx(2 * PICTURE_WIDTH, abs=2)
+    dialog.close()
 
 
 def test_import_dialog_corners_can_be_dragged(qapp, tmp_path):

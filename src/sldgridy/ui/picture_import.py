@@ -11,7 +11,7 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
-from PyQt6.QtCore import QBuffer, QIODevice, QPointF, QRectF, QSize, Qt
+from PyQt6.QtCore import QBuffer, QIODevice, QPointF, QRectF, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import (
     QBrush,
     QColor,
@@ -462,6 +462,8 @@ class RegionView(QGraphicsView):
     ``movable_corners`` each corner of the region can then be dragged on its own, onto
     the corners of a sheet photographed at a slant."""
 
+    region_changed = pyqtSignal()  # by the user, after the mouse is released
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setScene(QGraphicsScene(self))
@@ -566,9 +568,7 @@ class RegionView(QGraphicsView):
                 self.region = self.scene().sceneRect()
         else:
             return
-        changed = getattr(self.parent(), "_region_changed", None)
-        if changed is not None:
-            changed()
+        self.region_changed.emit()
 
 
 @dataclass
@@ -612,6 +612,9 @@ class ImportDialog(QDialog):
         self.width_mm.setRange(10.0, 5000.0)
         self.width_mm.setDecimals(1)
         self.width_mm.setSuffix(" mm")
+        # The scale stays when the region changes (1 = a PDF at its size on paper,
+        # a picture PICTURE_WIDTH wide); a typed width changes it.
+        self._factor = 1.0
         self.hint = QLabel()
         self.hint.setWordWrap(True)
         buttons = QDialogButtonBox(
@@ -644,6 +647,8 @@ class ImportDialog(QDialog):
 
         self.mode.currentIndexChanged.connect(self._mode_changed)
         self.pages.currentRowChanged.connect(self._show_page)
+        self.view.region_changed.connect(self._region_changed)
+        self.width_mm.valueChanged.connect(self._width_typed)
         if pdf is not None:
             for i in range(pages):
                 item = QListWidgetItem(QIcon(QPixmap.fromImage(self._render(i, 20))), str(i + 1))
@@ -723,14 +728,23 @@ class ImportDialog(QDialog):
             r.height() / scene.height(),
         )
 
-    def _region_changed(self) -> None:
-        f = self._region_fraction()
+    def _page_width(self) -> float:
+        """Width of the whole page or picture in mm at scale 1."""
         if self.source.pdf is not None:
-            size = self.source.pdf.pagePointSize(self.page)
-            width = f.width() * size.width() * pdf_import.MM_PER_PT
-        else:
-            width = PICTURE_WIDTH * f.width()
+            return self.source.pdf.pagePointSize(self.page).width() * pdf_import.MM_PER_PT
+        return PICTURE_WIDTH
+
+    def _region_changed(self) -> None:
+        """The marked region at the current scale."""
+        width = self._region_fraction().width() * self._page_width() * self._factor
+        self.width_mm.blockSignals(True)
         self.width_mm.setValue(round(width, 1))
+        self.width_mm.blockSignals(False)
+
+    def _width_typed(self, width: float) -> None:
+        full = self._region_fraction().width() * self._page_width()
+        if full > 0:
+            self._factor = width / full
 
     def _mode_changed(self, *_args) -> None:
         mode = self.mode.currentData()
