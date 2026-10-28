@@ -1,6 +1,7 @@
 """Locations of shipped and user data."""
 
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -59,3 +60,8 @@ def fonts_dir() -> Path:
 def symbols_dir() -> Path:
     """Symbols the program places itself (terminals); always inside the module."""
     return _MODULE_DIR / "resources" / "symbols"
+
+
+def safe_file_name(name: str) -> str:
+    """``name`` as part of a file name: letters, digits, - and _ only."""
+    return re.sub(r"[^\w\-]+", "_", name.strip()).strip("_")

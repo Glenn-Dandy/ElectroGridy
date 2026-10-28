@@ -64,8 +64,10 @@ def load_document(path: Path) -> Document:
     return document_from_dict(_read_json(path))
 
 
-def save_library(blocks: list[BlockDefinition], path: Path, name: str = "") -> None:
-    write_json_atomic(Path(path), library_to_dict(blocks, name))
+def save_library(
+    blocks: list[BlockDefinition], path: Path, name: str = "", workspace: str = ""
+) -> None:
+    write_json_atomic(Path(path), library_to_dict(blocks, name, workspace))
 
 
 def load_library(path: Path) -> tuple[str, list[BlockDefinition]]:

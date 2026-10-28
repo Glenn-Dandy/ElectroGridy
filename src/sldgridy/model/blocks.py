@@ -369,3 +369,18 @@ def dock_target(
         and min_y - tolerance <= local.y <= max_y + tolerance
     )
     return local if inside else None
+
+
+def rename_references(definition: BlockDefinition, mapping: dict[str, str]) -> BlockDefinition:
+    """``definition`` with nested references renamed by ``mapping`` (old: new)."""
+    if not mapping:
+        return definition
+    entities = [
+        replace(e, name=mapping[e.name])
+        if isinstance(e, BlockReference) and e.name in mapping
+        else e
+        for e in definition.entities
+    ]
+    copy = definition.copy()
+    copy.entities = EntityContainer(entities)
+    return copy

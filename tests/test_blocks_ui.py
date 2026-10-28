@@ -549,3 +549,97 @@ def test_block_editor_returns_to_the_page_it_came_from(window):
     window.blocks.open_editor("Sicherung")
     window.blocks.close_editor(save=False)
     assert window.space is origin
+
+
+def test_merged_library_keeps_replaces_or_renames():
+    from sldgridy.fileio.library_merge import KEEP, RENAME, REPLACE, merged_library
+
+    there = fuse()
+    there.entities.remove("c")  # another "Sicherung"
+    incoming = list(blocks().values())
+    asked = []
+
+    def answer(action, name=""):
+        def decide(old, new):
+            asked.append(new.name)
+            return action, name
+
+        return decide
+
+    kept = {b.name: b for b in merged_library([there], incoming, answer(KEEP))}
+    assert kept["Sicherung"] is there and "Feld" in kept and asked == ["Sicherung"]
+    replaced = {b.name: b for b in merged_library([there], incoming, answer(REPLACE))}
+    assert "c" in replaced["Sicherung"].entities
+    renamed = {b.name: b for b in merged_library([there], incoming, answer(RENAME, "Sich 2"))}
+    assert renamed["Sicherung"] is there and "c" in renamed["Sich 2"].entities
+    nested = {e.name for e in renamed["Feld"].entities if isinstance(e, BlockReference)}
+    assert nested == {"Sich 2"}  # the imported panel uses the imported fuse
+    asked.clear()
+    assert merged_library([fuse()], incoming, answer(KEEP)) is not None and not asked  # equal
+    assert merged_library([there], incoming, lambda *a: None) is None  # cancelled
+
+
+def test_import_library_into_my_symbols_or_a_new_one(window, monkeypatch, tmp_path):
+    from sldgridy.ui.library_transfer import (
+        NEW,
+        USER,
+        BlockConflictDialog,
+        ImportTargetDialog,
+    )
+
+    source = tmp_path / "fremd.sldglib"
+    save_library(list(blocks().values()), source, "Fremde Symbole", "mld")
+    target = [USER, ""]
+    monkeypatch.setattr(ImportTargetDialog, "exec", lambda self: 1)
+    monkeypatch.setattr(ImportTargetDialog, "values", lambda self: tuple(target))
+    window.blocks.import_library_file(source)
+    title, mine = load_library(user_library_dir() / "eigene.sldglib")
+    assert {b.name for b in mine} >= {"Feld", "Sicherung"}
+    assert next(b for b in mine if b.name == "Sicherung").category == "Schalten"
+    # Again with a changed fuse: both are compared, the new one gets another name.
+    changed = fuse()
+    changed.entities.remove("c")
+    save_library([changed], source, "Fremde Symbole")
+    shown = {}
+
+    def rename(self):
+        shown["names"] = (self.name.text(), self._taken)
+        self.action = "rename"
+        return 1
+
+    monkeypatch.setattr(BlockConflictDialog, "exec", rename)
+    window.blocks.import_library_file(source)
+    _, mine = load_library(user_library_dir() / "eigene.sldglib")
+    assert shown["names"][0] == "Sicherung (2)"
+    assert {"Sicherung", "Sicherung (2)"} <= {b.name for b in mine}
+    # As a library of its own: keeps its workspace (shown in projects only).
+    from sldgridy.fileio.files import library_workspace
+
+    save_library(list(blocks().values()), source, "Fremde Symbole", "mld")
+    target[:] = [NEW, "Kunde X"]
+    window.blocks.import_library_file(source)
+    path = user_library_dir() / "Kunde_X.sldglib"
+    assert load_library(path)[0] == "Kunde X" and library_workspace(path) == "mld"
+
+
+def test_export_whole_library_category_or_blocks(window, monkeypatch, tmp_path):
+    from sldgridy.ui.library_transfer import ExportDialog
+
+    with_blocks(window)
+    window.library_dock.reload()
+    sources = [("Zeichnung", blocks())]
+    dialog = ExportDialog(sources)
+    assert sorted(dialog.names()) == ["Feld", "Sicherung"]
+    dialog.category_choice.setChecked(True)
+    dialog.category.setCurrentIndex(dialog.category.findData("Schalten"))
+    assert dialog.names() == ["Sicherung"]
+    dialog.check(["Feld"])
+    assert dialog.chosen_names() == ["Feld"]
+    assert sorted(dialog.names()) == ["Feld", "Sicherung"]  # the nested fuse comes along
+    out = tmp_path / "export.sldglib"
+    monkeypatch.setattr(ExportDialog, "exec", lambda self: (self.check(["Sicherung"]), 1)[1])
+    monkeypatch.setattr(
+        "PyQt6.QtWidgets.QFileDialog.getSaveFileName", lambda *a, **k: (str(out), "")
+    )
+    window.blocks.export_library()
+    assert [b.name for b in load_library(out)[1]] == ["Sicherung"]

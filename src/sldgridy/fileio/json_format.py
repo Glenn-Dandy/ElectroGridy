@@ -439,13 +439,18 @@ def block_signature(b: BlockDefinition) -> dict[str, Any]:
     return d
 
 
-def library_to_dict(blocks: list[BlockDefinition], name: str = "") -> dict[str, Any]:
-    return {
+def library_to_dict(
+    blocks: list[BlockDefinition], name: str = "", workspace: str = ""
+) -> dict[str, Any]:
+    d = {
         "format_version": BASE_VERSION,
         "type": "library",
         "name": name,
         "blocks": [block_to_dict(b) for b in blocks],
     }
+    if workspace:
+        d["workspace"] = workspace  # the file kinds it is shown in ("sld", "mld" …)
+    return d
 
 
 def library_from_dict(data: dict[str, Any]) -> tuple[str, list[BlockDefinition]]:

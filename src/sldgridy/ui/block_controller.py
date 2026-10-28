@@ -1,8 +1,6 @@
 """Block related commands of the main window: create, insert, explode, edit, libraries."""
 
 import math
-import re
-import shutil
 from collections import ChainMap
 from collections.abc import Callable, Mapping
 from dataclasses import replace
@@ -38,14 +36,15 @@ from sldgridy.commands.entities import (
     ReplaceEntitiesCommand,
 )
 from sldgridy.fileio.dxf import DxfError, read_dxf
-from sldgridy.fileio.files import LIBRARY_SUFFIX, load_library, save_library
+from sldgridy.fileio.files import LIBRARY_SUFFIX, library_workspace, load_library, save_library
 from sldgridy.fileio.json_format import (
     FileFormatError,
     block_from_dict,
     block_signature,
     block_to_dict,
 )
-from sldgridy.fileio.paths import user_library_dir
+from sldgridy.fileio.library_merge import merged_library
+from sldgridy.fileio.paths import safe_file_name, user_library_dir
 from sldgridy.i18n import library_text
 from sldgridy.model.blocks import (
     BlockDefinition,
@@ -54,6 +53,7 @@ from sldgridy.model.blocks import (
     dependencies,
     expand,
     explode,
+    rename_references,
     world_connections,
     would_create_cycle,
 )
@@ -84,6 +84,13 @@ from sldgridy.ui.block_dialogs import (
     CreateBlockDialog,
     ask_block_conflict,
 )
+from sldgridy.ui.library_dock import DOCUMENT_SOURCE
+from sldgridy.ui.library_transfer import (
+    NEW,
+    BlockConflictDialog,
+    ExportDialog,
+    ImportTargetDialog,
+)
 from sldgridy.ui.space import BLOCK, Space
 
 if TYPE_CHECKING:
@@ -99,20 +106,6 @@ def unique_name(name: str, taken: Mapping[str, object]) -> str:
     while f"{name} ({n})" in taken:
         n += 1
     return f"{name} ({n})"
-
-
-def rename_references(definition: BlockDefinition, mapping: dict[str, str]) -> BlockDefinition:
-    if not mapping:
-        return definition
-    entities = [
-        replace(e, name=mapping[e.name])
-        if isinstance(e, BlockReference) and e.name in mapping
-        else e
-        for e in definition.entities
-    ]
-    copy = definition.copy()
-    copy.entities = EntityContainer(entities)
-    return copy
 
 
 def default_attributes(definition: BlockDefinition) -> tuple[tuple[str, str], ...]:
@@ -1093,7 +1086,7 @@ class BlockController(QObject):
                 file=source.name
             )
             chosen.append(d)
-        safe = re.sub(r"[^\w\-]+", "_", source.stem).strip("_") or "dxf_import"
+        safe = safe_file_name(source.stem) or "dxf_import"
         target = user_library_dir() / f"{safe}{LIBRARY_SUFFIX}"
         existing: list[BlockDefinition] = []
         if target.exists():
@@ -1142,45 +1135,112 @@ class BlockController(QObject):
             self.w.last_dir(),
             self.tr("SLDGridy-Bibliothek (*{suffix})").format(suffix=LIBRARY_SUFFIX),
         )
-        if not name:
-            return
-        source = Path(name)
+        if name:
+            self.import_library_file(Path(name))
+
+    def import_library_file(self, source: Path) -> None:
+        """Into "Eigene Symbole" or a library of its own; taken names are asked."""
         try:
-            load_library(source)
+            title, incoming = load_library(source)
         except (OSError, FileFormatError) as exc:
             QMessageBox.critical(self.w, self.tr("Bibliothek"), str(exc))
             return
-        target = user_library_dir() / source.name
-        if target.exists() and not target.samefile(source):
-            answer = QMessageBox.question(
-                self.w,
-                self.tr("Bibliothek"),
-                self.tr("{name} gibt es in der Benutzerbibliothek schon. Ersetzen?").format(
-                    name=source.name
-                ),
-            )
-            if answer != QMessageBox.StandardButton.Yes:
+        title = title or source.stem
+        dialog = ImportTargetDialog(library_text(title), len(incoming), self.w)
+        if dialog.exec() != ImportTargetDialog.DialogCode.Accepted:
+            return
+        target, new_title = dialog.values()
+        workspace = ""
+        if target == NEW:
+            path = user_library_dir() / (safe_file_name(new_title) + LIBRARY_SUFFIX)
+            title, workspace = new_title, library_workspace(source)
+        else:
+            path = user_library_dir() / USER_LIBRARY_FILE
+            title = self.tr("Eigene Symbole")
+        existing: list[BlockDefinition] = []
+        if path.exists():
+            loaded = self._load_user_library(path)
+            if loaded is None:
                 return
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if not (target.exists() and target.samefile(source)):
-            shutil.copyfile(source, target)
+            title, existing = loaded[0] or title, loaded[1]
+            workspace = library_workspace(path)
+        merged = merged_library(existing, incoming, self._conflict_asker(existing, incoming, title))
+        if merged is None:
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        save_library(merged, path, title, workspace)
         self.w.remember_dir(source)
         self.w.library_dock.reload()
-        self.w.message(self.tr("Bibliothek {name} importiert").format(name=source.name))
+        self.w.message(
+            self.tr("{n} Blöcke nach „{name}“ importiert").format(
+                n=len(merged) - len(existing), name=library_text(title)
+            )
+        )
+
+    def _conflict_asker(
+        self, existing: list[BlockDefinition], incoming: list[BlockDefinition], title: str
+    ):
+        """``decide`` for merged_library: the comparison dialog, or the answer given
+        "for all further ones"."""
+        there = {b.name: b for b in existing}
+        new = {b.name: b for b in incoming}
+        taken = set(there) | set(new)
+        remembered: list[str] = []
+
+        def decide(old: BlockDefinition, block: BlockDefinition) -> tuple[str, str] | None:
+            if remembered:
+                return remembered[0], ""
+            dialog = BlockConflictDialog(
+                old,
+                there,
+                block,
+                new,
+                library_text(title),
+                taken,
+                unique_name(block.name, dict.fromkeys(taken)),
+                self.w,
+            )
+            if dialog.exec() != BlockConflictDialog.DialogCode.Accepted:
+                return None
+            action, name, for_all = dialog.values()
+            if action == RENAME:
+                taken.add(name)
+            elif for_all:
+                remembered.append(action)
+            return action, name
+
+        return decide
 
     def export_library(self) -> None:
-        if not self.doc.blocks:
-            self.w.message(self.tr("Die Zeichnung enthält keine Blöcke"))
+        dock = self.w.library_dock
+        sources: list[tuple[str, Mapping[str, BlockDefinition]]] = []
+        keys: list[str] = []
+        if self.doc.blocks:
+            sources.append((self.tr("Blöcke der Zeichnung"), self.doc.blocks))
+            keys.append(DOCUMENT_SOURCE)
+        for key, lib in sorted(
+            dock.libraries.items(), key=lambda kv: library_text(kv[1].title).casefold()
+        ):
+            if lib.blocks:
+                sources.append((library_text(lib.title), lib.blocks))
+                keys.append(key)
+        if not sources:
+            self.w.message(self.tr("Keine Blöcke zum Exportieren"))
             return
-        dialog = BlockChooserDialog(
-            self.doc.blocks, self.tr("Blöcke exportieren"), self.w, multi=True
-        )
-        if dialog.exec() != BlockChooserDialog.DialogCode.Accepted or not dialog.selected_names():
+        current = dock.source.currentData()
+        dialog = ExportDialog(sources, keys.index(current) if current in keys else 0, self.w)
+        selected = [e.name for e in self.w.selected_entities() if isinstance(e, BlockReference)]
+        if selected and keys[0] == DOCUMENT_SOURCE and dialog.source.currentIndex() == 0:
+            dialog.check(selected)
+        if dialog.exec() != ExportDialog.DialogCode.Accepted or not dialog.names():
             return
+        index = dialog.source.currentIndex()
+        source_key = keys[index]
+        suggested = Path(self.w.last_dir()) / (safe_file_name(dialog.title) + LIBRARY_SUFFIX)
         name, _ = QFileDialog.getSaveFileName(
             self.w,
             self.tr("Bibliothek exportieren"),
-            self.w.last_dir(),
+            str(suggested),
             self.tr("SLDGridy-Bibliothek (*{suffix})").format(suffix=LIBRARY_SUFFIX),
         )
         if not name:
@@ -1188,7 +1248,10 @@ class BlockController(QObject):
         path = Path(name)
         if path.suffix != LIBRARY_SUFFIX:
             path = path.with_name(path.name + LIBRARY_SUFFIX)
-        save_library(self._definitions_with_dependencies(dialog.selected_names()), path, path.stem)
+        blocks = dialog.library
+        workspace = "" if source_key == DOCUMENT_SOURCE else library_workspace(Path(source_key))
+        title = path.stem if source_key == DOCUMENT_SOURCE else dock.libraries[source_key].title
+        save_library([blocks[n] for n in dialog.names()], path, title, workspace)
         self.w.remember_dir(path)
         self.w.message(self.tr("Bibliothek {path} gespeichert").format(path=path))
 
