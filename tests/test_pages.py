@@ -804,3 +804,35 @@ def test_older_title_block_of_the_same_width_is_replaced_on_opening():
     tags = {a.tag for a in loaded.blocks[name].attribute_definitions()}
     assert "FORMAT" not in tags and "PROJEKT" in tags
     assert not loaded.fit_schematic_title_blocks()  # current now: nothing to do
+
+
+def test_customer_with_address_in_several_lines(qapp):
+    from sldgridy.model.entities import Text
+    from sldgridy.model.reports import cover_entities
+    from sldgridy.model.title_block import LOGO_BOTTOM, LOGO_TOP
+    from sldgridy.ui.sheet_dialogs import FieldsDialog, MultiLineEdit
+    from sldgridy.view.display import title_block_parts
+
+    customer = "Stadtwerke Musterstadt\nHauptstraße 12\n07407 Rudolstadt"
+    dialog = FieldsDialog({"KUNDE": customer}, {}, "Blatt")
+    edit = dialog._doc_edits["KUNDE"]
+    assert isinstance(edit, MultiLineEdit) and dialog.properties()["KUNDE"] == customer
+    doc = Document.new_project()
+    doc.properties["KUNDE"] = customer
+    page = doc.sheets[1]
+    lines = [
+        p
+        for p in title_block_parts(doc, page)
+        if isinstance(p, Text) and p.id.startswith("att_kunde")
+    ]
+    assert [t.text for t in lines] == customer.split("\n")
+    assert len({t.position.x for t in lines}) == 1 and len({t.height for t in lines}) == 1
+    ys = [t.position.y for t in lines]
+    assert ys == sorted(ys)  # top to bottom
+    bottom = schematic_inner(*page.size)[1].y
+    h = lines[0].height
+    assert (
+        ys[0] - h / 2 >= bottom + LOGO_TOP - 0.01 and ys[-1] + h / 2 <= bottom + LOGO_BOTTOM + 0.01
+    )
+    cover = {t.text for t in cover_entities(doc, doc.sheets[0]) if isinstance(t, Text)}
+    assert set(customer.split("\n")) <= cover

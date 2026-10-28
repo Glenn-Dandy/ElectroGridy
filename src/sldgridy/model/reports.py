@@ -319,8 +319,10 @@ def cover_entities(doc: Document, page: SheetLayout, tr: Translate = str) -> lis
         ("Anlagenbezeichnung", ", ".join(v for v in (p.get("ANLAGE"), p.get("ORT")) if v)),
     ):
         out.append(_text(left, y, tr(caption) + ":", normal))
-        out.append(_text(value_x, y, value, normal))
-        y += 11 * k
+        lines = value.split("\n")  # the customer may have an address below the name
+        for i, line in enumerate(lines):
+            out.append(_text(value_x, y + i * 7 * k, line, normal))
+        y += (11 + 7 * (len(lines) - 1)) * k
     y += 3 * k
     out.append(_line(left - 10 * k, y, b.x - 20 * k, y, 0.5))
     y += 14 * k

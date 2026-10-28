@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QPlainTextEdit,
     QPushButton,
     QToolButton,
     QVBoxLayout,
@@ -132,6 +133,31 @@ class LogoChooser(QToolButton):
         dialog = LogoDialog(self.name, self._logos, self._importer, self)
         if dialog.exec() == LogoDialog.DialogCode.Accepted:
             self.choose(dialog.chosen())
+
+
+# Fields with several lines (the customer with an address); Enter starts a new line.
+MULTILINE_FIELDS = ("KUNDE",)
+
+
+class MultiLineEdit(QPlainTextEdit):
+    """A few lines of text with the interface of a QLineEdit (text, setText)."""
+
+    def __init__(self, text: str = "", lines: int = 3, parent=None) -> None:
+        super().__init__(text, parent)
+        self.setTabChangesFocus(True)
+        height = self.fontMetrics().lineSpacing() * lines
+        self.setFixedHeight(round(height + 2 * self.frameWidth() + 8))
+        self.setPlaceholderText(self.tr("Name, darunter z. B. Straße und Ort (Enter: neue Zeile)"))
+
+    def text(self) -> str:
+        return "\n".join(line.rstrip() for line in self.toPlainText().strip().splitlines())
+
+    def setText(self, text: str) -> None:  # noqa: N802 - like QLineEdit
+        self.setPlainText(text)
+
+
+def _field_edit(tag: str, value: str) -> QLineEdit | MultiLineEdit:
+    return MultiLineEdit(value) if tag in MULTILINE_FIELDS else QLineEdit(value)
 
 
 def _field_row(edit: QLineEdit, chooser: QToolButton | None):
@@ -249,7 +275,7 @@ class FieldsDialog(QDialog):
         doc_box = QGroupBox(self.tr("Für die ganze Zeichnung"))
         doc_form = QFormLayout(doc_box)
         for tag in DOCUMENT_FIELDS:
-            edit = QLineEdit(properties.get(tag, ""))
+            edit = _field_edit(tag, properties.get(tag, ""))
             doc_form.addRow(f"{_label(tag)}:", _field_row(edit, self.logos.get(tag)))
             self._doc_edits[tag] = edit
         sheet_box = QGroupBox(self.tr("Für dieses Blatt"))
@@ -292,7 +318,7 @@ class ProjectDialog(QDialog):
         self.logos = _logo_choosers(properties, logos, importer)
         form = QFormLayout(self)
         for tag in DOCUMENT_FIELDS:
-            edit = QLineEdit(properties.get(tag, ""))
+            edit = _field_edit(tag, properties.get(tag, ""))
             if tag == "ADRESSE":
                 edit.setPlaceholderText(self.tr("Straße, PLZ Ort (Komma trennt die Zeilen)"))
             form.addRow(f"{_label(tag)}:", _field_row(edit, self.logos.get(tag)))

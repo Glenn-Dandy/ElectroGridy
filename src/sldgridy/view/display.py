@@ -9,6 +9,7 @@ from dataclasses import dataclass, replace
 from PyQt6.QtCore import QCoreApplication, QPointF, QRectF, Qt
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 
+from sldgridy.model.blocks import ATTRIBUTE_LINE_FACTOR as LINE_FACTOR
 from sldgridy.model.blocks import BlockDefinition, BlockError, bounds, expand
 from sldgridy.model.cables import cable_mark_geometry, mark_cores
 from sldgridy.model.devices import crossref_texts, crossrefs
@@ -46,6 +47,8 @@ from sldgridy.model.terminals import row_labels, terminal_center
 from sldgridy.model.title_block import (
     CAPTIONS,
     FIELD_LABELS,
+    LOGO_BOTTOM,
+    LOGO_TOP,
     NAME_GAP,
     logo_references,
     schematic_text_boxes,
@@ -387,25 +390,51 @@ def _fitted_texts(
     """Company, customer and project title as large as their field allows: the name
     starts after a logo and shrinks until it fits, the project title fills its field."""
     boxes = schematic_text_boxes(width)
-    out = []
+
+    def tag_of(part: Entity) -> str:
+        if not isinstance(part, Text) or not part.id.startswith("att_"):
+            return ""
+        return part.id.removeprefix("att_").split("~")[0].upper()  # "~1": next line
+
+    # Several lines (a customer with address) are fitted as one block.
+    lines: dict[str, list[Text]] = {}
     for part in parts:
-        tag = part.id.removeprefix("att_").upper() if isinstance(part, Text) else ""
-        if tag not in boxes or not part.text.strip():
-            out.append(part)
+        if tag_of(part) in boxes:
+            lines.setdefault(tag_of(part), []).append(part)
+    fitted: dict[str, list[Text]] = {}
+    for tag, texts in lines.items():
+        texts = [t for t in texts if t.text.strip()]
+        if not texts:
             continue
         left, right, largest = boxes[tag]
         left, right = left + insert.x, right + insert.x
         if tag in logo_right:
             left = max(left, logo_right[tag] + NAME_GAP)
-        unit = text_width(part.text, 1.0)
-        height = min(largest, (right - left) / unit) if unit > 0 else largest
+        widest = max(text_width(t.text, 1.0) for t in texts)
+        height = min(largest, (right - left) / widest) if widest > 0 else largest
+        n = len(texts)
+        if n > 1:
+            # All lines inside the field: height + (n - 1) line pitches.
+            room = (LOGO_BOTTOM - LOGO_TOP) - 0.6
+            height = min(height, room / (1 + LINE_FACTOR * (n - 1)))
         height = max(height, MIN_FITTED_HEIGHT)
-        if part.halign == "center":
-            out.append(
-                replace(part, height=height, position=Point((left + right) / 2, part.position.y))
+        middle = texts[0].position.y  # the first line sits in the middle of the field
+        x = (left + right) / 2 if texts[0].halign == "center" else left
+        fitted[tag] = [
+            replace(
+                t,
+                height=height,
+                position=Point(x, middle + (i - (n - 1) / 2) * LINE_FACTOR * height),
             )
-        else:
-            out.append(replace(part, height=height, position=Point(left, part.position.y)))
+            for i, t in enumerate(texts)
+        ]
+    out = []
+    for part in parts:
+        tag = tag_of(part)
+        if tag not in boxes:
+            out.append(part)
+        elif tag in fitted and part is lines[tag][0]:
+            out += fitted[tag]
     return out
 
 
