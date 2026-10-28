@@ -265,7 +265,9 @@ class RotateFreeTool(_SelectionTool):
 
 class ScaleTool(_SelectionTool):
     """Scale around a base point: type a factor (Enter), or click a reference point and
-    then show or type the new length of that distance (e.g. 4.2 m becomes 5 m)."""
+    then show or type the new length of that distance (e.g. 4.2 m becomes 5 m). A factor
+    typed before the base point scales around the upper left corner of the selection,
+    so imported pages get the same factor quickly (select all, factor, Enter)."""
 
     def __init__(self, ctx) -> None:
         super().__init__(ctx)
@@ -278,14 +280,14 @@ class ScaleTool(_SelectionTool):
 
     def _point_prompt(self) -> str:
         if self._base is None:
-            return tr("Skalieren: Basispunkt angeben")
+            return tr("Skalieren: Faktor eintippen und Enter, oder Basispunkt angeben (Tab: X/Y)")
         if self._ref is None:
             return tr("Skalieren: Faktor eintippen und Enter, oder Bezugspunkt klicken")
         return tr("Skalieren: Neue Länge zeigen oder eintippen")
 
     def dynamic_mode(self) -> tuple[str, Point | None]:
         if self._base is None:
-            return ("xy", None)
+            return ("scale_start", None)
         if self._ref is None:
             return ("factor", self._base)
         return ("polar", self._base)
@@ -297,11 +299,21 @@ class ScaleTool(_SelectionTool):
         new = distance(self._base, p)
         return new / ref if ref > 1e-9 and new > 1e-9 else None
 
-    def _scaled(self, factor: float) -> list[Entity]:
-        assert self._base is not None
-        return [scale_entity(e, self._base, factor) for e in self._entities]
+    def _corner(self) -> Point:
+        """Upper left corner of the selection."""
+        points = [p for e in self._entities for p in grip_points(e)]
+        if not points:
+            return Point(0, 0)
+        return Point(min(p.x for p in points), min(p.y for p in points))
+
+    def _scaled(self, factor: float, base: Point | None = None) -> list[Entity]:
+        base = base or self._base
+        assert base is not None
+        return [scale_entity(e, base, factor) for e in self._entities]
 
     def _apply(self, factor: float) -> None:
+        if self._base is None:
+            self._base = self._corner()
         if factor > 0 and abs(factor - 1.0) > 1e-12:
             new = with_followers(self.ctx, self._entities, self._scaled(factor), separate=True)
             self.ctx.push(ReplaceEntitiesCommand(self.ctx.container, new, tr("Skalieren")))
@@ -324,7 +336,7 @@ class ScaleTool(_SelectionTool):
             self._apply(factor)
 
     def typed_value(self, name: str, value: float) -> bool:
-        if name != "factor" or self._base is None or self._ref is not None or value <= 0:
+        if name != "factor" or self._ref is not None or value <= 0:
             return False
         self._apply(value)
         return True
@@ -335,7 +347,7 @@ class ScaleTool(_SelectionTool):
 
     def preview(self) -> list[Entity]:
         if self._base is None:
-            return []
+            return self._scaled(self._typed, self._corner()) if self._typed else []
         factor = self._typed if self._ref is None else self._factor_at(self.cursor)
         return self._scaled(factor) if factor else []
 

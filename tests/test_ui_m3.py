@@ -605,6 +605,42 @@ def test_scale_by_typed_factor(window):
     assert ms.get("l").p2 == Point(30, 10)
 
 
+def test_scale_by_factor_without_base_point(window):
+    """Select all, type the factor, Enter: around the upper left corner of the
+    selection, so imported pages keep their place (Florian 2026-10-28)."""
+    from sldgridy.model.entities import Line as LineEntity
+    from sldgridy.model.entities import Text as TextEntity
+
+    window.act_osnap.setChecked(False)
+    ms = window.document.model_space
+    ms.add(LineEntity(id="l", p1=Point(20, 40), p2=Point(120, 40)))
+    ms.add(TextEntity(id="t", position=Point(30, 10), text="-Q1", height=2.5))
+    for i in ("l", "t"):
+        window._sync.item(i).setSelected(True)
+    window.act_scale.trigger()
+    window.canvas.setFocus()
+    QTest.mouseMove(window.canvas.viewport(), vp(window, 200, 200))
+    QTest.keyClicks(window.canvas, "0,5")
+    window.canvas.viewport().repaint()  # factor box and preview are drawn
+    QTest.keyClick(window.canvas, Qt.Key.Key_Return)
+    line, text = ms.get("l"), ms.get("t")
+    assert (line.p1, line.p2) == (Point(20, 25), Point(70, 25))  # around (20, 10)
+    assert text.position == Point(25, 10) and text.height == pytest.approx(1.25)
+    window.act_undo.trigger()
+    # Tab to X/Y: a typed base point.
+    for i in ("l", "t"):
+        window._sync.item(i).setSelected(True)
+    window.act_scale.trigger()
+    QTest.keyClicks(window.canvas, "2")
+    QTest.keyClick(window.canvas, Qt.Key.Key_Tab)
+    QTest.keyClicks(window.canvas, "20")
+    QTest.keyClick(window.canvas, Qt.Key.Key_Tab)
+    QTest.keyClicks(window.canvas, "40")
+    QTest.keyClick(window.canvas, Qt.Key.Key_Return)
+    assert ms.get("l").p2 == Point(220, 40)
+    window.act_undo.trigger()
+
+
 def test_scale_by_reference_and_new_length(window):
     from sldgridy.model.entities import Line as LineEntity
 

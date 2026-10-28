@@ -12,11 +12,15 @@ from dataclasses import dataclass, field
 from sldgridy.model.geometry import Point
 
 XY, POLAR, SIZE, FACTOR = "xy", "polar", "size", "factor"
+# Scaling before the base point: the factor first (scaled around the selection's upper
+# left corner), Tab to X/Y for a base point.
+SCALE_START = "scale_start"
 FIELDS: dict[str, tuple[str, ...]] = {
     XY: ("x", "y"),
     POLAR: ("length", "angle"),
     SIZE: ("width", "height"),
     FACTOR: ("factor",),  # a plain number for the tool (scaling), not a point
+    SCALE_START: ("factor", "x", "y"),
 }
 INPUT_CHARS = "0123456789.,-"
 
@@ -76,6 +80,10 @@ class DynamicInput:
     def has_input(self) -> bool:
         return any(t for t in self.texts.values())
 
+    def has_point(self) -> bool:
+        """Whether X or Y was typed."""
+        return bool(self.texts.get("x") or self.texts.get("y"))
+
     def type(self, char: str) -> bool:
         """Add a typed character to the active field; False if it is not part of a number."""
         if char not in INPUT_CHARS:
@@ -98,7 +106,7 @@ class DynamicInput:
         """The point the fields and the mouse together describe."""
         if self.mode == FACTOR:
             return cursor
-        if self.mode == XY or anchor is None:
+        if self.mode in (XY, SCALE_START) or anchor is None:
             x, y = self.value("x"), self.value("y")
             return Point(cursor.x if x is None else x, cursor.y if y is None else y)
         if self.mode == SIZE:
@@ -133,7 +141,9 @@ class DynamicInput:
         if self.mode == FACTOR:
             typed = self.texts.get("factor", "")
             return {"factor": (typed.replace(".", ",") if decimal_comma else typed) or "1"}
-        if self.mode == XY or anchor is None:
+        if self.mode == SCALE_START:
+            values = {"factor": 1.0, "x": point.x, "y": point.y}
+        elif self.mode == XY or anchor is None:
             values = {"x": point.x, "y": point.y}
         elif self.mode == SIZE:
             values = {

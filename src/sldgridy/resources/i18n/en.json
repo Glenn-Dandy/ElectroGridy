@@ -674,7 +674,6 @@
  "S&kalieren": "Sc&ale",
  "Skalieren": "Scale",
  "Größe ändern: Basispunkt, dann Faktor eintippen oder Bezugspunkt und neue Länge": "Change size: base point, then type a factor or pick a reference point and the new length",
- "Skalieren: Basispunkt angeben": "Scale: specify base point",
  "Skalieren: Faktor eintippen und Enter, oder Bezugspunkt klicken": "Scale: type a factor and press Enter, or click a reference point",
  "Skalieren: Neue Länge zeigen oder eintippen": "Scale: show or type the new length",
  "Skaliert mit Faktor {factor}": "Scaled by factor {factor}",
@@ -969,5 +968,6 @@
  "Für alle Seiten ({n})": "For all pages ({n})",
  "Blattformat aller Seiten": "Sheet format of all pages",
  "{n} Objekte auf {pages} Seiten liegen ganz oder teilweise außerhalb des Blatts.": "{n} objects on {pages} pages lie completely or partly outside the sheet.",
- "Allpoliger Schaltplan mit nummerierten Seiten A4: Deckblatt, Stromlaufplan, Klemmenplan, Stückliste, Querverweise": "Multi-line circuit diagram with numbered A4 pages: cover, circuit diagram, terminal plan, parts list, cross references"
+ "Allpoliger Schaltplan mit nummerierten Seiten A4: Deckblatt, Stromlaufplan, Klemmenplan, Stückliste, Querverweise": "Multi-line circuit diagram with numbered A4 pages: cover, circuit diagram, terminal plan, parts list, cross references",
+ "Skalieren: Faktor eintippen und Enter, oder Basispunkt angeben (Tab: X/Y)": "Scale: type a factor and Enter, or specify base point (Tab: X/Y)"
 }

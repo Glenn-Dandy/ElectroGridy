@@ -957,10 +957,15 @@ class Canvas(QGraphicsView):
         elif (
             key in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
             and self.dynamic.has_input()
-            and mode[0] == "factor"
+            and mode[0] in ("factor", "scale_start")
+            and self.dynamic.value("factor") is not None
         ):
             value = self.dynamic.value("factor")
-            if value is not None and self.controller.typed_value("factor", value):
+            if mode[0] == "scale_start" and self.dynamic.has_point():
+                # Typed X/Y as well: that is the base point.
+                raw = self.map_to_scene_f(self._cursor_view) if self._cursor_view else QPointF()
+                self.controller.pick(self.dynamic.constrain(None, mpt(self._cursor_scene or raw)))
+            if self.controller.typed_value("factor", value):
                 self.dynamic.clear()
         elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self.dynamic.has_input():
             raw = self.map_to_scene_f(self._cursor_view) if self._cursor_view else QPointF()
@@ -976,7 +981,7 @@ class Canvas(QGraphicsView):
             pass
         else:
             return False
-        if mode[0] == "factor":
+        if mode[0] in ("factor", "scale_start"):
             self.controller.typed_changed("factor", self.dynamic.value("factor"))
         if self._cursor_view is not None:
             self._update_cursor(self._cursor_view)
@@ -1293,6 +1298,10 @@ class Canvas(QGraphicsView):
             a = self.map_from_scene_f(qpt(anchor))
             boxes["width"] = QPointF((a.x() + cur.x()) / 2, cur.y() + 16)
             boxes["height"] = QPointF(cur.x() + 34, (a.y() + cur.y()) / 2)
+        elif name == "scale_start":
+            boxes["factor"] = cur + QPointF(60, 26)
+            boxes["x"] = cur + QPointF(52, 48)
+            boxes["y"] = cur + QPointF(52, 70)
         else:
             boxes["x"] = cur + QPointF(52, 26)
             boxes["y"] = cur + QPointF(52, 48)
