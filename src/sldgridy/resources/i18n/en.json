@@ -974,5 +974,7 @@
  "automatisch": "automatic",
  "Blattnummer von Hand, z. B. wie im übernommenen fremden Plan; „automatisch“ zählt nach der Reihenfolge der Seiten.": "Page number by hand, e.g. as in the plan taken over; \"automatic\" counts by the order of the pages.",
  "Blattnummer:": "Page number:",
- "Seite ohne Rahmen und Schriftfeld, z. B. für ein Blatt aus einem fremden Plan mit eigenem Rahmen.": "Page without frame and title block, e.g. for a sheet from another plan with a frame of its own."
+ "Seite ohne Rahmen und Schriftfeld, z. B. für ein Blatt aus einem fremden Plan mit eigenem Rahmen.": "Page without frame and title block, e.g. for a sheet from another plan with a frame of its own.",
+ "Format der Seite:": "Page format:",
+ "Sonderformat {size}": "Custom size {size}"
 }

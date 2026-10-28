@@ -167,3 +167,11 @@ def test_frame_template_roundtrip(tmp_path):
     assert loaded.id != sheet.id
     assert {e.id for e in loaded.entities} == {e.id for e in sheet.entities}
     assert [b.name for b in blocks] == [TITLE_BLOCK_NAME]
+
+
+def test_paper_of_a_pdf_page():
+    from sldgridy.model.paper import Orientation, paper_of
+
+    assert paper_of(420.2, 296.8) == ("A3", Orientation.LANDSCAPE)
+    assert paper_of(210, 297) == ("A4", Orientation.PORTRAIT)
+    assert paper_of(215.9, 279.4) is None  # Letter

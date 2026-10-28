@@ -254,6 +254,7 @@ def test_import_dialog_with_a_cad_pdf(qapp, tmp_path):
     dialog = ImportDialog(path)
     assert dialog.readable() and dialog.mode.currentData() == VECTORS
     assert abs(dialog.width_mm.value() - 297.0) < 0.2  # A4 landscape, 1:1
+    assert dialog.paper.text() == "A4 quer (297 × 210 mm)"
     texts = {e.text for e in dialog.entities() if isinstance(e, Text)}
     assert texts == {"-Q1 B16", "-W1"}
     # Mark the right half: the width follows, the box on the left stays out.

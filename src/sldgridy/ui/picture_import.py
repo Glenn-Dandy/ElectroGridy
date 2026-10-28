@@ -49,6 +49,7 @@ from PyQt6.QtWidgets import (
 from sldgridy.fileio import ocr, pdf_import
 from sldgridy.model.entities import Circle, Entity, Line, RasterImage, Text, new_id
 from sldgridy.model.geometry import Point
+from sldgridy.model.paper import Orientation, paper_of
 from sldgridy.model.vectorize import Ring, Stroke, vectorize
 
 PICTURE_SUFFIXES = (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".gif", ".webp")
@@ -617,6 +618,7 @@ class ImportDialog(QDialog):
         self._factor = 1.0
         self.hint = QLabel()
         self.hint.setWordWrap(True)
+        self.paper = QLabel()  # the format of the PDF page
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -624,6 +626,8 @@ class ImportDialog(QDialog):
         buttons.rejected.connect(self.reject)
 
         form = QFormLayout()
+        if pdf is not None:
+            form.addRow(self.tr("Format der Seite:"), self.paper)
         form.addRow(self.tr("Übernehmen als:"), self.mode)
         form.addRow("", self.keep)
         form.addRow(self.tr("Breite des Bereichs:"), self.width_mm)
@@ -691,6 +695,7 @@ class ImportDialog(QDialog):
         if self.source.pdf is not None:
             self.view.set_image(self._render(page, PREVIEW_DPI))
             has_vectors = self._vectors(page) >= pdf_import.MIN_VECTOR_OBJECTS
+            self.paper.setText(self._paper_text(page))
         else:
             self.view.set_image(limited(self._picture, 1600))
             has_vectors = False
@@ -701,6 +706,18 @@ class ImportDialog(QDialog):
             self.mode.setCurrentIndex(2)  # a photo or scan: try the lines
         self._region_changed()
         self._mode_changed()
+
+    def _paper_text(self, page: int) -> str:
+        """ "A3 quer (420 × 297 mm)", or only the size for other formats."""
+        size = self.source.pdf.pagePointSize(page)
+        w, h = size.width() * pdf_import.MM_PER_PT, size.height() * pdf_import.MM_PER_PT
+        mm = f"{w:.0f} × {h:.0f} mm"
+        found = paper_of(w, h)
+        if found is None:
+            return self.tr("Sonderformat {size}").format(size=mm)
+        name, orientation = found
+        turn = self.tr("quer") if orientation is Orientation.LANDSCAPE else self.tr("hoch")
+        return f"{name} {turn} ({mm})"
 
     def _vectors(self, page: int) -> int:
         if not pdf_import.available():
