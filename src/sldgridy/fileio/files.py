@@ -65,9 +65,14 @@ def load_document(path: Path) -> Document:
 
 
 def save_library(
-    blocks: list[BlockDefinition], path: Path, name: str = "", workspace: str = ""
+    blocks: list[BlockDefinition], path: Path, name: str = "", workspace: str | None = None
 ) -> None:
-    write_json_atomic(Path(path), library_to_dict(blocks, name, workspace))
+    """Write a library file; without ``workspace`` a file being overwritten keeps its
+    own (editing an imported circuit diagram library left it shown everywhere)."""
+    path = Path(path)
+    if workspace is None:
+        workspace = library_workspace(path) if path.exists() else ""
+    write_json_atomic(path, library_to_dict(blocks, name, workspace))
 
 
 def load_library(path: Path) -> tuple[str, list[BlockDefinition]]:

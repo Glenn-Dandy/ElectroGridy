@@ -375,6 +375,22 @@ def test_edit_and_delete_in_user_library(window, monkeypatch):
     assert len(load_library(path)[1]) == 2
     window.blocks.delete_block(str(path), "Feld")
     assert [b.name for b in load_library(path)[1]] == ["Schmelzsicherung"]
+    # The last block: the library and its category leave the list as well.
+    dock = window.library_dock
+    dock.source.setCurrentIndex(dock.source.findData(str(path)))
+    assert dock.category.findData("|Schutz") >= 0
+    window.blocks.delete_block(str(path), "Schmelzsicherung")
+    assert not path.exists() and dock.source.findData(str(path)) < 0
+    assert dock.category.findData("|Schutz") < 0
+
+
+def test_saving_a_library_keeps_its_workspace(tmp_path):
+    from sldgridy.fileio.files import library_workspace
+
+    path = tmp_path / "mld.sldglib"
+    save_library(list(blocks().values()), path, "MLD", "mld")
+    save_library([fuse()], path, "MLD")  # e.g. after deleting a block
+    assert library_workspace(path) == "mld"
 
 
 def test_shipped_libraries_are_read_only(window):

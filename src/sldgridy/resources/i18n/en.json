@@ -1011,5 +1011,6 @@
  "Logo {name} in „Eigene Symbole“ gespeichert": "Logo {name} saved in \"My symbols\"",
  "Logo …": "Logo …",
  "Name des Logos:": "Name of the logo:",
- "{name} lässt sich nicht lesen": "{name} cannot be read"
+ "{name} lässt sich nicht lesen": "{name} cannot be read",
+ "Block {name} gelöscht, die leere Bibliothek {library} entfernt": "Block {name} deleted, the empty library {library} removed"
 }

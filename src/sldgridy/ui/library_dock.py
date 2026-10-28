@@ -198,7 +198,8 @@ class LibraryDock(QDockWidget):
         shown = [
             (key, lib)
             for key, lib in self.libraries.items()
-            if not lib.workspace or lib.workspace in KIND_LIBRARIES.get(self.kind, ())
+            if lib.blocks
+            and (not lib.workspace or lib.workspace in KIND_LIBRARIES.get(self.kind, ()))
         ]
         shown.sort(key=lambda kv: _GROUP_ORDER.get(kv[1].workspace, len(_GROUP_ORDER)))
         return dict(shown)

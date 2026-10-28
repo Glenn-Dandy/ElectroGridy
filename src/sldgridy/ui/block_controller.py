@@ -1048,9 +1048,19 @@ class BlockController(QObject):
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
-        save_library([b for b in blocks if b.name != name], Path(path), title)
+        rest = [b for b in blocks if b.name != name]
+        if rest:
+            save_library(rest, Path(path), title)
+            self.w.message(self.tr("Block {name} gelöscht").format(name=name))
+        else:
+            # The last block: the empty library goes as well, with its entry in the list.
+            Path(path).unlink(missing_ok=True)
+            self.w.message(
+                self.tr("Block {name} gelöscht, die leere Bibliothek {library} entfernt").format(
+                    name=name, library=library_text(title)
+                )
+            )
         self.w.library_dock.reload()
-        self.w.message(self.tr("Block {name} gelöscht").format(name=name))
 
     def import_dxf(self) -> None:
         name, _ = QFileDialog.getOpenFileName(
@@ -1265,7 +1275,7 @@ class BlockController(QObject):
         if merged is None:
             return None
         library.parent.mkdir(parents=True, exist_ok=True)
-        save_library(merged, library, title, library_workspace(library) if library.exists() else "")
+        save_library(merged, library, title)
         self.w.remember_dir(path)
         self.w.library_dock.reload()
         action, renamed = answers.get(name, ("", ""))
