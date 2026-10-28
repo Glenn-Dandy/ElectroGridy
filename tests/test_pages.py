@@ -657,7 +657,7 @@ def test_logos_of_company_and_customer_in_the_title_block(qapp, tmp_path, monkey
         window.new_document(DOC_PROJECT)
         page = window.document.sheets[-1]
         window.sheets.show_sheet(page.id)
-        # A wide PNG and an SVG become blocks in "Eigene Symbole", category Logos.
+        # A wide PNG and an SVG become blocks in "Eigene Logos", category Logos.
         png = tmp_path / "firma.png"
         image = QImage(400, 100, QImage.Format.Format_ARGB32)
         image.fill(QColor("#1565c0"))
@@ -671,9 +671,14 @@ def test_logos_of_company_and_customer_in_the_title_block(qapp, tmp_path, monkey
         monkeypatch.setattr(
             "PyQt6.QtWidgets.QInputDialog.getText", lambda *a, **k: (next(names), True)
         )
-        assert window.blocks.import_logo(png) == "Firma"
+        # From the menu (dev6 hung there: triggered(False) came in as the path).
+        monkeypatch.setattr(
+            "PyQt6.QtWidgets.QFileDialog.getOpenFileName", lambda *a, **k: (str(png), "")
+        )
+        window.blocks.act_import_logo.trigger()
         assert window.blocks.import_logo(svg) == "Kunde"
-        _, mine = load_library(user_library_dir() / "eigene.sldglib")
+        title, mine = load_library(user_library_dir() / "logos.sldglib")
+        assert title == "Eigene Logos"
         logos = {b.name: b for b in mine if b.category == LOGO_CATEGORY}
         assert set(logos) == {"Firma", "Kunde"}
         assert isinstance(next(iter(logos["Kunde"].entities)), RasterImage)
@@ -703,3 +708,42 @@ def test_logos_of_company_and_customer_in_the_title_block(qapp, tmp_path, monkey
     finally:
         window.undo_stack.setClean()
         window.close()
+
+
+def test_logos_from_my_symbols_move_to_my_logos(tmp_path):
+    from sldgridy.fileio.files import load_library, save_library
+    from sldgridy.fileio.library_merge import move_category
+    from sldgridy.model.blocks import BlockDefinition
+
+    symbols, logos = tmp_path / "eigene.sldglib", tmp_path / "logos.sldglib"
+    save_library(
+        [BlockDefinition("Logo A", category="Logos"), BlockDefinition("Schalter")],
+        symbols,
+        "Eigene Symbole",
+    )
+    save_library([BlockDefinition("Logo A", category="Logos", description="anders")], logos, "L")
+    assert move_category(symbols, logos, "Logos", "Eigene Logos") == 1
+    assert [b.name for b in load_library(symbols)[1]] == ["Schalter"]
+    assert sorted(b.name for b in load_library(logos)[1]) == ["Logo A", "Logo A (2)"]
+    assert move_category(symbols, logos, "Logos", "Eigene Logos") == 0
+
+
+def test_logo_dialog_shows_the_library(qapp):
+    from PyQt6.QtGui import QColor, QImage
+
+    from sldgridy.model.blocks import BlockDefinition
+    from sldgridy.model.container import EntityContainer
+    from sldgridy.ui.picture_import import picture_entity
+    from sldgridy.ui.sheet_dialogs import LogoDialog
+
+    image = QImage(200, 100, QImage.Format.Format_ARGB32)
+    image.fill(QColor("#1565c0"))
+    logos = {
+        n: BlockDefinition(n, entities=EntityContainer([picture_entity(image, 40, False)]))
+        for n in ("A", "B")
+    }
+    dialog = LogoDialog("B", lambda: logos, None)
+    assert dialog.list.count() == 2 and dialog.chosen() == "B" and dialog.empty.isHidden()
+    dialog._none()
+    assert dialog.chosen() == ""
+    assert not LogoDialog("", lambda: {}, None).empty.isHidden()

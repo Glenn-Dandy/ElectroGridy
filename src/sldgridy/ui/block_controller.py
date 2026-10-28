@@ -45,7 +45,7 @@ from sldgridy.fileio.json_format import (
     block_to_dict,
 )
 from sldgridy.fileio.library_merge import RENAME as MERGE_RENAME
-from sldgridy.fileio.library_merge import merged_library
+from sldgridy.fileio.library_merge import merged_library, move_category
 from sldgridy.fileio.paths import safe_file_name, user_library_dir
 from sldgridy.i18n import library_text
 from sldgridy.model.blocks import (
@@ -103,6 +103,7 @@ if TYPE_CHECKING:
 
 USER_LIBRARY_FILE = "eigene" + LIBRARY_SUFFIX
 LOGO_WIDTH_MM = 40.0  # an imported logo; the title block scales it into its box
+LOGO_LIBRARY_FILE = "logos" + LIBRARY_SUFFIX  # "Eigene Logos"
 BASE_MARKER_COLOR = QColor("#d81b60")
 
 
@@ -158,7 +159,10 @@ class BlockController(QObject):
         self.act_import = a(self.tr("Bibliothek &importieren …"), self.import_library)
         self.act_import_dxf = a(self.tr("Symbole aus &DXF importieren …"), self.import_dxf)
         self.act_export = a(self.tr("Bibliothek e&xportieren …"), self.export_library)
-        self.act_import_logo = a(self.tr("&Logo importieren (PNG, JPG, SVG) …"), self.import_logo)
+        # A lambda: triggered(bool) would pass False as the path (the program hung).
+        self.act_import_logo = a(
+            self.tr("&Logo importieren (PNG, JPG, SVG) …"), lambda: self.import_logo()
+        )
         self.act_base = a(self.tr("Basispunkt setzen"), self.set_base_point)
         self.act_editor_save = a(
             self.tr("Speichern und schließen"), lambda: self.close_editor(save=True)
@@ -1203,6 +1207,19 @@ class BlockController(QObject):
 
     # -- logos ----------------------------------------------------------------
 
+    def move_logos(self) -> None:
+        """Logos imported into "Eigene Symbole" (1.3.2.dev6) move to "Eigene Logos"."""
+        directory = user_library_dir()
+        try:
+            move_category(
+                directory / USER_LIBRARY_FILE,
+                directory / LOGO_LIBRARY_FILE,
+                LOGO_CATEGORY,
+                self.tr("Eigene Logos"),
+            )
+        except (OSError, FileFormatError) as exc:
+            self.w.message(str(exc))
+
     def available_logos(self) -> dict[str, BlockDefinition]:
         """Logos (category "Logos") of the libraries and of the drawing."""
         found: dict[str, BlockDefinition] = {}
@@ -1221,7 +1238,7 @@ class BlockController(QObject):
                 self.w.push(AddBlockCommand(self.doc, logos[name].copy(), ""))
 
     def import_logo(self, path: Path | None = None) -> str | None:
-        """A picture (PNG, JPG, SVG) as a block in "Eigene Symbole", category Logos;
+        """A picture (PNG, JPG, SVG) as a block in "Eigene Logos", category Logos;
         its name, or None."""
         if path is None:
             name, _ = QFileDialog.getOpenFileName(
@@ -1255,8 +1272,8 @@ class BlockController(QObject):
             category=LOGO_CATEGORY,
             description=self.tr("Logo aus {name}").format(name=path.name),
         )
-        library = user_library_dir() / USER_LIBRARY_FILE
-        title, existing = self.tr("Eigene Symbole"), []
+        library = user_library_dir() / LOGO_LIBRARY_FILE
+        title, existing = self.tr("Eigene Logos"), []
         if library.exists():
             loaded = self._load_user_library(library)
             if loaded is None:
@@ -1280,7 +1297,7 @@ class BlockController(QObject):
         self.w.library_dock.reload()
         action, renamed = answers.get(name, ("", ""))
         final = renamed if action == MERGE_RENAME else name
-        self.w.message(self.tr("Logo {name} in „Eigene Symbole“ gespeichert").format(name=final))
+        self.w.message(self.tr("Logo {name} in „Eigene Logos“ gespeichert").format(name=final))
         return final
 
     def _conflict_asker(

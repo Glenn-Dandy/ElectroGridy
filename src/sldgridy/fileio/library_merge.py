@@ -6,7 +6,9 @@ follow). Blocks equal to the one there are left out without asking.
 """
 
 from collections.abc import Callable
+from pathlib import Path
 
+from sldgridy.fileio.files import load_library, save_library
 from sldgridy.fileio.json_format import block_signature
 from sldgridy.model.blocks import BlockDefinition, rename_references
 
@@ -42,3 +44,36 @@ def merged_library(
     for block in added:
         result[block.name] = rename_references(block, renames)
     return list(result.values())
+
+
+def move_category(source: Path, target: Path, category: str, title: str) -> int:
+    """Move the blocks of ``category`` from the library file ``source`` into ``target``
+    (created with ``title`` when missing). A name taken in ``target`` by a different
+    block gets a number; equal ones are just dropped from ``source``. How many moved."""
+    if not source.exists():
+        return 0
+    source_title, blocks = load_library(source)
+    moving = [b for b in blocks if b.category == category]
+    if not moving:
+        return 0
+    there = load_library(target)[1] if target.exists() else []
+    if target.exists():
+        title = load_library(target)[0] or title
+    taken = {b.name for b in there}
+
+    def renamed(old: BlockDefinition, new: BlockDefinition) -> tuple[str, str]:
+        n = 2
+        while f"{new.name} ({n})" in taken:
+            n += 1
+        taken.add(f"{new.name} ({n})")
+        return RENAME, f"{new.name} ({n})"
+
+    merged = merged_library(there, moving, renamed)
+    assert merged is not None
+    save_library(merged, target, title)
+    rest = [b for b in blocks if b.category != category]
+    if rest:
+        save_library(rest, source, source_title)
+    else:
+        source.unlink()
+    return len(moving)

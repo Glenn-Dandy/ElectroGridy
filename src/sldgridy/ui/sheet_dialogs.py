@@ -14,10 +14,11 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QMenu,
+    QPushButton,
     QToolButton,
     QVBoxLayout,
 )
@@ -33,22 +34,85 @@ Logos = Callable[[], Mapping[str, BlockDefinition]]
 LogoImporter = Callable[[], str | None]
 
 
+class LogoDialog(QDialog):
+    """The logos of the library with large previews; no logo, or import one."""
+
+    NONE = ""
+
+    def __init__(
+        self, current: str, logos: Logos, importer: LogoImporter | None, parent=None
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(self.tr("Logo aus der Bibliothek"))
+        self._logos, self._importer = logos, importer
+        self.list = QListWidget()
+        self.list.setViewMode(QListWidget.ViewMode.IconMode)
+        self.list.setIconSize(QSize(120, 72))
+        self.list.setGridSize(QSize(150, 110))
+        self.list.setResizeMode(QListWidget.ResizeMode.Adjust)
+        self.list.setMovement(QListWidget.Movement.Static)
+        self.list.setWordWrap(True)
+        self.list.itemDoubleClicked.connect(lambda _item: self.accept())
+        self.empty = QLabel(
+            self.tr("Noch keine Logos. Mit „Logo importieren …“ eines in „Eigene Logos“ ablegen.")
+        )
+        self.empty.setWordWrap(True)
+        none = QPushButton(self.tr("Kein Logo"))
+        none.clicked.connect(self._none)
+        buttons = _buttons(self)
+        buttons.addButton(none, QDialogButtonBox.ButtonRole.ResetRole)
+        if importer is not None:
+            add = QPushButton(self.tr("Logo importieren …"))
+            add.clicked.connect(self._import)
+            buttons.addButton(add, QDialogButtonBox.ButtonRole.ActionRole)
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.empty)
+        layout.addWidget(self.list, 1)
+        layout.addWidget(buttons)
+        self._fill(current)
+        self.resize(560, 400)
+
+    def _fill(self, current: str) -> None:
+        logos = self._logos()
+        self.list.clear()
+        for name in sorted(logos, key=str.casefold):
+            item = QListWidgetItem(block_icon(name, logos, 128), library_text(name))
+            item.setData(Qt.ItemDataRole.UserRole, name)
+            self.list.addItem(item)
+            if name == current:
+                self.list.setCurrentItem(item)
+        self.empty.setVisible(not logos)
+
+    def _none(self) -> None:
+        self.list.clearSelection()
+        self.list.setCurrentItem(None)
+        self.accept()
+
+    def _import(self) -> None:
+        name = self._importer()
+        if name:
+            self._fill(name)
+
+    def chosen(self) -> str:
+        item = self.list.currentItem()
+        if item is None or not item.isSelected():
+            return self.NONE
+        return item.data(Qt.ItemDataRole.UserRole)
+
+
 class LogoChooser(QToolButton):
-    """Logo of company or customer in the title block: chosen from the logos in the
-    libraries, or imported (PNG, JPG, SVG)."""
+    """Logo of company or customer in the title block, chosen from the logos in the
+    library ("Eigene Logos") or imported there (PNG, JPG, SVG)."""
 
     def __init__(self, current: str, logos: Logos, importer: LogoImporter | None, parent=None):
         super().__init__(parent)
         self.name = current
         self._logos, self._importer = logos, importer
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.setIconSize(QSize(40, 28))
         self.setFixedWidth(170)  # both fields stay as long
-        self.setToolTip(self.tr("Logo im Schriftfeld rechts neben dem Namen"))
-        menu = QMenu(self)
-        menu.aboutToShow.connect(self._fill)
-        self.setMenu(menu)
+        self.setToolTip(self.tr("Logo im Schriftfeld, aus der Bibliothek gewählt"))
+        self.clicked.connect(self._pick)
         self._show()
 
     def _show(self) -> None:
@@ -64,23 +128,10 @@ class LogoChooser(QToolButton):
         self.name = name
         self._show()
 
-    def _fill(self) -> None:
-        menu = self.menu()
-        menu.clear()
-        menu.addAction(self.tr("Kein Logo"), lambda: self.choose(""))
-        logos = self._logos()
-        for name in sorted(logos, key=str.casefold):
-            menu.addAction(
-                block_icon(name, logos, 32), library_text(name), lambda n=name: self.choose(n)
-            )
-        if self._importer is not None:
-            menu.addSeparator()
-            menu.addAction(self.tr("Logo importieren (PNG, JPG, SVG) …"), self._import)
-
-    def _import(self) -> None:
-        name = self._importer()
-        if name:
-            self.choose(name)
+    def _pick(self) -> None:
+        dialog = LogoDialog(self.name, self._logos, self._importer, self)
+        if dialog.exec() == LogoDialog.DialogCode.Accepted:
+            self.choose(dialog.chosen())
 
 
 def _field_row(edit: QLineEdit, chooser: QToolButton | None):

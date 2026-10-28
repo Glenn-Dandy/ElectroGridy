@@ -1005,12 +1005,15 @@
  "Kein Logo": "No logo",
  "Logo": "Logo",
  "Logo aus {name}": "Logo from {name}",
- "Logo im Schriftfeld rechts neben dem Namen": "Logo in the title block, right of the name",
  "Logo importieren": "Import logo",
- "Logo importieren (PNG, JPG, SVG) …": "Import logo (PNG, JPG, SVG) …",
- "Logo {name} in „Eigene Symbole“ gespeichert": "Logo {name} saved in \"My symbols\"",
  "Logo …": "Logo …",
  "Name des Logos:": "Name of the logo:",
  "{name} lässt sich nicht lesen": "{name} cannot be read",
- "Block {name} gelöscht, die leere Bibliothek {library} entfernt": "Block {name} deleted, the empty library {library} removed"
+ "Block {name} gelöscht, die leere Bibliothek {library} entfernt": "Block {name} deleted, the empty library {library} removed",
+ "Eigene Logos": "My logos",
+ "Logo aus der Bibliothek": "Logo from the library",
+ "Logo im Schriftfeld, aus der Bibliothek gewählt": "Logo in the title block, chosen from the library",
+ "Logo importieren …": "Import logo …",
+ "Logo {name} in „Eigene Logos“ gespeichert": "Logo {name} saved in \"My logos\"",
+ "Noch keine Logos. Mit „Logo importieren …“ eines in „Eigene Logos“ ablegen.": "No logos yet. \"Import logo …\" puts one into \"My logos\"."
 }

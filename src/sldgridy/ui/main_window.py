@@ -918,6 +918,7 @@ class MainWindow(QMainWindow):
     def _create_docks(self) -> None:
         self.layers_dock = LayersDock(self, self)
         self.properties_dock = PropertiesDock(self, self)
+        self.blocks.move_logos()
         self.library_dock = LibraryDock(self, self)
         self.pages_dock = PagesDock(self, self)
         self.devices_dock = DevicesDock(self, self)
