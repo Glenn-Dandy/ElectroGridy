@@ -142,3 +142,22 @@ def test_translation_file_is_valid_json():
     path = SRC / "resources" / "i18n" / "en.json"
     data = json.loads(path.read_text(encoding="utf-8"))
     assert all(isinstance(v, str) and v for v in data.values())
+
+
+def test_qt_buttons_are_german_in_german_mode(qapp, monkeypatch):
+    from PyQt6.QtWidgets import QDialogButtonBox
+
+    monkeypatch.setattr(i18n, "_current", "de")
+    buttons = i18n.QtButtonsTranslator()
+    qapp.installTranslator(buttons)
+    try:
+        box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save
+            | QDialogButtonBox.StandardButton.Discard
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+        texts = {b.text().replace("&", "") for b in box.buttons()}
+        assert texts == {"Speichern", "Verwerfen", "Abbrechen"}
+    finally:
+        qapp.removeTranslator(buttons)
+    assert QCoreApplication.translate("MainWindow", "Save") == "Save"  # only Qt's context

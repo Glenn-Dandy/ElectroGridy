@@ -8,7 +8,7 @@ translation tools are needed.
 import json
 from pathlib import Path
 
-from PyQt6.QtCore import QCoreApplication, QLocale, QSettings, QTranslator
+from PyQt6.QtCore import QCoreApplication, QLibraryInfo, QLocale, QSettings, QTranslator
 
 I18N_DIR = Path(__file__).resolve().parent / "resources" / "i18n"
 LANGUAGES = {"de": "Deutsch", "en": "English"}
@@ -33,6 +33,41 @@ class DictTranslator(QTranslator):
         return not self.table
 
 
+# Qt's own standard buttons in German, for systems without Qt's translations
+# (qt6-translations-l10n is not installed everywhere).
+QT_BUTTONS_DE = {
+    "Save": "Speichern",
+    "Save All": "Alles speichern",
+    "Open": "Öffnen",
+    "&Yes": "&Ja",
+    "Yes to &All": "Ja, &alle",
+    "&No": "&Nein",
+    "N&o to All": "N&ein, keine",
+    "Abort": "Abbrechen",
+    "Retry": "Wiederholen",
+    "Ignore": "Ignorieren",
+    "Close": "Schließen",
+    "Cancel": "Abbrechen",
+    "Discard": "Verwerfen",
+    "Help": "Hilfe",
+    "Apply": "Anwenden",
+    "Reset": "Zurücksetzen",
+    "Restore Defaults": "Voreinstellungen",
+}
+
+
+class QtButtonsTranslator(QTranslator):
+    """German texts of Qt's standard buttons (context QPlatformTheme)."""
+
+    def translate(self, context, source_text, disambiguation=None, n=-1):  # noqa: D102
+        if context != "QPlatformTheme":
+            return None
+        return QT_BUTTONS_DE.get(source_text)
+
+    def isEmpty(self) -> bool:  # noqa: N802 - Qt API
+        return False
+
+
 def load_table(language: str) -> dict[str, str]:
     path = I18N_DIR / f"{language}.json"
     if not path.exists():
@@ -50,15 +85,28 @@ def configured_language() -> str:
     return value if value in LANGUAGES else system_language()
 
 
-def install(app: QCoreApplication, language: str) -> DictTranslator | None:
-    """Activate ``language`` for this run. German needs no translator."""
+def install(app: QCoreApplication, language: str) -> QTranslator | None:
+    """Activate ``language`` for this run. German texts are the source; only Qt's own
+    texts (buttons such as Save, Discard, Cancel; print and file dialogs) need German."""
     global _current
     _current = language if language in LANGUAGES else "de"
     if _current == "de":
-        return None
+        return install_qt_german(app)
     translator = DictTranslator(load_table(_current), app)
     app.installTranslator(translator)
     return translator
+
+
+def install_qt_german(app: QCoreApplication) -> QTranslator:
+    """Qt's German translation when installed; the standard buttons in any case."""
+    buttons = QtButtonsTranslator(app)
+    app.installTranslator(buttons)
+    qt = QTranslator(app)
+    path = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+    if qt.load("qtbase_de", path):
+        app.installTranslator(qt)  # installed last, asked first
+        return qt
+    return buttons
 
 
 def current() -> str:
