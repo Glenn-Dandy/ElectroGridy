@@ -225,10 +225,11 @@ def test_project_format_for_all_pages(window, monkeypatch):
 
     window.new_document(DOC_PROJECT)
     doc = window.document
+    assert {s.paper for s in doc.sheets} == {"A4"}  # the default of new projects
     window.sheets.show_sheet(doc.sheets[-1].id)
-    doc.sheets[-1].entities.add(Line(id="far", p1=Point(350, 50), p2=Point(380, 50)))
     current = window.sheets.current_sheet()
     seen = {}
+    chosen = ["A3"]
 
     def accept(dialog):
         seen["checked"] = dialog.all_pages.isChecked()
@@ -236,15 +237,23 @@ def test_project_format_for_all_pages(window, monkeypatch):
 
     monkeypatch.setattr(FormatDialog, "exec", accept)
     monkeypatch.setattr(
-        FormatDialog, "values", lambda self: ("A4", Orientation.LANDSCAPE, current.title_block)
+        FormatDialog,
+        "values",
+        lambda self: (chosen[0], Orientation.LANDSCAPE, current.title_block),
     )
     warnings = []
     monkeypatch.setattr("PyQt6.QtWidgets.QMessageBox.warning", lambda *a: warnings.append(a))
     window.sheets.change_format()
     assert seen["checked"]  # a project changes all pages unless unticked
-    assert len(doc.sheets) > 1 and {s.paper for s in doc.sheets} == {"A4"}
-    title = schematic_title_block_name(schematic_title_width(297, 210))
+    assert len(doc.sheets) > 1 and {s.paper for s in doc.sheets} == {"A3"}
+    title = schematic_title_block_name(schematic_title_width(420, 297))
     assert {s.title_block for s in doc.sheets} == {title} and title in doc.blocks
+    assert not warnings
+    # Back to A4 with something drawn beyond its width.
+    doc.sheets[-1].entities.add(Line(id="far", p1=Point(350, 50), p2=Point(380, 50)))
+    chosen[0] = "A4"
+    window.sheets.change_format()
+    assert {s.paper for s in doc.sheets} == {"A4"}
     assert len(warnings) == 1  # the line beyond the A4 page
     window.act_undo.trigger()  # one step for all pages
     assert {s.paper for s in doc.sheets} == {"A3"}

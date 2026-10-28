@@ -39,7 +39,7 @@ class StartDialog(QDialog):
                 "Zeichnungsrahmen A0 bis A4"
             ),
             DOC_PROJECT: self.tr(
-                "Allpoliger Schaltplan mit nummerierten Seiten A3: Deckblatt, Stromlaufplan, "
+                "Allpoliger Schaltplan mit nummerierten Seiten A4: Deckblatt, Stromlaufplan, "
                 "Klemmenplan, Stückliste, Querverweise"
             ),
             DOC_DRAWING: self.tr("Maßstäbliche Zeichnung, z. B. Dachbelegung mit PV-Modulen"),

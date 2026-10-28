@@ -28,8 +28,12 @@ from sldgridy.model.sheet import (
     schematic_frame_entities,
     schematic_inner,
     schematic_outer,
+    schematic_title_width,
 )
-from sldgridy.model.title_block import schematic_title_block_definition
+from sldgridy.model.title_block import (
+    schematic_title_block_definition,
+    schematic_title_block_name,
+)
 from sldgridy.ui.main_window import MainWindow
 
 
@@ -595,7 +599,7 @@ def test_rail_ends_refer_to_the_neighbouring_pages():
     assert (targets["o"][0], targets["i"][0]) == ("/2.0", "/2.7")
 
 
-def test_new_project_is_a3_and_the_cover_fits_a3_and_a4():
+def test_new_project_is_a4_and_the_cover_fits_a3_and_a4():
     from sldgridy.model.entities import Text
     from sldgridy.model.paper import Orientation
     from sldgridy.model.reports import cover_entities
@@ -603,9 +607,9 @@ def test_new_project_is_a3_and_the_cover_fits_a3_and_a4():
 
     doc = Document.new_project()
     cover, page = doc.sheets
-    assert (page.paper, page.orientation) == ("A3", Orientation.LANDSCAPE)
+    assert (page.paper, page.orientation) == ("A4", Orientation.LANDSCAPE)
     doc.properties.update({"ADRESSE": "Weg 1, 99087 Erfurt, Haus 2", "FIRMA": "FS"})
-    for sheet in (cover, new_page(COVER, paper="A4")):
+    for sheet in (cover, new_page(COVER, paper="A3")):
         _a, b = schematic_inner(*sheet.size)
         texts = [e for e in cover_entities(doc, sheet) if isinstance(e, Text)]
         assert max(t.position.y for t in texts) < b.y - SCHEMATIC_TITLE_HEIGHT
@@ -629,8 +633,9 @@ def test_title_blocks_of_older_files_follow_the_frame():
     doc.blocks[old.name] = old
     for page in doc.sheets:
         page.title_block = old.name
-    del doc.blocks["Schriftfeld Schaltplan 395.8"]
+    name = schematic_title_block_name(schematic_title_width(297, 210))  # A4 landscape
+    del doc.blocks[name]
     assert doc.fit_schematic_title_blocks()
-    assert {p.title_block for p in doc.sheets} == {"Schriftfeld Schaltplan 395.8"}
-    assert old.name not in doc.blocks and "Schriftfeld Schaltplan 395.8" in doc.blocks
+    assert {p.title_block for p in doc.sheets} == {name}
+    assert old.name not in doc.blocks and name in doc.blocks
     assert not doc.fit_schematic_title_blocks()

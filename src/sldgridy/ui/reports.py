@@ -10,7 +10,16 @@ from PyQt6.QtWidgets import QFileDialog
 
 from sldgridy.commands.blocks import AddBlockCommand
 from sldgridy.commands.sheets import AddSheetCommand
-from sldgridy.model.document import CABLES, COVER, PAGE_FORMAT, PARTS, TERMINALS, TOC, Document
+from sldgridy.model.document import (
+    CABLES,
+    COVER,
+    PAGE_FORMAT,
+    PARTS,
+    SCHEMATIC_FRAME,
+    TERMINALS,
+    TOC,
+    Document,
+)
 from sldgridy.model.paper import Orientation
 from sldgridy.model.reports import COLUMNS, pages_needed, report_rows, table_area
 from sldgridy.ui.page_dialog import PageSpec
@@ -101,7 +110,11 @@ class ReportController(QObject):
         return added
 
     def _add(self, kind: str, index: int) -> None:
-        spec = PageSpec(kind, "", "", "", PAGE_FORMAT, Orientation.LANDSCAPE, False)
+        # Like the project's other pages (older projects are A3).
+        like = next((p for p in self.doc.sheets if p.frame == SCHEMATIC_FRAME), None)
+        paper = like.paper if like is not None else PAGE_FORMAT
+        orientation = like.orientation if like is not None else Orientation.LANDSCAPE
+        spec = PageSpec(kind, "", "", "", paper, orientation, False)
         page, needed = self.w.sheets.build_page(spec)
         for definition in needed:
             if definition.name not in self.doc.blocks:

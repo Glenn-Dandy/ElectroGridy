@@ -856,7 +856,6 @@
  "&Umbenennen …": "&Rename …",
  "&Zuletzt geöffnet": "Open &recent",
  "(keine)": "(none)",
- "Allpoliger Schaltplan mit nummerierten Seiten A3: Deckblatt, Stromlaufplan, Klemmenplan, Stückliste, Querverweise": "Multi-line circuit diagram with numbered A3 pages: cover, circuit diagram, terminal plan, parts list, cross references",
  "Beim Start anzeigen": "Show at start",
  "Belegt: {numbers}": "In use: {numbers}",
  "Bla&tt": "Shee&t",
@@ -969,5 +968,6 @@
  "Zeichnungsmaßstab der Seite, z. B. 1:5 für den Gehäuseaufbau: Symbole werden verkleinert eingefügt, getippte Längen und Bemaßungen sind echte Millimeter.": "Drawing scale of the page, e.g. 1:5 for the enclosure layout: symbols are inserted smaller, typed lengths and dimensions are real millimetres.",
  "Für alle Seiten ({n})": "For all pages ({n})",
  "Blattformat aller Seiten": "Sheet format of all pages",
- "{n} Objekte auf {pages} Seiten liegen ganz oder teilweise außerhalb des Blatts.": "{n} objects on {pages} pages lie completely or partly outside the sheet."
+ "{n} Objekte auf {pages} Seiten liegen ganz oder teilweise außerhalb des Blatts.": "{n} objects on {pages} pages lie completely or partly outside the sheet.",
+ "Allpoliger Schaltplan mit nummerierten Seiten A4: Deckblatt, Stromlaufplan, Klemmenplan, Stückliste, Querverweise": "Multi-line circuit diagram with numbered A4 pages: cover, circuit diagram, terminal plan, parts list, cross references"
 }
