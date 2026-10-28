@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMenuBar,
     QMessageBox,
@@ -43,6 +44,7 @@ from sldgridy.fileio.json_format import (
     block_signature,
     block_to_dict,
 )
+from sldgridy.fileio.library_merge import RENAME as MERGE_RENAME
 from sldgridy.fileio.library_merge import merged_library
 from sldgridy.fileio.paths import safe_file_name, user_library_dir
 from sldgridy.i18n import library_text
@@ -69,6 +71,7 @@ from sldgridy.model.entities import (
 )
 from sldgridy.model.geometry import Point
 from sldgridy.model.routing import open_wires
+from sldgridy.model.title_block import LOGO_CATEGORY, LOGO_KEYS
 from sldgridy.tools.blocks import InsertBlockTool, PointTool
 from sldgridy.tools.edit import SelectObjectsTool
 from sldgridy.ui.block_dialogs import (
@@ -91,6 +94,7 @@ from sldgridy.ui.library_transfer import (
     ExportDialog,
     ImportTargetDialog,
 )
+from sldgridy.ui.picture_import import logo_image, picture_entity
 from sldgridy.ui.space import BLOCK, Space
 
 if TYPE_CHECKING:
@@ -98,6 +102,7 @@ if TYPE_CHECKING:
     from sldgridy.ui.properties_dock import PropertiesDock
 
 USER_LIBRARY_FILE = "eigene" + LIBRARY_SUFFIX
+LOGO_WIDTH_MM = 40.0  # an imported logo; the title block scales it into its box
 BASE_MARKER_COLOR = QColor("#d81b60")
 
 
@@ -153,6 +158,7 @@ class BlockController(QObject):
         self.act_import = a(self.tr("Bibliothek &importieren …"), self.import_library)
         self.act_import_dxf = a(self.tr("Symbole aus &DXF importieren …"), self.import_dxf)
         self.act_export = a(self.tr("Bibliothek e&xportieren …"), self.export_library)
+        self.act_import_logo = a(self.tr("&Logo importieren (PNG, JPG, SVG) …"), self.import_logo)
         self.act_base = a(self.tr("Basispunkt setzen"), self.set_base_point)
         self.act_editor_save = a(
             self.tr("Speichern und schließen"), lambda: self.close_editor(save=True)
@@ -167,7 +173,15 @@ class BlockController(QObject):
         m.addSeparator()
         m.addActions([self.act_attribute, self.act_connection])
         m.addSeparator()
-        m.addActions([self.act_to_library, self.act_import, self.act_import_dxf, self.act_export])
+        m.addActions(
+            [
+                self.act_to_library,
+                self.act_import,
+                self.act_import_dxf,
+                self.act_import_logo,
+                self.act_export,
+            ]
+        )
 
     def toolbar_actions(self) -> list[QAction]:
         return [self.act_insert, self.act_create, self.act_edit]
@@ -1176,6 +1190,88 @@ class BlockController(QObject):
                 n=len(merged) - len(existing), name=library_text(title)
             )
         )
+
+    # -- logos ----------------------------------------------------------------
+
+    def available_logos(self) -> dict[str, BlockDefinition]:
+        """Logos (category "Logos") of the libraries and of the drawing."""
+        found: dict[str, BlockDefinition] = {}
+        for lib in self.w.library_dock.libraries.values():
+            found |= {n: b for n, b in lib.blocks.items() if b.category == LOGO_CATEGORY}
+        found |= {n: b for n, b in self.doc.blocks.items() if b.category == LOGO_CATEGORY}
+        return found
+
+    def adopt_logos(self, properties: Mapping[str, str]) -> None:
+        """Copy the chosen logos into the drawing (inside a macro), so the file is
+        complete on its own."""
+        logos = self.available_logos()
+        for key in LOGO_KEYS.values():
+            name = properties.get(key, "")
+            if name and name not in self.doc.blocks and name in logos:
+                self.w.push(AddBlockCommand(self.doc, logos[name].copy(), ""))
+
+    def import_logo(self, path: Path | None = None) -> str | None:
+        """A picture (PNG, JPG, SVG) as a block in "Eigene Symbole", category Logos;
+        its name, or None."""
+        if path is None:
+            name, _ = QFileDialog.getOpenFileName(
+                self.w,
+                self.tr("Logo importieren"),
+                self.w.last_dir(),
+                self.tr("Bilder (*.png *.jpg *.jpeg *.svg)"),
+            )
+            if not name:
+                return None
+            path = Path(name)
+        image = logo_image(path)
+        if image is None:
+            QMessageBox.warning(
+                self.w,
+                self.tr("Logo"),
+                self.tr("{name} lässt sich nicht lesen").format(name=path.name),
+            )
+            return None
+        name, ok = QInputDialog.getText(
+            self.w, self.tr("Logo importieren"), self.tr("Name des Logos:"), text=path.stem
+        )
+        name = name.strip()
+        if not ok or not name:
+            return None
+        photo = path.suffix.lower() in (".jpg", ".jpeg")
+        picture = picture_entity(image, LOGO_WIDTH_MM, photo)
+        block = BlockDefinition(
+            name=name,
+            entities=EntityContainer([picture]),
+            category=LOGO_CATEGORY,
+            description=self.tr("Logo aus {name}").format(name=path.name),
+        )
+        library = user_library_dir() / USER_LIBRARY_FILE
+        title, existing = self.tr("Eigene Symbole"), []
+        if library.exists():
+            loaded = self._load_user_library(library)
+            if loaded is None:
+                return None
+            title, existing = loaded[0] or title, loaded[1]
+        answers: dict[str, tuple[str, str]] = {}
+        ask = self._conflict_asker(existing, [block], title)
+
+        def decide(old, new):
+            answer = ask(old, new)
+            if answer is not None:
+                answers[new.name] = answer
+            return answer
+
+        merged = merged_library(existing, [block], decide)
+        if merged is None:
+            return None
+        library.parent.mkdir(parents=True, exist_ok=True)
+        save_library(merged, library, title, library_workspace(library) if library.exists() else "")
+        self.w.remember_dir(path)
+        self.w.library_dock.reload()
+        action, renamed = answers.get(name, ("", ""))
+        final = renamed if action == MERGE_RENAME else name
+        self.w.message(self.tr("Logo {name} in „Eigene Symbole“ gespeichert").format(name=final))
+        return final
 
     def _conflict_asker(
         self, existing: list[BlockDefinition], incoming: list[BlockDefinition], title: str

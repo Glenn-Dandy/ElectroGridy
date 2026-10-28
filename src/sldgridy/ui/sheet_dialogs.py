@@ -1,9 +1,11 @@
 """Dialogs for sheet format, title block fields and frame templates."""
 
+from collections.abc import Callable, Mapping
 from datetime import date
 from pathlib import Path
 
-from PyQt6.QtCore import QCoreApplication, Qt
+from PyQt6.QtCore import QCoreApplication, QSize, Qt
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -11,15 +13,106 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QGroupBox,
+    QHBoxLayout,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
+    QToolButton,
     QVBoxLayout,
 )
 
 from sldgridy.i18n import library_text
+from sldgridy.model.blocks import BlockDefinition
 from sldgridy.model.paper import PAPER_FORMATS, Orientation
-from sldgridy.model.title_block import DOCUMENT_FIELDS, FIELD_LABELS, SHEET_FIELDS
+from sldgridy.model.title_block import DOCUMENT_FIELDS, FIELD_LABELS, LOGO_KEYS, SHEET_FIELDS
+from sldgridy.view.thumbnails import block_icon
+
+# What the logo choosers need: the logos on offer (name: block) and a way to import one.
+Logos = Callable[[], Mapping[str, BlockDefinition]]
+LogoImporter = Callable[[], str | None]
+
+
+class LogoChooser(QToolButton):
+    """Logo of company or customer in the title block: chosen from the logos in the
+    libraries, or imported (PNG, JPG, SVG)."""
+
+    def __init__(self, current: str, logos: Logos, importer: LogoImporter | None, parent=None):
+        super().__init__(parent)
+        self.name = current
+        self._logos, self._importer = logos, importer
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.setIconSize(QSize(40, 28))
+        self.setFixedWidth(170)  # both fields stay as long
+        self.setToolTip(self.tr("Logo im Schriftfeld rechts neben dem Namen"))
+        menu = QMenu(self)
+        menu.aboutToShow.connect(self._fill)
+        self.setMenu(menu)
+        self._show()
+
+    def _show(self) -> None:
+        logos = self._logos()
+        if self.name and self.name in logos:
+            self.setIcon(block_icon(self.name, logos, 64))
+            self.setText(library_text(self.name))
+        else:
+            self.setIcon(QIcon())
+            self.setText(self.tr("Logo …") if not self.name else self.name)
+
+    def choose(self, name: str) -> None:
+        self.name = name
+        self._show()
+
+    def _fill(self) -> None:
+        menu = self.menu()
+        menu.clear()
+        menu.addAction(self.tr("Kein Logo"), lambda: self.choose(""))
+        logos = self._logos()
+        for name in sorted(logos, key=str.casefold):
+            menu.addAction(
+                block_icon(name, logos, 32), library_text(name), lambda n=name: self.choose(n)
+            )
+        if self._importer is not None:
+            menu.addSeparator()
+            menu.addAction(self.tr("Logo importieren (PNG, JPG, SVG) …"), self._import)
+
+    def _import(self) -> None:
+        name = self._importer()
+        if name:
+            self.choose(name)
+
+
+def _field_row(edit: QLineEdit, chooser: QToolButton | None):
+    if chooser is None:
+        return edit
+    row = QHBoxLayout()
+    row.addWidget(edit, 1)
+    row.addWidget(chooser)
+    return row
+
+
+def _logo_choosers(
+    properties: Mapping[str, str], logos: Logos | None, importer: LogoImporter | None
+) -> dict[str, LogoChooser]:
+    if logos is None:
+        return {}
+    return {
+        tag: LogoChooser(properties.get(key, ""), logos, importer) for tag, key in LOGO_KEYS.items()
+    }
+
+
+def _with_logos(
+    original: Mapping[str, str], fields: dict[str, str], choosers: dict[str, LogoChooser]
+) -> dict[str, str]:
+    """Document properties: the edited fields, the logos, the rest as it was."""
+    out = {k: v for k, v in original.items() if k not in DOCUMENT_FIELDS}
+    for tag, chooser in choosers.items():
+        out.pop(LOGO_KEYS[tag], None)
+        if chooser.name:
+            out[LOGO_KEYS[tag]] = chooser.name
+    out.update(fields)
+    return out
 
 
 def _label(tag: str) -> str:
@@ -88,17 +181,25 @@ class FieldsDialog(QDialog):
     """Title block values: drawing-wide ones and those of one sheet."""
 
     def __init__(
-        self, properties: dict[str, str], fields: dict[str, str], sheet_name: str, parent=None
+        self,
+        properties: dict[str, str],
+        fields: dict[str, str],
+        sheet_name: str,
+        parent=None,
+        logos: Logos | None = None,
+        importer: LogoImporter | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(self.tr("Schriftfeld: {name}").format(name=sheet_name))
+        self._original = dict(properties)
         self._doc_edits: dict[str, QLineEdit] = {}
         self._sheet_edits: dict[str, QLineEdit] = {}
+        self.logos = _logo_choosers(properties, logos, importer)
         doc_box = QGroupBox(self.tr("Für die ganze Zeichnung"))
         doc_form = QFormLayout(doc_box)
         for tag in DOCUMENT_FIELDS:
             edit = QLineEdit(properties.get(tag, ""))
-            doc_form.addRow(f"{_label(tag)}:", edit)
+            doc_form.addRow(f"{_label(tag)}:", _field_row(edit, self.logos.get(tag)))
             self._doc_edits[tag] = edit
         sheet_box = QGroupBox(self.tr("Für dieses Blatt"))
         sheet_form = QFormLayout(sheet_box)
@@ -116,7 +217,8 @@ class FieldsDialog(QDialog):
         self.resize(460, self.sizeHint().height())
 
     def properties(self) -> dict[str, str]:
-        return {t: e.text() for t, e in self._doc_edits.items() if e.text()}
+        typed = {t: e.text() for t, e in self._doc_edits.items() if e.text()}
+        return _with_logos(self._original, typed, self.logos)
 
     def fields(self) -> dict[str, str]:
         return {t: e.text() for t, e in self._sheet_edits.items() if e.text()}
@@ -125,22 +227,31 @@ class FieldsDialog(QDialog):
 class ProjectDialog(QDialog):
     """Data of the whole project: title block fields and the cover page."""
 
-    def __init__(self, properties: dict[str, str], parent=None) -> None:
+    def __init__(
+        self,
+        properties: dict[str, str],
+        parent=None,
+        logos: Logos | None = None,
+        importer: LogoImporter | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle(self.tr("Projektdaten"))
+        self._original = dict(properties)
         self._edits: dict[str, QLineEdit] = {}
+        self.logos = _logo_choosers(properties, logos, importer)
         form = QFormLayout(self)
         for tag in DOCUMENT_FIELDS:
             edit = QLineEdit(properties.get(tag, ""))
             if tag == "ADRESSE":
                 edit.setPlaceholderText(self.tr("Straße, PLZ Ort (Komma trennt die Zeilen)"))
-            form.addRow(f"{_label(tag)}:", edit)
+            form.addRow(f"{_label(tag)}:", _field_row(edit, self.logos.get(tag)))
             self._edits[tag] = edit
         form.addRow(_buttons(self))
         self.resize(480, self.sizeHint().height())
 
     def properties(self) -> dict[str, str]:
-        return {t: e.text() for t, e in self._edits.items() if e.text()}
+        typed = {t: e.text() for t, e in self._edits.items() if e.text()}
+        return _with_logos(self._original, typed, self.logos)
 
 
 class TemplateChooserDialog(QDialog):

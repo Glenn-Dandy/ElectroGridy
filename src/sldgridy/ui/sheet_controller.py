@@ -1000,13 +1000,23 @@ class SheetController(QObject):
         current = self.current_sheet()
         if current is None:
             return
-        dialog = FieldsDialog(self.doc.properties, current.fields, current.name, self.w)
+        # Logos sit in the circuit diagram title block.
+        logos = current.frame == SCHEMATIC_FRAME
+        dialog = FieldsDialog(
+            self.doc.properties,
+            current.fields,
+            current.name,
+            self.w,
+            self.w.blocks.available_logos if logos else None,
+            self.w.blocks.import_logo if logos else None,
+        )
         if dialog.exec() != FieldsDialog.DialogCode.Accepted:
             return
         properties, fields = dialog.properties(), dialog.fields()
         if properties == self.doc.properties and fields == current.fields:
             return
         self.w.begin_macro(self.tr("Schriftfeld ausfüllen"))
+        self.w.blocks.adopt_logos(properties)
         if properties != self.doc.properties:
             self.w.push(ChangeDocumentPropertiesCommand(self.doc, properties, ""))
         if fields != current.fields:

@@ -55,7 +55,7 @@ def test_rails_across_the_page_with_page_transitions(window, monkeypatch):
     window.tools.pick(Point(100, 30))
     wires = page_wires(window)
     assert [w.points[0].y for w in wires] == [30, 35, 40, 45, 50]
-    assert {(w.points[0].x, w.points[-1].x) for w in wires} == {(25.0, 262.5)}  # A4 landscape
+    assert {(w.points[0].x, w.points[-1].x) for w in wires} == {(25.0, 265.0)}  # A4 landscape
     points = [e for e in window.container if isinstance(e, InterruptionPoint)]
     assert len(points) == 10 and {p.name for p in points} == {"L1", "L2", "L3", "N", "PE"}
 

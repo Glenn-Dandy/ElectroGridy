@@ -999,5 +999,17 @@
  "Vorhandenen behalten": "Keep the existing one",
  "{n} Blöcke": "{n} blocks",
  "{n} Blöcke aus „{name}“.": "{n} blocks from \"{name}\".",
- "{n} Blöcke nach „{name}“ importiert": "{n} blocks imported into \"{name}\""
+ "{n} Blöcke nach „{name}“ importiert": "{n} blocks imported into \"{name}\"",
+ "&Logo importieren (PNG, JPG, SVG) …": "Import &logo (PNG, JPG, SVG) …",
+ "Bilder (*.png *.jpg *.jpeg *.svg)": "Pictures (*.png *.jpg *.jpeg *.svg)",
+ "Kein Logo": "No logo",
+ "Logo": "Logo",
+ "Logo aus {name}": "Logo from {name}",
+ "Logo im Schriftfeld rechts neben dem Namen": "Logo in the title block, right of the name",
+ "Logo importieren": "Import logo",
+ "Logo importieren (PNG, JPG, SVG) …": "Import logo (PNG, JPG, SVG) …",
+ "Logo {name} in „Eigene Symbole“ gespeichert": "Logo {name} saved in \"My symbols\"",
+ "Logo …": "Logo …",
+ "Name des Logos:": "Name of the logo:",
+ "{name} lässt sich nicht lesen": "{name} cannot be read"
 }

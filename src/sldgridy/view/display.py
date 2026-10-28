@@ -38,11 +38,12 @@ from sldgridy.model.sheet import (
     frame_entities,
     schematic_frame_entities,
     schematic_title_insert,
+    schematic_title_width,
     title_block_reference,
 )
 from sldgridy.model.terminal_plan import terminal_plan
 from sldgridy.model.terminals import row_labels, terminal_center
-from sldgridy.model.title_block import CAPTIONS, FIELD_LABELS
+from sldgridy.model.title_block import CAPTIONS, FIELD_LABELS, logo_references
 from sldgridy.model.wires import junction_diameter, junctions, label_text
 from sldgridy.view import theme
 from sldgridy.view.render import Style, entity_bounds, make_pen, paint_entity
@@ -349,10 +350,15 @@ def title_block_parts(doc: Document, sheet: SheetLayout) -> list[Entity]:
         kinds=kind_names(),
     )
     ref = title_block_reference(sheet.title_block, w, h, values)
+    logos = []
     if sheet.frame == SCHEMATIC_FRAME:
         ref = replace(ref, insert=schematic_title_insert(w, h))
+        logos = logo_references(doc.properties, doc.blocks, schematic_title_width(w, h), ref.insert)
     try:
-        return expand(ref, doc.blocks)
+        parts = expand(ref, doc.blocks)
+        for logo in logos:
+            parts += expand(logo, doc.blocks)
+        return parts
     except BlockError:
         return []
 

@@ -83,6 +83,34 @@ def load_picture(path: Path) -> QImage:
     return reader.read()
 
 
+LOGO_SIDE = 1200  # px, longest side of an imported logo
+
+
+def logo_image(path: Path) -> QImage | None:
+    """A logo file as a picture: PNG and JPG as they are (at most LOGO_SIDE), SVG drawn
+    at LOGO_SIDE on a transparent background. None if it cannot be read."""
+    if path.suffix.lower() == ".svg":
+        from PyQt6.QtSvg import QSvgRenderer
+
+        renderer = QSvgRenderer(str(path))
+        size = renderer.defaultSize()
+        if not renderer.isValid() or size.isEmpty():
+            return None
+        k = LOGO_SIDE / max(size.width(), size.height())
+        image = QImage(
+            max(1, round(size.width() * k)),
+            max(1, round(size.height() * k)),
+            QImage.Format.Format_ARGB32,
+        )
+        image.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(image)
+        renderer.render(painter)
+        painter.end()
+        return image
+    image = load_picture(path)
+    return None if image.isNull() else limited(image, LOGO_SIDE)
+
+
 def limited(image: QImage, side: int) -> QImage:
     if max(image.width(), image.height()) <= side:
         return image

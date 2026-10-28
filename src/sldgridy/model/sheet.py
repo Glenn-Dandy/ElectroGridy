@@ -70,7 +70,7 @@ def title_block_reference(
 SCHEMATIC_TOP = 15.0
 SCHEMATIC_SIDE = 5.0
 PRINT_SHORT_SIDE = 210.0  # A4: what the pages are printed on
-BAND = 5.0
+BAND = 4.0  # the numbered band (5 mm until 1.3.2.dev5)
 ROW_HEIGHT = 44.5  # A3 landscape: six rows A … F, A4 landscape: four
 BAND_TEXT = 2.5
 

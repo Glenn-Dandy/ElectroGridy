@@ -68,13 +68,13 @@ def test_pages_are_numbered_through_the_project():
 
 def test_circuit_diagram_frame():
     # A4: margins 5 mm, top 15, then the 5 mm band.
-    assert schematic_inner(297, 210) == (Point(10, 20), Point(287, 200))
+    assert schematic_inner(297, 210) == (Point(9, 19), Point(288, 201))  # band 4 mm
     # A3: margins enlarged so that the page fitted onto A4 has exactly those.
     a, b = schematic_inner(420, 297)
-    assert (a, b) == (Point(12.1, 26.2), Point(407.9, 284.9))
+    assert (a, b) == (Point(11.1, 25.2), Point(408.9, 285.9))
     assert row_count(420, 297) == 6 and row_count(297, 210) == 4
     edges = column_edges(420, 297, 10)
-    assert edges[0] == 12.1 and edges[-1] == pytest.approx(407.9)
+    assert edges[0] == 11.1 and edges[-1] == pytest.approx(408.9)
     assert column_at(420, 297, 10, 13) == 0
     assert column_at(420, 297, 10, 200) == 4
     assert column_at(420, 297, 10, 999) == 9
@@ -143,7 +143,7 @@ def test_new_pages_with_types(window, monkeypatch):
     sheets.new_sheet()
     page = sheets.current_sheet()
     assert (page.kind, page.frame, page.paper) == (CIRCUIT, "schematic", "A3")
-    assert page.title_block == "Schriftfeld Schaltplan 395.8" in window.document.blocks
+    assert page.title_block == "Schriftfeld Schaltplan 397.8" in window.document.blocks
     answer(window, monkeypatch, PARTS)
     sheets.new_sheet()
     texts = [sheets.tabs.tabText(i) for i in range(sheets.tabs.count())]
@@ -639,3 +639,67 @@ def test_title_blocks_of_older_files_follow_the_frame():
     assert {p.title_block for p in doc.sheets} == {name}
     assert old.name not in doc.blocks and name in doc.blocks
     assert not doc.fit_schematic_title_blocks()
+
+
+def test_logos_of_company_and_customer_in_the_title_block(qapp, tmp_path, monkeypatch):
+    from PyQt6.QtGui import QColor, QImage
+
+    from sldgridy.fileio.files import load_library
+    from sldgridy.fileio.paths import user_library_dir
+    from sldgridy.model.entities import RasterImage
+    from sldgridy.model.title_block import LOGO_CATEGORY, schematic_logo_boxes
+    from sldgridy.ui.sheet_dialogs import FieldsDialog
+    from sldgridy.view.display import title_block_parts
+
+    QSettings().clear()
+    window = MainWindow()
+    try:
+        window.new_document(DOC_PROJECT)
+        page = window.document.sheets[-1]
+        window.sheets.show_sheet(page.id)
+        # A wide PNG and an SVG become blocks in "Eigene Symbole", category Logos.
+        png = tmp_path / "firma.png"
+        image = QImage(400, 100, QImage.Format.Format_ARGB32)
+        image.fill(QColor("#1565c0"))
+        image.save(str(png))
+        svg = tmp_path / "kunde.svg"
+        svg.write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50">'
+            '<circle cx="25" cy="25" r="20" fill="red"/></svg>'
+        )
+        names = iter(["Firma", "Kunde"])
+        monkeypatch.setattr(
+            "PyQt6.QtWidgets.QInputDialog.getText", lambda *a, **k: (next(names), True)
+        )
+        assert window.blocks.import_logo(png) == "Firma"
+        assert window.blocks.import_logo(svg) == "Kunde"
+        _, mine = load_library(user_library_dir() / "eigene.sldglib")
+        logos = {b.name: b for b in mine if b.category == LOGO_CATEGORY}
+        assert set(logos) == {"Firma", "Kunde"}
+        assert isinstance(next(iter(logos["Kunde"].entities)), RasterImage)
+        assert set(window.blocks.available_logos()) >= {"Firma", "Kunde"}
+
+        # Chosen while filling in the title block: copied into the drawing.
+        def answer(dialog):
+            dialog.logos["FIRMA"].choose("Firma")
+            dialog.logos["KUNDE"].choose("Kunde")
+            return 1
+
+        monkeypatch.setattr(FieldsDialog, "exec", answer)
+        window.sheets.edit_fields()
+        doc = window.document
+        assert doc.properties["FIRMA_LOGO"] == "Firma" and "Kunde" in doc.blocks
+        pictures = [p for p in title_block_parts(doc, page) if isinstance(p, RasterImage)]
+        assert len(pictures) == 2
+        # Inside its box, as large as fits: the wide logo fills the width.
+        width = schematic_title_width(*page.size)
+        a, b = schematic_logo_boxes(width)["FIRMA"]
+        insert = schematic_inner(*page.size)[1]
+        firma = min(pictures, key=lambda p: p.p1.x)
+        left, right = sorted((firma.p1.x, firma.p2.x))
+        assert left == pytest.approx(a.x + insert.x) and right == pytest.approx(b.x + insert.x)
+        window.act_undo.trigger()  # one step: properties and logo blocks
+        assert "FIRMA_LOGO" not in doc.properties and "Kunde" not in doc.blocks
+    finally:
+        window.undo_stack.setClean()
+        window.close()

@@ -435,14 +435,17 @@ class MainWindow(QMainWindow):
         return name if ok and name else None
 
     def edit_project_data(self) -> None:
-        dialog = ProjectDialog(self.document.properties, self)
+        dialog = ProjectDialog(
+            self.document.properties, self, self.blocks.available_logos, self.blocks.import_logo
+        )
         if dialog.exec() != ProjectDialog.DialogCode.Accepted:
             return
         properties = dialog.properties()
         if properties != self.document.properties:
-            self.push(
-                ChangeDocumentPropertiesCommand(self.document, properties, self.tr("Projektdaten"))
-            )
+            self.begin_macro(self.tr("Projektdaten"))
+            self.blocks.adopt_logos(properties)
+            self.push(ChangeDocumentPropertiesCommand(self.document, properties, ""))
+            self.end_macro()
 
     def go_to_occurrence(self, occ) -> None:
         """Show where a device occurrence sits: in the model or on a page."""
