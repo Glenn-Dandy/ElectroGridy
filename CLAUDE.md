@@ -89,7 +89,7 @@ Die Zeichnung besteht aus zwei getrennten Bereichen, umschaltbar über Reiter am
 - Projekt, Firma und Bearbeiter gelten für die ganze Zeichnung, die übrigen Felder je Blatt. „Blatt x von y“ ergibt sich aus der Reihenfolge der Reiter.
 - Im Zeichnungsrahmen kann mit den normalen Zeichenwerkzeugen gearbeitet werden (Texte, Linien, Legende, Firmenangaben). Diese Objekte gehören zum Blatt, nicht zum Modell.
 - Rahmenvorlagen: Ein Zeichnungsrahmen ohne Ansichtsinhalt (Format, Rahmen, Schriftfeld, Blattobjekte) lässt sich als Vorlage speichern und für neue Blätter verwenden. Benutzervorlagen liegen in `~/.local/share/sldgridy/templates/`; mitgeliefert werden Normrahmen A4 bis A0.
-- Ein Formatwechsel behält Blattobjekte und Ansichtsfenster bei und warnt, wenn etwas außerhalb des Blatts liegt.
+- Ein Formatwechsel behält Blattobjekte und Ansichtsfenster bei und warnt, wenn etwas außerhalb des Blatts liegt. Bei mehreren Seiten bietet Seite > Format „Für alle Seiten (n)“ (`FormatDialog.for_all_pages`, im Projekt vorangehakt, Florian 2026-10-28: A3/A4 fürs ganze Projekt): jede Seite bekommt Format und Ausrichtung, Seiten im Schaltplanrahmen ihr Schriftfeld für die neue Breite, ein gewähltes anderes Schriftfeld gilt für alle (`SheetController._format_changes`); ein Undo-Schritt, die Warnung zählt Objekte außerhalb über alle Seiten.
 
 **Ansichtsfenster**
 

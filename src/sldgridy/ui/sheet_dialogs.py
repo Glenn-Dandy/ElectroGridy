@@ -5,6 +5,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import QCoreApplication, Qt
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -42,6 +43,8 @@ class FormatDialog(QDialog):
         title_block: str,
         block_names: list[str],
         parent=None,
+        pages: int = 1,
+        all_pages: bool = False,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(self.tr("Blattformat"))
@@ -63,6 +66,11 @@ class FormatDialog(QDialog):
         form.addRow(self.tr("Format:"), self.paper)
         form.addRow(self.tr("Ausrichtung:"), self.orientation)
         form.addRow(self.tr("Schriftfeld (Block):"), self.title_block)
+        # Several pages: the format of the whole project in one go.
+        self.all_pages = QCheckBox(self.tr("Für alle Seiten ({n})").format(n=pages))
+        self.all_pages.setChecked(all_pages and pages > 1)
+        if pages > 1:
+            form.addRow(self.all_pages)
         form.addRow(_buttons(self))
 
     def values(self) -> tuple[str, Orientation, str]:
@@ -71,6 +79,9 @@ class FormatDialog(QDialog):
             self.orientation.currentData(),
             self.title_block.currentData(),
         )
+
+    def for_all_pages(self) -> bool:
+        return self.all_pages.isChecked()
 
 
 class FieldsDialog(QDialog):

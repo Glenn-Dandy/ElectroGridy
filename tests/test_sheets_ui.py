@@ -215,3 +215,38 @@ def test_align_model_on_sheet(window, qapp):
     menu = sheets.align_menu
     sheets._fill_align_menu(menu)
     assert [a.text() for a in menu.actions()] == ["Ausrichten auf Blatt 1"]
+
+
+def test_project_format_for_all_pages(window, monkeypatch):
+    from sldgridy.model.document import DOC_PROJECT
+    from sldgridy.model.paper import Orientation
+    from sldgridy.model.sheet import schematic_title_width
+    from sldgridy.model.title_block import schematic_title_block_name
+
+    window.new_document(DOC_PROJECT)
+    doc = window.document
+    window.sheets.show_sheet(doc.sheets[-1].id)
+    doc.sheets[-1].entities.add(Line(id="far", p1=Point(350, 50), p2=Point(380, 50)))
+    current = window.sheets.current_sheet()
+    seen = {}
+
+    def accept(dialog):
+        seen["checked"] = dialog.all_pages.isChecked()
+        return 1
+
+    monkeypatch.setattr(FormatDialog, "exec", accept)
+    monkeypatch.setattr(
+        FormatDialog, "values", lambda self: ("A4", Orientation.LANDSCAPE, current.title_block)
+    )
+    warnings = []
+    monkeypatch.setattr("PyQt6.QtWidgets.QMessageBox.warning", lambda *a: warnings.append(a))
+    window.sheets.change_format()
+    assert seen["checked"]  # a project changes all pages unless unticked
+    assert len(doc.sheets) > 1 and {s.paper for s in doc.sheets} == {"A4"}
+    title = schematic_title_block_name(schematic_title_width(297, 210))
+    assert {s.title_block for s in doc.sheets} == {title} and title in doc.blocks
+    assert len(warnings) == 1  # the line beyond the A4 page
+    window.act_undo.trigger()  # one step for all pages
+    assert {s.paper for s in doc.sheets} == {"A3"}
+    for space in window.spaces():
+        space.stack.setClean()

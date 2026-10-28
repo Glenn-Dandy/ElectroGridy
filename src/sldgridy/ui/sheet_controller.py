@@ -44,6 +44,7 @@ from sldgridy.i18n import ui_locale
 from sldgridy.model.container import EntityContainer
 from sldgridy.model.document import (
     CIRCUIT,
+    DOC_PROJECT,
     DRAWING,
     GENERATED_KINDS,
     PAGE_FORMAT,
@@ -892,54 +893,91 @@ class SheetController(QObject):
         if current is None:
             return
         dialog = FormatDialog(
-            current.paper, current.orientation, current.title_block, list(self.doc.blocks), self.w
+            current.paper,
+            current.orientation,
+            current.title_block,
+            list(self.doc.blocks),
+            self.w,
+            pages=len(self.doc.sheets),
+            all_pages=self.doc.kind == DOC_PROJECT,
         )
         if dialog.exec() != FormatDialog.DialogCode.Accepted:
             return
         paper, orientation, title_block = dialog.values()
-        changes = {}
-        if paper != current.paper:
-            changes["paper"] = paper
-        if orientation is not current.orientation:
-            changes["orientation"] = orientation
-        if title_block != current.title_block:
-            changes["title_block"] = title_block
-        if not changes:
+        every = dialog.for_all_pages()
+        # The title block counts as chosen only when changed from the current page's.
+        chosen = title_block if title_block != current.title_block else None
+        targets = list(self.doc.sheets) if every else [current]
+        changed: list[tuple[str, dict]] = []
+        needed: dict[str, object] = {}
+        for sheet in targets:
+            changes = self._format_changes(sheet, paper, orientation, chosen, needed)
+            if changes:
+                changed.append((sheet.id, changes))
+        if not changed:
             return
-        needed = []
-        if current.frame == SCHEMATIC_FRAME and "title_block" not in changes:
+        text = self.tr("Blattformat aller Seiten") if every else self.tr("Blattformat")
+        self.w.begin_macro(text)
+        for definition in needed.values():
+            self.w.push(AddBlockCommand(self.doc, definition, ""))
+        for sheet_id, changes in changed:
+            self.w.push(ChangeSheetCommand(self.doc, sheet_id, text, **changes))
+        self.w.end_macro()
+        self._warn_outside([sheet_id for sheet_id, _changes in changed])
+
+    def _format_changes(
+        self,
+        sheet: SheetLayout,
+        paper: str,
+        orientation: Orientation,
+        title_block: str | None,
+        needed: dict,
+    ) -> dict:
+        """What changes on ``sheet`` for the new format; title block definitions it
+        needs go into ``needed``."""
+        changes: dict = {}
+        if paper != sheet.paper:
+            changes["paper"] = paper
+        if orientation is not sheet.orientation:
+            changes["orientation"] = orientation
+        if title_block is not None:
+            if title_block != sheet.title_block:
+                changes["title_block"] = title_block
+        elif sheet.frame == SCHEMATIC_FRAME and changes:
             # The circuit diagram title block spans the frame: the one for the new width.
             width = schematic_title_width(*sheet_size(paper, orientation))
-            changes["title_block"] = schematic_title_block_name(width)
-            if changes["title_block"] not in self.doc.blocks:
-                needed.append(schematic_title_block_definition(width, title_labels()))
-        self.w.begin_macro(self.tr("Blattformat"))
-        for definition in needed:
-            self.w.push(AddBlockCommand(self.doc, definition, ""))
-        self.w.push(ChangeSheetCommand(self.doc, current.id, self.tr("Blattformat"), **changes))
-        self.w.end_macro()
-        self._warn_outside(current.id)
+            name = schematic_title_block_name(width)
+            if name != sheet.title_block:
+                changes["title_block"] = name
+            if name not in self.doc.blocks and name not in needed:
+                needed[name] = schematic_title_block_definition(width, title_labels())
+        return changes
 
-    def _warn_outside(self, sheet_id: str) -> None:
-        space = self.spaces.get(sheet_id)
-        sheet = self.doc.sheet(sheet_id)
-        if space is None:
+    def _warn_outside(self, sheet_ids: list[str]) -> None:
+        count, pages = 0, 0
+        for sheet_id in sheet_ids:
+            sheet = self.doc.sheet(sheet_id)
+            if not len(sheet.entities):
+                continue  # nothing drawn (generated lists follow the format)
+            space = self.sheet_space(sheet_id)
+            w, h = sheet.size
+            paper = QRectF(0, 0, w, h)
+            outside = [
+                i
+                for i in space.sync.items()
+                if not paper.contains(i.sceneBoundingRect().adjusted(0.5, 0.5, -0.5, -0.5))
+            ]
+            count += len(outside)
+            pages += bool(outside)
+        if not count:
             return
-        w, h = sheet.size
-        paper = QRectF(0, 0, w, h)
-        outside = [
-            i
-            for i in space.sync.items()
-            if not paper.contains(i.sceneBoundingRect().adjusted(0.5, 0.5, -0.5, -0.5))
-        ]
-        if outside:
-            QMessageBox.warning(
-                self.w,
-                self.tr("Blattformat"),
-                self.tr("{n} Objekte liegen ganz oder teilweise außerhalb des Blatts.").format(
-                    n=len(outside)
-                ),
+        if len(sheet_ids) == 1:
+            text = self.tr("{n} Objekte liegen ganz oder teilweise außerhalb des Blatts.")
+        else:
+            text = self.tr(
+                "{n} Objekte auf {pages} Seiten liegen ganz oder teilweise außerhalb des Blatts."
             )
+        QMessageBox.warning(self.w, self.tr("Blattformat"), text.format(n=count, pages=pages))
 
     def edit_fields(self) -> None:
         current = self.current_sheet()
