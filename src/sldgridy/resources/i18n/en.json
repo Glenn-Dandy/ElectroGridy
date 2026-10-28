@@ -976,5 +976,10 @@
  "Blattnummer:": "Page number:",
  "Seite ohne Rahmen und Schriftfeld, z. B. für ein Blatt aus einem fremden Plan mit eigenem Rahmen.": "Page without frame and title block, e.g. for a sheet from another plan with a frame of its own.",
  "Format der Seite:": "Page format:",
- "Sonderformat {size}": "Custom size {size}"
+ "Sonderformat {size}": "Custom size {size}",
+ "Zoom wählen oder eingeben": "Choose or type the zoom",
+ "Seite einpassen": "Fit page",
+ "Wert eingeben …": "Enter value …",
+ "Zoom": "Zoom",
+ "Zoom in % (100 % = Originalgröße am Bildschirm):": "Zoom in % (100 % = real size on the screen):"
 }

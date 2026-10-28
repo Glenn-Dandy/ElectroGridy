@@ -1026,7 +1026,15 @@ class MainWindow(QMainWindow):
         )
         self.lbl_position.setMinimumWidth(width)
         self.lbl_layer = QLabel(self.tr("Ebene: {name}").format(name=DEFAULT_LAYER))
-        self.lbl_zoom = QLabel()
+        # Click: zoom steps, fit and a value of one's own.
+        self.lbl_zoom = QToolButton()
+        self.lbl_zoom.setAutoRaise(True)
+        self.lbl_zoom.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.lbl_zoom.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.lbl_zoom.setToolTip(self.tr("Zoom wählen oder eingeben"))
+        self.zoom_menu = QMenu(self.lbl_zoom)
+        self.zoom_menu.aboutToShow.connect(self._fill_zoom_menu)
+        self.lbl_zoom.setMenu(self.zoom_menu)
         status = self.statusBar()
         status.addPermanentWidget(self.lbl_position)
         for action in (
@@ -2161,6 +2169,37 @@ class MainWindow(QMainWindow):
                 x=self._fmt_mm(pos.x()), y=self._fmt_mm(pos.y())
             )
         )
+
+    ZOOM_STEPS = (25, 50, 100, 200, 400)  # percent; 100 % = real size on the screen
+
+    def _fill_zoom_menu(self) -> None:
+        menu = self.zoom_menu
+        menu.clear()
+        for percent in self.ZOOM_STEPS:
+            menu.addAction(f"{percent} %", lambda p=percent: self.canvas.set_zoom(p / 100))
+        menu.addSeparator()
+        sheet = self.sheets.current_sheet()
+        if sheet is not None:
+            w, h = sheet.size
+            menu.addAction(
+                self.tr("Seite einpassen"), lambda: self.canvas.fit_rect(QRectF(0, 0, w, h))
+            )
+        menu.addAction(self.act_zoom_extents)
+        menu.addSeparator()
+        menu.addAction(self.tr("Wert eingeben …"), self._ask_zoom)
+
+    def _ask_zoom(self) -> None:
+        percent, ok = QInputDialog.getDouble(
+            self,
+            self.tr("Zoom"),
+            self.tr("Zoom in % (100 % = Originalgröße am Bildschirm):"),
+            round(self.canvas.zoom() * 100, 1),
+            0.1,
+            5000.0,
+            1,
+        )
+        if ok:
+            self.canvas.set_zoom(percent / 100)
 
     def _show_zoom(self, zoom: float) -> None:
         digits = 0 if zoom >= 0.1 else 1 if zoom >= 0.01 else 2

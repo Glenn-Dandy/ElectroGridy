@@ -31,6 +31,16 @@ def test_status_bar_shows_zoom(window):
     assert window.lbl_zoom.text() == "Zoom: 200 %"
 
 
+def test_zoom_in_the_status_bar_can_be_chosen(window, monkeypatch):
+    window.lbl_zoom.menu().aboutToShow.emit()
+    actions = {a.text(): a for a in window.lbl_zoom.menu().actions()}
+    actions["50 %"].trigger()
+    assert window.canvas.zoom() == pytest.approx(0.5)
+    monkeypatch.setattr("PyQt6.QtWidgets.QInputDialog.getDouble", lambda *a, **k: (150.0, True))
+    actions["Wert eingeben …"].trigger()
+    assert window.lbl_zoom.text() == "Zoom: 150 %"
+
+
 def test_grid_action_toggles_canvas(window):
     window.act_grid.setChecked(False)
     assert not window.canvas.grid_visible()
