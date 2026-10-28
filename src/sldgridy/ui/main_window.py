@@ -1035,6 +1035,9 @@ class MainWindow(QMainWindow):
         self.zoom_menu = QMenu(self.lbl_zoom)
         self.zoom_menu.aboutToShow.connect(self._fill_zoom_menu)
         self.lbl_zoom.setMenu(self.zoom_menu)
+        # Text from the start: a button growing with its first text made the status bar
+        # taller, the canvas smaller and moved the view (seen with Qt 6.4).
+        self._show_zoom(self.canvas.zoom())
         status = self.statusBar()
         status.addPermanentWidget(self.lbl_position)
         for action in (
