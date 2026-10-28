@@ -167,8 +167,17 @@ VALUE = 2.5
 BIG = 3.5
 
 
+# Raised with every change of the layout: files with an older one get the new title
+# block when opened, also at the same width (1.3.2.dev9 kept the old one).
+SCHEMATIC_TITLE_LAYOUT = 3
+
+
 def schematic_title_block_name(width: float) -> str:
     return f"{SCHEMATIC_TITLE_PREFIX} {width:g}"
+
+
+def schematic_title_description(width: float) -> str:
+    return f"Schriftfeld für Schaltpläne, {width:g} mm breit (Aufbau {SCHEMATIC_TITLE_LAYOUT})"
 
 
 def _schematic_columns(width: float) -> tuple[float, float, float, float, float]:
@@ -339,5 +348,5 @@ def schematic_title_block_definition(
         base_point=Point(0, 0),
         entities=EntityContainer(out),
         category="Rahmen",
-        description=f"Schriftfeld für Schaltpläne, {width:g} mm breit",
+        description=schematic_title_description(width),
     )

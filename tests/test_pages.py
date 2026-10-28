@@ -785,3 +785,22 @@ def test_title_block_texts_fit_their_fields(qapp):
     assert min(p.height for p in parts if isinstance(p, Text) and p.id == "att_kunde") == 1.2
     assert project.height == 5.0  # a few letters: large
     assert "A4 quer" not in texts and "Stromlaufplan" in texts  # page type, no format
+
+
+def test_older_title_block_of_the_same_width_is_replaced_on_opening():
+    """dev9 kept the old layout ("A4 quer", page type in the number field) in files
+    whose width had not changed (Florian's screenshot 2026-10-28)."""
+    from sldgridy.model.entities import AttributeDefinition
+
+    doc = Document.new_project()
+    name = doc.sheets[1].title_block
+    old = doc.blocks[name].copy()
+    old.description = f"Schriftfeld für Schaltpläne, {name.split()[-1]} mm breit"
+    old.entities.add(AttributeDefinition(id="att_format", tag="FORMAT", position=Point(-50, -5)))
+    doc.blocks[name] = old
+    data = document_to_dict(doc)
+    loaded = document_from_dict(data)
+    assert loaded.fit_schematic_title_blocks()
+    tags = {a.tag for a in loaded.blocks[name].attribute_definitions()}
+    assert "FORMAT" not in tags and "PROJEKT" in tags
+    assert not loaded.fit_schematic_title_blocks()  # current now: nothing to do

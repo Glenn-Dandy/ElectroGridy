@@ -23,6 +23,7 @@ from sldgridy.model.title_block import (
     TITLE_BLOCK_NAME,
     schematic_title_block_definition,
     schematic_title_block_name,
+    schematic_title_description,
     title_block_definition,
 )
 
@@ -210,8 +211,9 @@ class Document:
         self, title_definition: Callable[[float], BlockDefinition] | None = None
     ) -> bool:
         """Give every page in the circuit diagram frame the title block for its width
-        (files of older versions had other frame margins); title blocks no page uses
-        any more are dropped. True if anything changed."""
+        and of the current layout (files of older versions had other frame margins or
+        fields); title blocks no page uses any more are dropped. True if anything
+        changed."""
         make = title_definition or schematic_title_block_definition
         changed = False
         for page in self.sheets:
@@ -221,9 +223,11 @@ class Document:
                 continue
             width = schematic_title_width(*page.size)
             name = schematic_title_block_name(width)
+            there = self.blocks.get(name)
+            if there is None or there.description != schematic_title_description(width):
+                self.blocks[name] = make(width)
+                changed = True
             if page.title_block != name:
-                if name not in self.blocks:
-                    self.blocks[name] = make(width)
                 page.title_block = name
                 changed = True
         if changed:
