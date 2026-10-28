@@ -101,3 +101,26 @@ def test_no_tracking_point_without_command(window):
     QTest.qWait(500)
     assert window.canvas.acquired == []
     window.tools.cancel()
+
+
+def test_text_reference_point_snaps_and_tracks(window):
+    """Texts take part in the tracking at their reference point (Florian 2026-10-28)."""
+    from sldgridy.model.entities import Text
+    from sldgridy.model.snap import SnapMode, find_snap
+
+    text = Text(id="t", position=Point(30, 20), text="-X1", height=2.5)
+    hit = find_snap(Point(30.3, 20.2), [text], 1.0)
+    assert hit is not None and (hit.point, hit.mode) == (Point(30, 20), SnapMode.INSERTION)
+    assert find_snap(Point(30.3, 20.2), [text], 1.0, frozenset({SnapMode.ENDPOINT})) is None
+
+    window.document.model_space.add(text)
+    window.act_line.trigger()
+    viewport = window.canvas.viewport()
+    QTest.mouseMove(viewport, vp(window, 30.2, 20.2))  # rest on the text's point
+    assert wait_until(lambda: window.canvas.acquired == [Point(30, 20)])
+    QTest.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=vp(window, 60, 60))
+    QTest.mouseMove(viewport, vp(window, 30.6, 61.1))
+    QTest.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=vp(window, 30.6, 61.1))
+    QTest.keyClick(window.canvas, Qt.Key.Key_Return)
+    new = [e for e in window.document.model_space if isinstance(e, Line)][0]
+    assert new.p2.x == 30  # straight below the text's reference point

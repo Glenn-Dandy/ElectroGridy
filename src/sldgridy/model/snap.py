@@ -7,12 +7,14 @@ from enum import StrEnum
 
 from sldgridy.model.entities import (
     Arc,
+    AttributeDefinition,
     Busbar,
     Circle,
     Entity,
     Line,
     Polyline,
     Rectangle,
+    Text,
     Viewport,
     Wire,
 )
@@ -35,6 +37,7 @@ class SnapMode(StrEnum):
     MIDPOINT = "midpoint"
     INTERSECTION = "intersection"
     CENTER = "center"
+    INSERTION = "insertion"  # reference point of a text
     PERPENDICULAR = "perpendicular"
     BUSBAR = "busbar"
     NEAREST = "nearest"
@@ -50,8 +53,9 @@ _RANK = {
     SnapMode.INTERSECTION: 3,
     SnapMode.MIDPOINT: 4,
     SnapMode.CENTER: 5,
-    SnapMode.BUSBAR: 6,
-    SnapMode.NEAREST: 7,
+    SnapMode.INSERTION: 6,
+    SnapMode.BUSBAR: 7,
+    SnapMode.NEAREST: 8,
 }
 
 
@@ -83,6 +87,9 @@ def candidates(e: Entity, modes: frozenset[SnapMode]) -> list[SnapHit]:
         case Circle():
             if cen in modes:
                 hits.append(SnapHit(e.center, cen))
+        case Text() | AttributeDefinition():
+            if SnapMode.INSERTION in modes:
+                hits.append(SnapHit(e.position, SnapMode.INSERTION))
         case Arc():
             if end in modes:
                 hits += [SnapHit(p, end) for p in arc_endpoints(e)]
@@ -226,7 +233,13 @@ def find_snap(
     for group in (
         {SnapMode.CONNECTION},
         {SnapMode.PERPENDICULAR},
-        {SnapMode.ENDPOINT, SnapMode.INTERSECTION, SnapMode.MIDPOINT, SnapMode.CENTER},
+        {
+            SnapMode.ENDPOINT,
+            SnapMode.INTERSECTION,
+            SnapMode.MIDPOINT,
+            SnapMode.CENTER,
+            SnapMode.INSERTION,
+        },
         {SnapMode.BUSBAR},
         {SnapMode.NEAREST},
     ):

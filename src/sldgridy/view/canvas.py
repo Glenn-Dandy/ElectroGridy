@@ -1236,6 +1236,11 @@ class Canvas(QGraphicsView):
                 )
             case SnapMode.CENTER:
                 painter.drawEllipse(c, r, r)
+            case SnapMode.INSERTION:
+                # Two overlapping squares: where a text is anchored.
+                h = r * 0.7
+                painter.drawRect(QRectF(x - r, y - r, r + h, r + h))
+                painter.drawRect(QRectF(x - h, y - h, r + h, r + h))
             case SnapMode.INTERSECTION:
                 painter.drawLine(QPointF(x - r, y - r), QPointF(x + r, y + r))
                 painter.drawLine(QPointF(x - r, y + r), QPointF(x + r, y - r))

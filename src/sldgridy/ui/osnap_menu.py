@@ -23,6 +23,7 @@ def mode_labels() -> dict[SnapMode, str]:
         SnapMode.MIDPOINT: tr("Mittelpunkt"),
         SnapMode.INTERSECTION: tr("Schnittpunkt"),
         SnapMode.CENTER: tr("Zentrum"),
+        SnapMode.INSERTION: tr("Einfügepunkt (Bezugspunkt von Texten)"),
         SnapMode.BUSBAR: tr("Sammelschiene (beliebiger Punkt im Raster)"),
         SnapMode.NEAREST: tr("Nächster Punkt (auf Linie, Kreis, Bogen)"),
     }
