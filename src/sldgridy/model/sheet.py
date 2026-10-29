@@ -75,6 +75,10 @@ PRINT_SHORT_SIDE = 210.0  # A4: what the pages are printed on
 BAND = 3.5
 ROW_HEIGHT = 44.5  # A3 landscape: six rows A … F, A4 landscape: four
 BAND_TEXT = 2.0
+# Frame lines. The margins reach to the outer edge of the outer line: printers that
+# cannot print the outermost 4.9 mm cut off half of a line centred at 5 mm, so left,
+# right and bottom came out thinner than the top (Florian 2026-10-29).
+FRAME_WEIGHT = 0.5
 
 
 def schematic_margins(width: float, height: float) -> tuple[float, float]:
@@ -86,7 +90,9 @@ def schematic_margins(width: float, height: float) -> tuple[float, float]:
 
 
 def schematic_outer(width: float, height: float) -> tuple[Point, Point]:
+    """Middle of the outer frame line."""
     side, top = schematic_margins(width, height)
+    side, top = side + FRAME_WEIGHT / 2, top + FRAME_WEIGHT / 2
     return Point(side, top), Point(width - side, height - side)
 
 
@@ -125,8 +131,8 @@ def schematic_frame_entities(width: float, height: float, columns: int) -> list[
     a, b = schematic_outer(width, height)
     ia, ib = schematic_inner(width, height)
     out: list[Entity] = [
-        Rectangle(id="outer", p1=a, p2=b, lineweight=0.5),
-        Rectangle(id="inner", p1=ia, p2=ib, lineweight=0.5),
+        Rectangle(id="outer", p1=a, p2=b, lineweight=FRAME_WEIGHT),
+        Rectangle(id="inner", p1=ia, p2=ib, lineweight=FRAME_WEIGHT),
     ]
     edges = column_edges(width, height, max(columns, 1))
     n = max(columns, 1)

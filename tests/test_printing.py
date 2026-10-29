@@ -87,6 +87,15 @@ def test_frame_clipped_warning():
     assert frame_clipped(page, (5, 12, 5, 5))
     (small,) = fit(1189, 841, *A4)
     assert frame_clipped(small, (4.2, 4.2, 4.2, 4.2))
+    # Circuit diagram frame on A4, 1:1: 5 mm to the outer edge of the line. A printer
+    # that cannot print the outer 4.94 mm (14 pt) no longer cuts into it.
+    from sldgridy.model.sheet import FRAME_WEIGHT, schematic_margins, schematic_outer
+
+    a4 = one_to_one(297, 210)[0]
+    side, top = schematic_margins(297, 210)
+    assert schematic_outer(297, 210)[0].x - FRAME_WEIGHT / 2 == side == 5.0
+    assert not frame_clipped(a4, (4.94, 4.94, 4.94, 4.94), (side, top, side, side))
+    assert frame_clipped(a4, (5.5, 5.5, 5.5, 5.5), (side, top, side, side))
 
 
 def sample_doc() -> Document:

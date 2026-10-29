@@ -22,9 +22,10 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from sldgridy.model.document import Document, SheetLayout
+from sldgridy.model.document import NO_FRAME, SCHEMATIC_FRAME, Document, SheetLayout
 from sldgridy.model.paper import PAPER_FORMATS
-from sldgridy.printing.layout import Mode, frame_clipped
+from sldgridy.model.sheet import schematic_margins
+from sldgridy.printing.layout import ISO_FRAME, Mode, frame_clipped
 from sldgridy.printing.output import Job, plan, render
 from sldgridy.view.display import OutputOptions
 
@@ -48,6 +49,17 @@ def minimum_margins_mm(printer: QPrinter) -> tuple[float, float, float, float]:
     layout.setUnits(QPageLayout.Unit.Millimeter)
     m = layout.minimumMargins()
     return m.left(), m.top(), m.right(), m.bottom()
+
+
+def frame_margins(sheet: SheetLayout) -> tuple[float, float, float, float] | None:
+    """Distance of the frame from the edges of the sheet (left, top, right, bottom);
+    None for a page without a frame."""
+    if sheet.frame == NO_FRAME:
+        return None
+    if sheet.frame == SCHEMATIC_FRAME:
+        side, top = schematic_margins(*sheet.size)
+        return side, top, side, side
+    return ISO_FRAME
 
 
 class PrintDialog(QDialog):
@@ -219,7 +231,11 @@ class PrintDialog(QDialog):
         ):
             margins = minimum_margins_mm(self.printer)
             pages = plan(self.doc, job)
-            if any(frame_clipped(page, margins) for sheet, page in pages if sheet is not None):
+            if any(
+                frame_clipped(page, margins, frame)
+                for sheet, page in pages
+                if sheet is not None and (frame := frame_margins(sheet)) is not None
+            ):
                 result.append(
                     self.tr(
                         "Der nicht bedruckbare Rand des Druckers ({m:.1f} mm) schneidet in "

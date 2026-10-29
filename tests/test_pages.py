@@ -67,14 +67,14 @@ def test_pages_are_numbered_through_the_project():
 
 
 def test_circuit_diagram_frame():
-    # A4: margins 5 mm, top 15, then the 3.5 mm band.
-    assert schematic_inner(297, 210) == (Point(8.5, 18.5), Point(288.5, 201.5))
+    # A4: margins 5 mm, top 15 to the outer edge of the 0.5 mm line, then the 3.5 mm band.
+    assert schematic_inner(297, 210) == (Point(8.75, 18.75), Point(288.25, 201.25))
     # A3: margins enlarged so that the page fitted onto A4 has exactly those.
     a, b = schematic_inner(420, 297)
-    assert (a, b) == (Point(10.6, 24.7), Point(409.4, 286.4))
+    assert (a, b) == (Point(10.85, 24.95), Point(409.15, 286.15))
     assert row_count(420, 297) == 6 and row_count(297, 210) == 4
     edges = column_edges(420, 297, 10)
-    assert edges[0] == 10.6 and edges[-1] == pytest.approx(409.4)
+    assert edges[0] == 10.85 and edges[-1] == pytest.approx(409.15)
     assert column_at(420, 297, 10, 13) == 0
     assert column_at(420, 297, 10, 200) == 4
     assert column_at(420, 297, 10, 999) == 9
@@ -143,7 +143,7 @@ def test_new_pages_with_types(window, monkeypatch):
     sheets.new_sheet()
     page = sheets.current_sheet()
     assert (page.kind, page.frame, page.paper) == (CIRCUIT, "schematic", "A3")
-    assert page.title_block == "Schriftfeld Schaltplan 398.8" in window.document.blocks
+    assert page.title_block == "Schriftfeld Schaltplan 398.3" in window.document.blocks
     answer(window, monkeypatch, PARTS)
     sheets.new_sheet()
     texts = [sheets.tabs.tabText(i) for i in range(sheets.tabs.count())]
@@ -616,12 +616,14 @@ def test_new_project_is_a4_and_the_cover_fits_a3_and_a4():
 
 
 def test_a3_page_fitted_onto_a4_prints_with_the_standard_margins():
+    from sldgridy.model.sheet import FRAME_WEIGHT
     from sldgridy.printing.layout import fit
 
     (page,) = fit(420, 297, 210, 297)
     a, b = schematic_outer(420, 297)
-    left, top = page.to_page(a.x, a.y)
-    right, bottom = page.to_page(b.x, b.y)
+    edge = FRAME_WEIGHT / 2  # the margins reach to the outer edge of the line
+    left, top = page.to_page(a.x - edge, a.y - edge)
+    right, bottom = page.to_page(b.x + edge, b.y + edge)
     assert (page.width, page.height) == (297, 210)
     assert left == pytest.approx(5, abs=0.05) and 297 - right == pytest.approx(5, abs=0.05)
     assert top == pytest.approx(15, abs=0.05) and 210 - bottom == pytest.approx(5, abs=0.05)

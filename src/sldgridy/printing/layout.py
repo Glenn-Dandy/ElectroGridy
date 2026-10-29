@@ -138,15 +138,22 @@ def fit_rect(
     )
 
 
-def frame_clipped(page: Page, min_margins: tuple[float, float, float, float]) -> bool:
-    """True if the device's unprintable margins (left, top, right, bottom) cut into the frame.
+ISO_FRAME = (20.0, 10.0, 10.0, 10.0)  # left, top, right, bottom margin of the sheet
 
-    The frame sits 20 mm from the left and 10 mm from the other edges of the sheet.
-    """
+
+def frame_clipped(
+    page: Page,
+    min_margins: tuple[float, float, float, float],
+    frame_margins: tuple[float, float, float, float] = ISO_FRAME,
+) -> bool:
+    """True if the device's unprintable margins (left, top, right, bottom) cut into the
+    frame, which is ``frame_margins`` away from the edges of the sheet (to the outer
+    edge of its line)."""
     if page.tile is not None:
         return False
-    frame = (20.0 * page.scale + page.offset_x, 10.0 * page.scale + page.offset_y)
-    right = 10.0 * page.scale + page.offset_x
-    bottom = 10.0 * page.scale + page.offset_y
+    left_f, top_f, right_f, bottom_f = frame_margins
+    frame = (left_f * page.scale + page.offset_x, top_f * page.scale + page.offset_y)
+    right = right_f * page.scale + page.offset_x
+    bottom = bottom_f * page.scale + page.offset_y
     left_m, top_m, right_m, bottom_m = min_margins
     return left_m > frame[0] or top_m > frame[1] or right_m > right or bottom_m > bottom
