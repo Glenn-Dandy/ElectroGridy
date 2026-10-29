@@ -1,4 +1,4 @@
-from sldgridy.platform_choice import AUTO, WAYLAND, X11, choose_platform
+from electrogridy.platform_choice import AUTO, WAYLAND, X11, choose_platform
 
 GNOME_WAYLAND = {
     "XDG_SESSION_TYPE": "wayland",

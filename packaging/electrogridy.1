@@ -1,0 +1,36 @@
+.TH ELECTROGRIDY 1 "2026" "electrogridy" "User Commands"
+.SH NAME
+electrogridy \- editor for single-line electrical diagrams
+.SH SYNOPSIS
+.B electrogridy
+.RI [ file ]
+.SH DESCRIPTION
+.B electrogridy
+draws single-line diagrams for photovoltaic systems, transformer stations
+and low-voltage distribution boards in a CAD-style environment working in
+millimetres, and prints or plots them up to A0.
+.SH OPTIONS
+.TP
+.I file
+Drawing (.grdy) to open at start.
+.SH FILES
+.TP
+.I *.grdy
+Drawing files (JSON, MIME type application/x-electrogridy).
+.TP
+.I *.grdylib
+Block libraries.
+.TP
+.I *.grdyframe
+Frame templates.
+.TP
+.I ~/.local/share/electrogridy/
+User block library and frame templates.
+.TP
+.I ~/.cache/electrogridy/
+Automatic backups, offered for recovery after a crash.
+.TP
+.I /usr/share/electrogridy/
+Shipped symbol library and frame templates.
+.SH LICENSE
+GPL-3.0-or-later.

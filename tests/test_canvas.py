@@ -1,7 +1,7 @@
 import pytest
 from PyQt6.QtCore import QPointF, QRectF
 
-from sldgridy.view.canvas import MAX_ZOOM, MIN_ZOOM, Canvas
+from electrogridy.view.canvas import MAX_ZOOM, MIN_ZOOM, Canvas
 
 
 @pytest.fixture

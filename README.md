@@ -1,8 +1,8 @@
-# SLDGridy
+# ElectroGridy
 
-[![Release](https://img.shields.io/github/v/release/Glenn-Dandy/SLDGridy)](https://github.com/Glenn-Dandy/SLDGridy/releases/latest)
+[![Release](https://img.shields.io/github/v/release/Glenn-Dandy/ElectroGridy)](https://github.com/Glenn-Dandy/ElectroGridy/releases/latest)
 [![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
-[![Snap Store](https://img.shields.io/badge/Snap%20Store-sldgridy-82BEA0?logo=snapcraft)](https://snapcraft.io/sldgridy)
+[![Snap Store](https://img.shields.io/badge/Snap%20Store-electrogridy-82BEA0?logo=snapcraft)](https://snapcraft.io/electrogridy)
 [![Support](https://img.shields.io/badge/♥-Support%20the%20project-c62828)](https://paypal.me/GlennDandy)
 
 **[English](#english) · [Deutsch](#deutsch)**
@@ -22,33 +22,33 @@ License: GPL-3.0-or-later. Target system: Ubuntu 24.04 LTS and 26.04 LTS (X11 an
 **Snap Store** (Ubuntu App Center, automatic updates):
 
 ```bash
-sudo snap install sldgridy
+sudo snap install electrogridy
 ```
 
-Or as **.deb package**: download `sldgridy_<version>_all.deb` from the [releases](https://github.com/Glenn-Dandy/SLDGridy/releases/latest) and install it:
+Or as **.deb package**: download `electrogridy_<version>_all.deb` from the [releases](https://github.com/Glenn-Dandy/ElectroGridy/releases/latest) and install it:
 
 ```bash
-sudo apt install ./sldgridy_<version>_all.deb
+sudo apt install ./electrogridy_<version>_all.deb
 ```
 
-SLDGridy then appears in the application menu and `.sldg` files open with a double click. Remove it with `sudo apt remove sldgridy`.
+ElectroGridy then appears in the application menu and `.grdy` files open with a double click. Remove it with `sudo apt remove electrogridy`.
 
-**Windows** (10 and 11, 64 bit): download `SLDGridy-<version>-setup.exe` from the [releases](https://github.com/Glenn-Dandy/SLDGridy/releases/latest) and run it. The installer is not signed, so Windows first shows “Windows protected your PC”: click “More info”, then “Run anyway”. It adds SLDGridy to the start menu and opens `.sldg` files with a double click. Uninstall under Settings > Apps.
+**Windows** (10 and 11, 64 bit): download `ElectroGridy-<version>-setup.exe` from the [releases](https://github.com/Glenn-Dandy/ElectroGridy/releases/latest) and run it. The installer is not signed, so Windows first shows “Windows protected your PC”: click “More info”, then “Run anyway”. It adds ElectroGridy to the start menu and opens `.grdy` files with a double click. Uninstall under Settings > Apps.
 
-The snap keeps its own settings and symbols under `~/snap/sldgridy/`.
+The snap keeps its own settings and symbols under `~/snap/electrogridy/`.
 
-#### Double-click on .sldg files (snap)
+#### Double-click on .grdy files (snap)
 
-A snap cannot register its file type with the system. Without this step the file manager treats `.sldg` drawings as plain text; then do **not** choose “always open with SLDGridy”, as that would apply to all text files. Run once (no sudo needed):
+A snap cannot register its file type with the system. Without this step the file manager treats `.grdy` drawings as plain text; then do **not** choose “always open with ElectroGridy”, as that would apply to all text files. Run once (no sudo needed):
 
 ```bash
 mkdir -p ~/.local/share/mime/packages
-cp /snap/sldgridy/current/usr/share/mime/packages/sldgridy.xml ~/.local/share/mime/packages/
+cp /snap/electrogridy/current/usr/share/mime/packages/electrogridy.xml ~/.local/share/mime/packages/
 update-mime-database ~/.local/share/mime
-xdg-mime default sldgridy_sldgridy.desktop application/x-sldgridy
+xdg-mime default electrogridy_electrogridy.desktop application/x-electrogridy
 ```
 
-After that a double click opens `.sldg` files in SLDGridy. The `.deb` package does this by itself.
+After that a double click opens `.grdy` files in ElectroGridy. The `.deb` package does this by itself.
 
 ### Quick start
 
@@ -120,7 +120,7 @@ Modify commands without a selection first ask for objects: select them and press
 - **Block > Create block** (Ctrl+B): select objects (or select them when asked and press Enter), name the block; the block editor opens right away to add connection points and attributes (the base point jumps to the first connection point until you set it yourself), and **Save and close** creates the block. Untick the editor option in the dialog to just click a base point instead. **Block > Edit block** (block editor with yellow bar), **Modify > Explode**.
 - **Define attribute** and **Place connection point** create placeholders and terminals, best in the block editor.
 - When a block is moved, rotated or mirrored, wire ends on its connection points follow.
-- **Block > Save to user library** stores the block in `~/.local/share/sldgridy/library/eigene.sldglib`; libraries can be imported and exported.
+- **Block > Save to user library** stores the block in `~/.local/share/electrogridy/library/eigene.grdylib`; libraries can be imported and exported.
 - Right-click a symbol in the library dock to open it in the block editor (changes to user library symbols are written back to the library file when you save), to edit its name, category and description or to delete it. This works for blocks of the drawing (undoable; renaming updates all references, deleting only unused blocks) and for user libraries. Shipped libraries are read only.
 - **Block > Import symbols from DXF** reads ASCII DXF files: each named block becomes a symbol; lines, polylines (with arcs), circles, arcs, ellipses, texts and attributes (ATTDEF) are taken over, nested blocks are resolved, **POINT** objects become connection points, units are converted to mm. The symbols are stored as a library named after the DXF file.
 - **Block > Import logo** (PNG, JPG, SVG) stores a logo in the library **My logos**; **Page > Fill in title block** and **Project > Project data** offer it next to company and customer, and the circuit diagram title block shows it.
@@ -139,11 +139,13 @@ Modify commands without a selection first ask for objects: select them and press
 
 | What | Where |
 |---|---|
-| Drawing | `*.sldg` (JSON, versioned; saving keeps `*.sldg.bak`) |
-| Library | `*.sldglib`; shipped in `/usr/share/sldgridy/library/`, own ones in `~/.local/share/sldgridy/library/` |
-| Frame template | `*.sldgframe`; shipped in `/usr/share/sldgridy/templates/`, own ones in `~/.local/share/sldgridy/templates/` |
-| Automatic backup | every 5 minutes to `~/.cache/sldgridy/`; after a crash the next start offers recovery |
-| Settings | `~/.config/sldgridy/sldgridy.conf` |
+| Drawing | `*.grdy` (JSON, versioned; saving keeps `*.grdy.bak`) |
+| Library | `*.grdylib`; shipped in `/usr/share/electrogridy/library/`, own ones in `~/.local/share/electrogridy/library/` |
+| Frame template | `*.grdyframe`; shipped in `/usr/share/electrogridy/templates/`, own ones in `~/.local/share/electrogridy/templates/` |
+| Automatic backup | every 5 minutes to `~/.cache/electrogridy/`; after a crash the next start offers recovery |
+| Settings | `~/.config/electrogridy/electrogridy.conf` |
+
+**Formerly SLDGridy:** until version 1.3.2 the program was called SLDGridy. Its files (`*.sldg`, `*.sldglib`, `*.sldgframe`) still open. On the first start ElectroGridy takes over the settings and your own symbols and templates; the `.deb` package replaces the `sldgridy` package. The snap is now called `electrogridy`: install it and remove the old one with `sudo snap remove sldgridy`; snaps keep their data apart, so copy own libraries from `~/snap/sldgridy/current/.local/share/sldgridy/library/` by hand if needed.
 
 ### Development
 
@@ -152,24 +154,24 @@ sudo apt install python3-venv python3-pyqt6 python3-pyqt6.qtsvg python3-pyqt6.qt
 python3 -m venv --system-site-packages .venv
 .venv/bin/pip install -e ".[dev]"
 
-.venv/bin/python -m sldgridy                     # run
+.venv/bin/python -m electrogridy                     # run
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest       # tests without a display
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
-./packaging/build-deb.sh                         # builds dist/sldgridy_<version>_all.deb
-lintian dist/sldgridy_*.deb
+./packaging/build-deb.sh                         # builds dist/electrogridy_<version>_all.deb
+lintian dist/electrogridy_*.deb
 ```
 
-German is the source language of the user interface; English translations live in `src/sldgridy/resources/i18n/en.json` (a test checks that every text is translated). The specification and all design decisions are in `CLAUDE.md` (German).
+German is the source language of the user interface; English translations live in `src/electrogridy/resources/i18n/en.json` (a test checks that every text is translated). The specification and all design decisions are in `CLAUDE.md` (German).
 
 ### Feedback and support
 
-- Bugs and ideas: [issues](https://github.com/Glenn-Dandy/SLDGridy/issues) (in the program: Help > Report a bug, prefilled with version details)
-- Like SLDGridy? Give the project a ⭐ on GitHub.
+- Bugs and ideas: [issues](https://github.com/Glenn-Dandy/ElectroGridy/issues) (in the program: Help > Report a bug, prefilled with version details)
+- Like ElectroGridy? Give the project a ⭐ on GitHub.
 - [♥ Support the project](https://paypal.me/GlennDandy)
 
 ### Notice
 
-SLDGridy is an independent project. It is not affiliated with or endorsed by DIN, IEC, VDE, Autodesk, EPLAN or the LibreCAD project. DIN is a registered trademark of DIN Deutsches Institut für Normung e.V.; AutoCAD and DXF are trademarks of Autodesk, Inc. The symbols were drawn for this project following the standards mentioned; the standards themselves are not included.
+ElectroGridy is an independent project. It is not affiliated with or endorsed by DIN, IEC, VDE, Autodesk, EPLAN or the LibreCAD project. DIN is a registered trademark of DIN Deutsches Institut für Normung e.V.; AutoCAD and DXF are trademarks of Autodesk, Inc. The symbols were drawn for this project following the standards mentioned; the standards themselves are not included.
 
 ### License
 
@@ -190,33 +192,33 @@ Lizenz: GPL-3.0-or-later. Zielsystem: Ubuntu 24.04 LTS und 26.04 LTS (X11 und Wa
 **Snap Store** (Ubuntu App Center, automatische Updates):
 
 ```bash
-sudo snap install sldgridy
+sudo snap install electrogridy
 ```
 
-Oder als **.deb-Paket**: `sldgridy_<version>_all.deb` aus den [Releases](https://github.com/Glenn-Dandy/SLDGridy/releases/latest) herunterladen und installieren:
+Oder als **.deb-Paket**: `electrogridy_<version>_all.deb` aus den [Releases](https://github.com/Glenn-Dandy/ElectroGridy/releases/latest) herunterladen und installieren:
 
 ```bash
-sudo apt install ./sldgridy_<version>_all.deb
+sudo apt install ./electrogridy_<version>_all.deb
 ```
 
-Danach steht „SLDGridy“ im Anwendungsmenü, und `.sldg`-Dateien öffnen sich per Doppelklick. Deinstallation mit `sudo apt remove sldgridy`.
+Danach steht „ElectroGridy“ im Anwendungsmenü, und `.grdy`-Dateien öffnen sich per Doppelklick. Deinstallation mit `sudo apt remove electrogridy`.
 
-**Windows** (10 und 11, 64 Bit): `SLDGridy-<version>-setup.exe` aus den [Releases](https://github.com/Glenn-Dandy/SLDGridy/releases/latest) herunterladen und ausführen. Das Installationsprogramm ist nicht signiert, deshalb meldet Windows zuerst „Der Computer wurde durch Windows geschützt“: auf „Weitere Informationen“ und dann „Trotzdem ausführen“ klicken. Danach steht SLDGridy im Startmenü, und `.sldg`-Dateien öffnen sich per Doppelklick. Deinstallation unter Einstellungen > Apps.
+**Windows** (10 und 11, 64 Bit): `ElectroGridy-<version>-setup.exe` aus den [Releases](https://github.com/Glenn-Dandy/ElectroGridy/releases/latest) herunterladen und ausführen. Das Installationsprogramm ist nicht signiert, deshalb meldet Windows zuerst „Der Computer wurde durch Windows geschützt“: auf „Weitere Informationen“ und dann „Trotzdem ausführen“ klicken. Danach steht ElectroGridy im Startmenü, und `.grdy`-Dateien öffnen sich per Doppelklick. Deinstallation unter Einstellungen > Apps.
 
-Das Snap hat eigene Einstellungen und Symbole unter `~/snap/sldgridy/`.
+Das Snap hat eigene Einstellungen und Symbole unter `~/snap/electrogridy/`.
 
-#### Doppelklick auf .sldg-Dateien (Snap)
+#### Doppelklick auf .grdy-Dateien (Snap)
 
-Ein Snap kann seinen Dateityp nicht selbst beim System anmelden. Ohne diesen Schritt hält der Dateimanager `.sldg`-Zeichnungen für Text; dann **nicht** „immer mit SLDGridy öffnen“ wählen, das gälte sonst für alle Textdateien. Einmal ausführen (ohne sudo):
+Ein Snap kann seinen Dateityp nicht selbst beim System anmelden. Ohne diesen Schritt hält der Dateimanager `.grdy`-Zeichnungen für Text; dann **nicht** „immer mit ElectroGridy öffnen“ wählen, das gälte sonst für alle Textdateien. Einmal ausführen (ohne sudo):
 
 ```bash
 mkdir -p ~/.local/share/mime/packages
-cp /snap/sldgridy/current/usr/share/mime/packages/sldgridy.xml ~/.local/share/mime/packages/
+cp /snap/electrogridy/current/usr/share/mime/packages/electrogridy.xml ~/.local/share/mime/packages/
 update-mime-database ~/.local/share/mime
-xdg-mime default sldgridy_sldgridy.desktop application/x-sldgridy
+xdg-mime default electrogridy_electrogridy.desktop application/x-electrogridy
 ```
 
-Danach öffnet ein Doppelklick `.sldg`-Dateien in SLDGridy. Das `.deb`-Paket erledigt das selbst.
+Danach öffnet ein Doppelklick `.grdy`-Dateien in ElectroGridy. Das `.deb`-Paket erledigt das selbst.
 
 ### Kurzanleitung
 
@@ -293,7 +295,7 @@ Im Dock **Ebenen**: Name, Farbe, Linienbreite (ISO 128: 0,18 bis 0,7 mm), Linien
 - **Block > Attribut definieren** und **Anschlusspunkt setzen** legen Platzhalter und Anschlüsse an, am besten im Blockeditor.
 - **Block > Block bearbeiten** öffnet den Blockeditor mit gelber Leiste. „Speichern und schließen“ aktualisiert alle Referenzen.
 - **Ändern > Auflösen** ersetzt eine Referenz durch ihre Einzelobjekte.
-- **Block > In Benutzerbibliothek speichern** legt den Block in `~/.local/share/sldgridy/library/eigene.sldglib` ab. Bibliotheken lassen sich importieren und exportieren.
+- **Block > In Benutzerbibliothek speichern** legt den Block in `~/.local/share/electrogridy/library/eigene.grdylib` ab. Bibliotheken lassen sich importieren und exportieren.
 - Rechtsklick auf ein Symbol im Bibliotheks-Dock: im Blockeditor öffnen (Symbole der Benutzerbibliothek werden beim Speichern zurück in die Bibliotheksdatei geschrieben), Name, Kategorie und Beschreibung bearbeiten oder löschen. Das geht für Blöcke der Zeichnung (rückgängig machbar; Umbenennen ändert alle Referenzen mit, gelöscht werden nur unbenutzte Blöcke) und für Benutzerbibliotheken. Mitgelieferte Bibliotheken sind schreibgeschützt.
 - Wird ein Block verschoben, gedreht oder gespiegelt, wandern die Leitungsenden auf seinen Anschlusspunkten mit.
 - **Block > Symbole aus DXF importieren** liest ASCII-DXF-Dateien (z. B. Herstellersymbole oder Exporte aus AutoCAD, EPLAN, LibreCAD): Jeder benannte Block wird ein Symbol; Linien, Polylinien (auch mit Bögen), Kreise, Bögen, Ellipsen, Texte und Attribute (ATTDEF) werden übernommen, verschachtelte Blöcke aufgelöst, **POINT**-Objekte werden zu Anschlusspunkten, die Einheit wird in mm umgerechnet. Die Symbole landen als eigene Bibliothek mit dem Namen der DXF-Datei.
@@ -307,7 +309,7 @@ Im Dock **Ebenen**: Name, Farbe, Linienbreite (ISO 128: 0,18 bis 0,7 mm), Linien
 - Doppelklick in ein Ansichtsfenster aktiviert es: Mausrad zoomt, mittlere Taste verschiebt den Ausschnitt, Esc beendet. Maßstab (1:1, 2:1, 1:2, 1:5, 1:10 oder frei), Lage der linken oberen Ecke des Ausschnitts im Modell (X/Y, Knopf „Links oben auf 0,0“), Sperre und „Modellgrenzen einpassen“ im Eigenschaften-Dock.
 - Im Modell zeigen gestrichelte Umrisse, was auf welches Blatt passt (**Blatt > Blattumrisse im Modell**).
 - Ein Klick auf den Reiter **Modell**, wenn das Modell schon offen ist (oder Rechtsklick darauf, oder **Blatt > Modell auf Blatt ausrichten**): *Ausrichten auf Blatt 1, 2, …* zeigt genau den Modellbereich, den dieses Blatt zeigt.
-- **Blatt > Als Vorlage speichern** legt eigene Rahmen in `~/.local/share/sldgridy/templates/` ab.
+- **Blatt > Als Vorlage speichern** legt eigene Rahmen in `~/.local/share/electrogridy/templates/` ab.
 
 ### Drucken und Export
 
@@ -322,25 +324,27 @@ Im Dock **Ebenen**: Name, Farbe, Linienbreite (ISO 128: 0,18 bis 0,7 mm), Linien
 
 | Was | Wo |
 |---|---|
-| Zeichnung | `*.sldg` (JSON, versioniert; beim Speichern bleibt `*.sldg.bak`) |
-| Bibliothek | `*.sldglib`; mitgeliefert in `/usr/share/sldgridy/library/`, eigene in `~/.local/share/sldgridy/library/` |
-| Rahmenvorlage | `*.sldgframe`; mitgeliefert in `/usr/share/sldgridy/templates/`, eigene in `~/.local/share/sldgridy/templates/` |
-| Automatische Sicherung | alle 5 Minuten nach `~/.cache/sldgridy/`; nach einem Absturz bietet der nächste Start die Wiederherstellung an |
-| Einstellungen | `~/.config/sldgridy/sldgridy.conf` |
+| Zeichnung | `*.grdy` (JSON, versioniert; beim Speichern bleibt `*.grdy.bak`) |
+| Bibliothek | `*.grdylib`; mitgeliefert in `/usr/share/electrogridy/library/`, eigene in `~/.local/share/electrogridy/library/` |
+| Rahmenvorlage | `*.grdyframe`; mitgeliefert in `/usr/share/electrogridy/templates/`, eigene in `~/.local/share/electrogridy/templates/` |
+| Automatische Sicherung | alle 5 Minuten nach `~/.cache/electrogridy/`; nach einem Absturz bietet der nächste Start die Wiederherstellung an |
+| Einstellungen | `~/.config/electrogridy/electrogridy.conf` |
+
+**Früher SLDGridy:** Bis Version 1.3.2 hieß das Programm SLDGridy. Dessen Dateien (`*.sldg`, `*.sldglib`, `*.sldgframe`) lassen sich weiter öffnen. Beim ersten Start übernimmt ElectroGridy die Einstellungen sowie eigene Symbole und Vorlagen; das `.deb`-Paket ersetzt das Paket `sldgridy`. Der Snap heißt jetzt `electrogridy`: installieren und den alten mit `sudo snap remove sldgridy` entfernen. Snaps halten ihre Daten getrennt, eigene Bibliotheken bei Bedarf von Hand aus `~/snap/sldgridy/current/.local/share/sldgridy/library/` kopieren.
 
 ### Entwicklung
 
-Befehle wie im englischen Teil unter *Development*. Deutsch ist die Quellsprache der Oberfläche, die englischen Texte stehen in `src/sldgridy/resources/i18n/en.json` (ein Test prüft, dass jeder Text übersetzt ist). Die Spezifikation und alle Festlegungen stehen in `CLAUDE.md`.
+Befehle wie im englischen Teil unter *Development*. Deutsch ist die Quellsprache der Oberfläche, die englischen Texte stehen in `src/electrogridy/resources/i18n/en.json` (ein Test prüft, dass jeder Text übersetzt ist). Die Spezifikation und alle Festlegungen stehen in `CLAUDE.md`.
 
 ### Feedback und Unterstützung
 
-- Fehler und Wünsche: [Issues](https://github.com/Glenn-Dandy/SLDGridy/issues) (im Programm unter Hilfe > Fehler melden, mit Versionsangaben vorausgefüllt)
-- Gefällt dir SLDGridy? Gib dem Projekt einen ⭐ auf GitHub.
+- Fehler und Wünsche: [Issues](https://github.com/Glenn-Dandy/ElectroGridy/issues) (im Programm unter Hilfe > Fehler melden, mit Versionsangaben vorausgefüllt)
+- Gefällt dir ElectroGridy? Gib dem Projekt einen ⭐ auf GitHub.
 - [♥ Projekt unterstützen](https://paypal.me/GlennDandy)
 
 ### Hinweis
 
-SLDGridy ist ein unabhängiges Projekt und steht in keiner Verbindung zu DIN, IEC, VDE, Autodesk, EPLAN oder dem LibreCAD-Projekt. DIN ist eine eingetragene Marke des DIN Deutsches Institut für Normung e.V.; AutoCAD und DXF sind Marken der Autodesk, Inc. Die Symbole wurden für dieses Projekt nach den genannten Normen gezeichnet; die Normen selbst sind nicht enthalten.
+ElectroGridy ist ein unabhängiges Projekt und steht in keiner Verbindung zu DIN, IEC, VDE, Autodesk, EPLAN oder dem LibreCAD-Projekt. DIN ist eine eingetragene Marke des DIN Deutsches Institut für Normung e.V.; AutoCAD und DXF sind Marken der Autodesk, Inc. Die Symbole wurden für dieses Projekt nach den genannten Normen gezeichnet; die Normen selbst sind nicht enthalten.
 
 ### Lizenz
 

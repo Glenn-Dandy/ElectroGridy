@@ -1,15 +1,15 @@
 """Block definitions used by block tests."""
 
-from sldgridy.model.blocks import BlockDefinition
-from sldgridy.model.container import EntityContainer
-from sldgridy.model.entities import (
+from electrogridy.model.blocks import BlockDefinition
+from electrogridy.model.container import EntityContainer
+from electrogridy.model.entities import (
     AttributeDefinition,
     BlockReference,
     Circle,
     ConnectionPoint,
     Line,
 )
-from sldgridy.model.geometry import Point
+from electrogridy.model.geometry import Point
 
 
 def fuse() -> BlockDefinition:

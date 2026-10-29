@@ -1,9 +1,9 @@
 #!/bin/bash
-# Build dist/sldgridy_<version>_all.deb from the source tree.
+# Build dist/electrogridy_<version>_all.deb from the source tree.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PKG=sldgridy
+PKG=electrogridy
 VERSION="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' "$ROOT/src/$PKG/__init__.py")"
 [ -n "$VERSION" ] || { echo "cannot read __version__" >&2; exit 1; }
 # Python "1.2.3.dev4" becomes Debian "1.2.3~dev4", which sorts before "1.2.3".
@@ -59,6 +59,7 @@ chmod 0644 "$CHANGELOG"
 find "$STAGE" -type d -exec chmod 0755 {} +
 find "$STAGE/usr/share" -type f -exec chmod 0644 {} +
 
+# Conflicts/Replaces: SLDGridy was the name until 1.3.2, installing this package removes it.
 INSTALLED_SIZE="$(du -sk --exclude=DEBIAN "$STAGE" | cut -f1)"
 cat > "$STAGE/DEBIAN/control" <<CONTROL
 Package: $PKG
@@ -70,9 +71,11 @@ Maintainer: Glenn-Dandy <kewl0@arcor.de>
 Installed-Size: $INSTALLED_SIZE
 Depends: python3 (>= 3.12), python3-pyqt6, python3-pyqt6.qtsvg, python3-pyqt6.qtpdf, python3-pdfminer, tesseract-ocr, tesseract-ocr-deu
 Recommends: qt6-translations-l10n
-Homepage: https://github.com/Glenn-Dandy/SLDGridy
+Conflicts: sldgridy
+Replaces: sldgridy
+Homepage: https://github.com/Glenn-Dandy/ElectroGridy
 Description: CAD-style editor for single-line electrical diagrams
- SLDGridy draws single-line diagrams for photovoltaic systems,
+ ElectroGridy draws single-line diagrams for photovoltaic systems,
  transformer stations and low-voltage distribution boards. It works in
  millimetres with separate model and sheet layouts, grid and object snap,
  layers, reusable blocks, and prints or plots up to A0.

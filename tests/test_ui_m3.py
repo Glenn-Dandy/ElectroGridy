@@ -3,13 +3,13 @@ from PyQt6.QtCore import QPointF, QRectF, QSettings, Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtTest import QTest
 
+from electrogridy.model.entities import Line, Text
+from electrogridy.model.geometry import Point
+from electrogridy.model.layers import Layer
+from electrogridy.ui.main_window import MainWindow
+from electrogridy.ui.styles import BY_LAYER
+from electrogridy.view.render import make_pen
 from factories import sample_entities
-from sldgridy.model.entities import Line, Text
-from sldgridy.model.geometry import Point
-from sldgridy.model.layers import Layer
-from sldgridy.ui.main_window import MainWindow
-from sldgridy.ui.styles import BY_LAYER
-from sldgridy.view.render import make_pen
 
 
 @pytest.fixture
@@ -130,7 +130,7 @@ def test_hidden_and_locked_layers(window):
     layer = window.document.layer("Kabel")
     from dataclasses import replace
 
-    from sldgridy.commands.layers import ChangeLayerCommand
+    from electrogridy.commands.layers import ChangeLayerCommand
 
     window.push(ChangeLayerCommand(window.document, "Kabel", replace(layer, locked=True), "x"))
     click(window, 50, 50)
@@ -229,7 +229,7 @@ def test_dashed_pen_pattern_in_mm():
 
 
 def test_floating_docks_can_be_docked_again(window):
-    from sldgridy.ui.dock_title import DockTitleBar
+    from electrogridy.ui.dock_title import DockTitleBar
 
     for dock in window.docks():
         bar = dock.titleBarWidget()
@@ -259,7 +259,7 @@ def test_dock_context_menu_docks_to_area(window):
 
 
 def test_line_by_typed_length_and_angle_at_the_cursor(window):
-    from sldgridy.model.entities import Line as LineEntity
+    from electrogridy.model.entities import Line as LineEntity
 
     window.act_osnap.setChecked(False)
     window.act_line.trigger()
@@ -279,7 +279,7 @@ def test_line_by_typed_length_and_angle_at_the_cursor(window):
 
 
 def test_rectangle_by_typed_width_and_height(window):
-    from sldgridy.model.entities import Rectangle as RectangleEntity
+    from electrogridy.model.entities import Rectangle as RectangleEntity
 
     window.act_osnap.setChecked(False)
     window.act_rectangle.trigger()
@@ -308,9 +308,9 @@ def test_switching_tools_switches_the_fields_without_error(window):
 
 
 def test_dimension_tool_horizontal_and_aligned(window):
-    from sldgridy.model.dimensions import dimension_geometry, measured
-    from sldgridy.model.entities import Dimension
-    from sldgridy.model.grips import grip_points, move_grip
+    from electrogridy.model.dimensions import dimension_geometry, measured
+    from electrogridy.model.entities import Dimension
+    from electrogridy.model.grips import grip_points, move_grip
 
     window.act_osnap.setChecked(False)
     window.act_dimension.trigger()
@@ -339,7 +339,7 @@ def test_dimension_tool_horizontal_and_aligned(window):
 def test_dimension_properties_in_the_dock(window):
     from PyQt6.QtWidgets import QLineEdit
 
-    from sldgridy.model.entities import Dimension
+    from electrogridy.model.entities import Dimension
 
     ms = window.document.model_space
     ms.add(Dimension(id="d", p1=Point(0, 0), p2=Point(40, 0), position=Point(20, -10)))
@@ -352,7 +352,7 @@ def test_dimension_properties_in_the_dock(window):
 
 
 def test_rotate_by_typed_angle_with_the_dropdown_tool(window):
-    from sldgridy.model.entities import Line as LineEntity
+    from electrogridy.model.entities import Line as LineEntity
 
     window.act_osnap.setChecked(False)
     ms = window.document.model_space
@@ -373,7 +373,7 @@ def test_rotate_by_typed_angle_with_the_dropdown_tool(window):
 
 
 def test_typed_length_snaps_onto_an_edge(window):
-    from sldgridy.model.entities import Line as LineEntity
+    from electrogridy.model.entities import Line as LineEntity
 
     ms = window.document.model_space
     ms.add(LineEntity(id="eave", p1=Point(-100, -30), p2=Point(100, -30)))
@@ -390,7 +390,7 @@ def test_typed_length_snaps_onto_an_edge(window):
 
 
 def test_typed_length_snaps_to_angle_steps(window):
-    from sldgridy.model.entities import Line as LineEntity
+    from electrogridy.model.entities import Line as LineEntity
 
     window.act_osnap.setChecked(False)
     window.canvas.polar_increment = 15.0
@@ -432,8 +432,8 @@ def test_dimension_button_offers_parallel(window):
     click(window, 0, 0)
     click(window, 30, 40)
     click(window, 10, -10)
-    from sldgridy.model.dimensions import dimension_geometry
-    from sldgridy.model.entities import Dimension
+    from electrogridy.model.dimensions import dimension_geometry
+    from electrogridy.model.entities import Dimension
 
     (d,) = [e for e in window.document.model_space if isinstance(e, Dimension)]
     assert d.orientation == "aligned"
@@ -444,8 +444,8 @@ def test_dimension_button_offers_parallel(window):
 
 
 def test_angle_dimension_tool(window):
-    from sldgridy.model.dimensions import measured
-    from sldgridy.model.entities import Dimension
+    from electrogridy.model.dimensions import measured
+    from electrogridy.model.entities import Dimension
 
     window.act_osnap.setChecked(False)
     window.act_dimension_angle.trigger()
@@ -460,8 +460,8 @@ def test_angle_dimension_tool(window):
 
 
 def test_angle_dimension_snaps_onto_sloped_leg(window):
-    from sldgridy.model.dimensions import measured
-    from sldgridy.model.entities import Dimension, Line
+    from electrogridy.model.dimensions import measured
+    from electrogridy.model.entities import Dimension, Line
 
     ms = window.document.model_space
     ms.add(Line(id="base", p1=Point(0, 0), p2=Point(80, 0)))
@@ -480,7 +480,7 @@ def test_angle_dimension_snaps_onto_sloped_leg(window):
 def test_dimension_dock_edits_several_dimensions(window):
     from PyQt6.QtWidgets import QComboBox, QDoubleSpinBox, QGroupBox, QLineEdit
 
-    from sldgridy.model.entities import Dimension
+    from electrogridy.model.entities import Dimension
 
     ms = window.document.model_space
     ms.add(Dimension(id="a", p1=Point(0, 0), p2=Point(40, 0), position=Point(20, -10)))
@@ -529,8 +529,8 @@ def test_dimension_dock_edits_several_dimensions(window):
 def test_wire_label_dock_edits_several_wires(window):
     from PyQt6.QtWidgets import QGroupBox, QLineEdit
 
-    from sldgridy.model.entities import Wire
-    from sldgridy.ui.styles import HeightCombo
+    from electrogridy.model.entities import Wire
+    from electrogridy.ui.styles import HeightCombo
 
     ms = window.document.model_space
     ms.add(Wire(id="w1", points=(Point(0, 0), Point(40, 0)), label="NYY-J 5x16"))
@@ -552,8 +552,8 @@ def test_wire_label_dock_edits_several_wires(window):
 
 
 def test_text_height_can_be_typed_freely(window):
-    from sldgridy.model.entities import Text
-    from sldgridy.ui.styles import parse_mm
+    from electrogridy.model.entities import Text
+    from electrogridy.ui.styles import parse_mm
 
     assert parse_mm("125") == 125 and parse_mm("3,5 mm") == 3.5 and parse_mm("0") is None
     ms = window.document.model_space
@@ -570,7 +570,7 @@ def test_text_height_can_be_typed_freely(window):
 
 
 def test_polyline_snaps_to_its_own_start_and_closes(window):
-    from sldgridy.model.entities import Polyline
+    from electrogridy.model.entities import Polyline
 
     window.act_snap.setChecked(False)
     window.act_osnap.setChecked(True)
@@ -586,7 +586,7 @@ def test_polyline_snaps_to_its_own_start_and_closes(window):
 
 
 def test_scale_by_typed_factor(window):
-    from sldgridy.model.entities import Line as LineEntity
+    from electrogridy.model.entities import Line as LineEntity
 
     window.act_osnap.setChecked(False)
     ms = window.document.model_space
@@ -608,8 +608,8 @@ def test_scale_by_typed_factor(window):
 def test_scale_by_factor_without_base_point(window):
     """Select all, type the factor, Enter: around the upper left corner of the
     selection, so imported pages keep their place (Florian 2026-10-28)."""
-    from sldgridy.model.entities import Line as LineEntity
-    from sldgridy.model.entities import Text as TextEntity
+    from electrogridy.model.entities import Line as LineEntity
+    from electrogridy.model.entities import Text as TextEntity
 
     window.act_osnap.setChecked(False)
     ms = window.document.model_space
@@ -642,7 +642,7 @@ def test_scale_by_factor_without_base_point(window):
 
 
 def test_scale_by_reference_and_new_length(window):
-    from sldgridy.model.entities import Line as LineEntity
+    from electrogridy.model.entities import Line as LineEntity
 
     window.act_osnap.setChecked(True)  # the reference point snaps onto the line end
     ms = window.document.model_space

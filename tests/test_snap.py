@@ -1,9 +1,9 @@
 import pytest
 
-from sldgridy.model.entities import Arc, Circle, Line, Polyline, Rectangle
-from sldgridy.model.geometry import Point
-from sldgridy.model.primitives import ArcPrim, Segment, intersect
-from sldgridy.model.snap import SnapHit, SnapMode, find_snap
+from electrogridy.model.entities import Arc, Circle, Line, Polyline, Rectangle
+from electrogridy.model.geometry import Point
+from electrogridy.model.primitives import ArcPrim, Segment, intersect
+from electrogridy.model.snap import SnapHit, SnapMode, find_snap
 
 
 def approx_point(p: Point, x: float, y: float) -> bool:
@@ -103,9 +103,9 @@ def test_detailed_symbol_does_not_hang_the_snap():
     # pairs were tested for intersections on every mouse move (2026-10-25, hang).
     import time
 
-    from sldgridy.model.blocks import BlockDefinition, expand
-    from sldgridy.model.container import EntityContainer
-    from sldgridy.model.entities import BlockReference, Line
+    from electrogridy.model.blocks import BlockDefinition, expand
+    from electrogridy.model.container import EntityContainer
+    from electrogridy.model.entities import BlockReference, Line
 
     lines = [
         Line(id=f"l{i}", p1=Point(i % 60, i // 60), p2=Point(i % 60 + 0.7, i // 60 + 0.9))

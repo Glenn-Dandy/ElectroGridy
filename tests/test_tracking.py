@@ -2,10 +2,10 @@ import pytest
 from PyQt6.QtCore import QPointF, QRectF, QSettings, Qt
 from PyQt6.QtTest import QTest
 
-from sldgridy.model.entities import Line
-from sldgridy.model.geometry import Point
-from sldgridy.model.tracking import MAX_ACQUIRED, toggle_acquired, track
-from sldgridy.ui.main_window import MainWindow
+from electrogridy.model.entities import Line
+from electrogridy.model.geometry import Point
+from electrogridy.model.tracking import MAX_ACQUIRED, toggle_acquired, track
+from electrogridy.ui.main_window import MainWindow
 from waiting import wait_until
 
 P = Point(10, 20)
@@ -105,8 +105,8 @@ def test_no_tracking_point_without_command(window):
 
 def test_text_reference_point_snaps_and_tracks(window):
     """Texts take part in the tracking at their reference point (Florian 2026-10-28)."""
-    from sldgridy.model.entities import Text
-    from sldgridy.model.snap import SnapMode, find_snap
+    from electrogridy.model.entities import Text
+    from electrogridy.model.snap import SnapMode, find_snap
 
     text = Text(id="t", position=Point(30, 20), text="-X1", height=2.5)
     hit = find_snap(Point(30.3, 20.2), [text], 1.0)

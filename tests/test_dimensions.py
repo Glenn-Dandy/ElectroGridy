@@ -1,13 +1,13 @@
 import pytest
 
-from sldgridy.model.dimensions import (
+from electrogridy.model.dimensions import (
     auto_orientation,
     dimension_geometry,
     format_value,
     measured,
 )
-from sldgridy.model.entities import Dimension, Line, Text
-from sldgridy.model.geometry import Point
+from electrogridy.model.entities import Dimension, Line, Text
+from electrogridy.model.geometry import Point
 
 
 def dim(p1, p2, pos, orientation="aligned", **kw):
@@ -62,8 +62,8 @@ def test_rotating_a_dimension_swaps_its_orientation():
 def test_dimension_height_follows_the_viewport_scale():
     from dataclasses import replace
 
-    from sldgridy.model.dimensions import default_height
-    from sldgridy.model.document import Document
+    from electrogridy.model.dimensions import default_height
+    from electrogridy.model.document import Document
 
     doc = Document.new("Blatt 1")
     sheet = doc.sheets[0]
@@ -105,7 +105,7 @@ def angle_dim(position, p1=(50, 0), p2=(30, -40)):
 
 
 def test_angle_between_legs_and_across_the_vertex():
-    from sldgridy.model.dimensions import measured_text
+    from electrogridy.model.dimensions import measured_text
 
     assert measured(angle_dim((20, -10))) == pytest.approx(53.130102)
     assert measured_text(angle_dim((20, -10))) == "53,1°"
@@ -116,7 +116,7 @@ def test_angle_between_legs_and_across_the_vertex():
 
 
 def test_angle_geometry_arc_arrows_and_text():
-    from sldgridy.model.entities import Arc
+    from electrogridy.model.entities import Arc
 
     d = angle_dim((20, -10))
     parts = dimension_geometry(d)
@@ -133,7 +133,7 @@ def test_angle_geometry_arc_arrows_and_text():
 
 
 def test_angle_dimension_follows_moves_rotation_and_mirroring():
-    from sldgridy.model.rotate import rotate_entity
+    from electrogridy.model.rotate import rotate_entity
 
     d = angle_dim((20, -10))
     moved = d.translated(10, 5)

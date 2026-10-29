@@ -4,9 +4,9 @@ from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QComboBox, QLineEdit, QPushButton
 
 from blocks_fixtures import blocks
-from sldgridy.model.entities import BlockReference, Busbar, Wire
-from sldgridy.model.geometry import Point
-from sldgridy.ui.main_window import MainWindow
+from electrogridy.model.entities import BlockReference, Busbar, Wire
+from electrogridy.model.geometry import Point
+from electrogridy.ui.main_window import MainWindow
 
 
 @pytest.fixture
@@ -135,10 +135,10 @@ def test_library_dock_category_filter(window):
 
 
 def test_docked_wire_follows_block(window):
-    from sldgridy.model.blocks import BlockDefinition
-    from sldgridy.model.container import EntityContainer
-    from sldgridy.model.entities import BlockReference, Rectangle
-    from sldgridy.ui.point_menu import point_actions
+    from electrogridy.model.blocks import BlockDefinition
+    from electrogridy.model.container import EntityContainer
+    from electrogridy.model.entities import BlockReference, Rectangle
+    from electrogridy.ui.point_menu import point_actions
 
     doc = window.document
     doc.set_block(
@@ -199,15 +199,15 @@ def test_moving_a_block_drags_wire_and_its_branches(window):
     assert trunk.points[0] == Point(40, 100)
     lan = ms.get("lan")
     # The branch end is still on the trunk.
-    from sldgridy.model.wires import on_segment, segments
+    from electrogridy.model.wires import on_segment, segments
 
     assert any(on_segment(lan.points[0], a, b) for a, b in segments(trunk.points))
     assert lan.points[-1] == Point(90, 40)
 
 
 def test_add_point_then_shift_one_half(window):
-    from sldgridy.model.grips import grip_points, move_grip
-    from sldgridy.ui.point_menu import point_actions
+    from electrogridy.model.grips import grip_points, move_grip
+    from electrogridy.ui.point_menu import point_actions
 
     ms = window.document.model_space
     ms.add(Wire(id="w", points=(Point(0, 50), Point(100, 50))))
@@ -229,7 +229,7 @@ def test_add_point_then_shift_one_half(window):
 
 
 def test_moving_a_device_does_not_connect_wires_by_chance(window, qapp):
-    from sldgridy.model.entities import JunctionMark
+    from electrogridy.model.entities import JunctionMark
 
     window.document.blocks.update(blocks())
     window._on_blocks_changed("")
@@ -263,7 +263,7 @@ def test_moving_a_device_does_not_connect_wires_by_chance(window, qapp):
 
 
 def test_drag_segment_grip_with_the_mouse(window, qapp):
-    from sldgridy.model.grips import grip_kinds, grip_points
+    from electrogridy.model.grips import grip_kinds, grip_points
 
     ms = window.document.model_space
     ms.add(Wire(id="w", points=(Point(0, 40), Point(60, 40), Point(60, 10))))
@@ -290,7 +290,7 @@ def test_drag_segment_grip_with_the_mouse(window, qapp):
 
 
 def test_moving_a_wire_keeps_a_connection_set_on_a_crossing(window):
-    from sldgridy.model.entities import JunctionMark
+    from electrogridy.model.entities import JunctionMark
 
     ms = window.document.model_space
     ms.add(Wire(id="v", points=(Point(20, 0), Point(20, 80))))

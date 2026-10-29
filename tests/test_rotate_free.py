@@ -2,10 +2,10 @@ import math
 
 import pytest
 
-from sldgridy.model.entities import BlockReference, Line, Polyline, Rectangle, Text, Wire
-from sldgridy.model.geometry import Point
-from sldgridy.model.rotate import quarter_turns, rotate_entity, rotate_point
-from sldgridy.model.snap import circle_hits
+from electrogridy.model.entities import BlockReference, Line, Polyline, Rectangle, Text, Wire
+from electrogridy.model.geometry import Point
+from electrogridy.model.rotate import quarter_turns, rotate_entity, rotate_point
+from electrogridy.model.snap import circle_hits
 
 
 def test_rotate_point_counter_clockwise_with_y_down():

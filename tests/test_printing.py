@@ -4,12 +4,12 @@ import zlib
 import pytest
 from PyQt6.QtGui import QImage
 
-from sldgridy.model.document import Document, new_sheet
-from sldgridy.model.entities import Line, Text
-from sldgridy.model.geometry import Point
-from sldgridy.model.layers import Layer
-from sldgridy.model.paper import Orientation
-from sldgridy.printing.layout import (
+from electrogridy.model.document import Document, new_sheet
+from electrogridy.model.entities import Line, Text
+from electrogridy.model.geometry import Point
+from electrogridy.model.layers import Layer
+from electrogridy.model.paper import Orientation
+from electrogridy.printing.layout import (
     Mode,
     fit,
     fit_rect,
@@ -18,8 +18,8 @@ from sldgridy.printing.layout import (
     tile_count,
     tiles,
 )
-from sldgridy.printing.output import Job, export_pdf, export_png, export_svg, plan, sheet_image
-from sldgridy.view.display import OutputOptions
+from electrogridy.printing.output import Job, export_pdf, export_png, export_svg, plan, sheet_image
+from electrogridy.view.display import OutputOptions
 
 A4 = (210.0, 297.0)
 A3 = (297.0, 420.0)
@@ -89,7 +89,7 @@ def test_frame_clipped_warning():
     assert frame_clipped(small, (4.2, 4.2, 4.2, 4.2))
     # Circuit diagram frame on A4, 1:1: 5 mm to the outer edge of the line. A printer
     # that cannot print the outer 4.94 mm (14 pt) no longer cuts into it.
-    from sldgridy.model.sheet import FRAME_WEIGHT, schematic_margins, schematic_outer
+    from electrogridy.model.sheet import FRAME_WEIGHT, schematic_margins, schematic_outer
 
     a4 = one_to_one(297, 210)[0]
     side, top = schematic_margins(297, 210)
@@ -207,10 +207,10 @@ def test_line_widths_in_a_viewport_are_paper_widths(qapp, monkeypatch):
 
     from PyQt6.QtGui import QImage, QPainter
 
-    from sldgridy.model.document import Document
-    from sldgridy.model.entities import Line
-    from sldgridy.model.geometry import Point
-    from sldgridy.view import display
+    from electrogridy.model.document import Document
+    from electrogridy.model.entities import Line
+    from electrogridy.model.geometry import Point
+    from electrogridy.view import display
 
     doc = Document.new("Blatt 1")
     doc.model_space.add(Line(id="l", p1=Point(0, 0), p2=Point(1000, 0), lineweight=0.5))
@@ -229,9 +229,9 @@ def test_line_widths_in_a_viewport_are_paper_widths(qapp, monkeypatch):
 
 
 def test_pdf_of_circuit_diagram_pages_is_a4_landscape(qapp, tmp_path):
-    from sldgridy.model.document import CIRCUIT, PARTS, new_page
-    from sldgridy.model.sheet import schematic_title_width
-    from sldgridy.model.title_block import schematic_title_block_definition
+    from electrogridy.model.document import CIRCUIT, PARTS, new_page
+    from electrogridy.model.sheet import schematic_title_width
+    from electrogridy.model.title_block import schematic_title_block_definition
 
     doc = sample_doc()
     pages = [new_page(CIRCUIT, "Einspeisung", "PV1", "UV1"), new_page(PARTS)]
@@ -250,8 +250,8 @@ def test_pdf_of_circuit_diagram_pages_is_a4_landscape(qapp, tmp_path):
 def test_printer_gets_standard_paper_with_orientation(qapp):
     from PyQt6.QtGui import QPageLayout, QPageSize
 
-    from sldgridy.printing.layout import Page
-    from sldgridy.printing.output import page_layout
+    from electrogridy.printing.layout import Page
+    from electrogridy.printing.output import page_layout
 
     layout = page_layout(Page(297, 210))
     assert layout.pageSize().id() == QPageSize.PageSizeId.A4

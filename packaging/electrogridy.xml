@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-electrogridy">
+    <comment>ElectroGridy drawing</comment>
+    <comment xml:lang="de">ElectroGridy-Zeichnung</comment>
+    <sub-class-of type="application/json"/>
+    <icon name="electrogridy"/>
+    <glob pattern="*.grdy"/>
+    <glob pattern="*.sldg"/>
+  </mime-type>
+</mime-info>

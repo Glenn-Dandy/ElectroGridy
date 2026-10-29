@@ -4,14 +4,14 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QGraphicsScene
 
+from electrogridy.model.container import EntityContainer
+from electrogridy.model.entities import Line, Rectangle
+from electrogridy.model.geometry import Point
+from electrogridy.view.canvas import Canvas
+from electrogridy.view.items import EntityItem
+from electrogridy.view.render import Style, make_pen
+from electrogridy.view.scene_sync import SceneSync
 from factories import sample_entities
-from sldgridy.model.container import EntityContainer
-from sldgridy.model.entities import Line, Rectangle
-from sldgridy.model.geometry import Point
-from sldgridy.view.canvas import Canvas
-from sldgridy.view.items import EntityItem
-from sldgridy.view.render import Style, make_pen
-from sldgridy.view.scene_sync import SceneSync
 
 
 def style(_e):

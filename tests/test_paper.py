@@ -1,6 +1,6 @@
 import pytest
 
-from sldgridy.model.paper import PAPER_FORMATS, Orientation, sheet_size
+from electrogridy.model.paper import PAPER_FORMATS, Orientation, sheet_size
 
 
 def test_a0_landscape_is_1189_by_841():

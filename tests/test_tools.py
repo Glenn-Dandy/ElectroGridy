@@ -1,13 +1,27 @@
 import pytest
 from PyQt6.QtGui import QUndoStack
 
+from electrogridy.model.document import Document
+from electrogridy.model.entities import Arc, Circle, Line, Polyline, Rectangle, Text
+from electrogridy.model.geometry import Point
+from electrogridy.tools.controller import ToolController
+from electrogridy.tools.draw import (
+    ArcTool,
+    CircleTool,
+    LineTool,
+    PolylineTool,
+    RectangleTool,
+    TextTool,
+)
+from electrogridy.tools.edit import (
+    CopyTool,
+    GripEditTool,
+    MirrorTool,
+    MoveTool,
+    PasteTool,
+    RotateTool,
+)
 from factories import sample_entities
-from sldgridy.model.document import Document
-from sldgridy.model.entities import Arc, Circle, Line, Polyline, Rectangle, Text
-from sldgridy.model.geometry import Point
-from sldgridy.tools.controller import ToolController
-from sldgridy.tools.draw import ArcTool, CircleTool, LineTool, PolylineTool, RectangleTool, TextTool
-from sldgridy.tools.edit import CopyTool, GripEditTool, MirrorTool, MoveTool, PasteTool, RotateTool
 
 
 class FakeContext:

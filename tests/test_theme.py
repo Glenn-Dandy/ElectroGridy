@@ -2,13 +2,13 @@ import pytest
 from PyQt6.QtCore import QSettings
 from PyQt6.QtGui import QColor, QPalette
 
-from sldgridy.model.document import Document
-from sldgridy.model.entities import Line
-from sldgridy.model.geometry import Point
-from sldgridy.ui import appearance
-from sldgridy.ui.main_window import MainWindow
-from sldgridy.view import theme
-from sldgridy.view.display import OutputOptions, resolve_style
+from electrogridy.model.document import Document
+from electrogridy.model.entities import Line
+from electrogridy.model.geometry import Point
+from electrogridy.ui import appearance
+from electrogridy.ui.main_window import MainWindow
+from electrogridy.view import theme
+from electrogridy.view.display import OutputOptions, resolve_style
 
 
 @pytest.fixture

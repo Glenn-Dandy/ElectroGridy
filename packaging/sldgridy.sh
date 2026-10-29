@@ -1,8 +1,0 @@
-#!/usr/bin/python3
-import sys
-
-sys.path.insert(0, "/usr/share/sldgridy")
-
-from sldgridy.app import main  # noqa: E402
-
-sys.exit(main())

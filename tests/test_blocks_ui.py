@@ -3,20 +3,20 @@ from PyQt6.QtCore import QPointF, QRectF, QSettings, Qt
 from PyQt6.QtTest import QTest
 
 from blocks_fixtures import blocks, fuse
-from sldgridy.fileio.files import load_library, save_library
-from sldgridy.fileio.paths import user_library_dir
-from sldgridy.model.entities import BlockReference, Circle, Line, Text
-from sldgridy.model.geometry import Point
-from sldgridy.ui import block_controller, block_dialogs
-from sldgridy.ui.block_dialogs import (
+from electrogridy.fileio.files import load_library, save_library
+from electrogridy.fileio.paths import user_library_dir
+from electrogridy.model.entities import BlockReference, Circle, Line, Text
+from electrogridy.model.geometry import Point
+from electrogridy.ui import block_controller, block_dialogs
+from electrogridy.ui.block_dialogs import (
     AttributeValuesDialog,
     BlockChooserDialog,
     BlockPropertiesDialog,
     ConnectionPointDialog,
     CreateBlockDialog,
 )
-from sldgridy.ui.main_window import MainWindow
-from sldgridy.ui.space import BLOCK, MODEL
+from electrogridy.ui.main_window import MainWindow
+from electrogridy.ui.space import BLOCK, MODEL
 
 
 @pytest.fixture
@@ -149,7 +149,7 @@ def test_attribute_edit_in_properties_dock(window):
     dock = window.properties_dock
     from PyQt6.QtWidgets import QPushButton
 
-    from sldgridy.ui.block_dialogs import AttributeValueEdit
+    from electrogridy.ui.block_dialogs import AttributeValueEdit
 
     edits = dock.widget().findChildren(AttributeValueEdit)
     edit = [e for e in edits if e.text() == "F1"][0]
@@ -167,7 +167,7 @@ def test_attribute_edit_in_properties_dock(window):
 
 
 def write_library(name="test"):
-    path = user_library_dir() / f"{name}.sldglib"
+    path = user_library_dir() / f"{name}.grdylib"
     path.parent.mkdir(parents=True, exist_ok=True)
     save_library(list(blocks().values()), path, "Testbibliothek")
     return path
@@ -217,7 +217,7 @@ def test_save_to_user_library(window, monkeypatch):
     window.document.model_space.add(BlockReference(id="r", name="Feld", insert=Point(0, 0)))
     window._sync.item("r").setSelected(True)
     window.blocks.save_to_user_library()
-    _, loaded = load_library(user_library_dir() / "eigene.sldglib")
+    _, loaded = load_library(user_library_dir() / "eigene.grdylib")
     assert {b.name for b in loaded} >= {"Feld", "Sicherung"}
 
 
@@ -261,7 +261,7 @@ def test_insert_dialog_lists_blocks(window, monkeypatch):
 
 
 def test_attribute_and_connection_definition_tools(window, monkeypatch):
-    from sldgridy.ui.block_dialogs import AttributeDefinitionDialog, ConnectionPointDialog
+    from electrogridy.ui.block_dialogs import AttributeDefinitionDialog, ConnectionPointDialog
 
     def att_exec(self):
         self.tag.setText("typ")
@@ -385,9 +385,9 @@ def test_edit_and_delete_in_user_library(window, monkeypatch):
 
 
 def test_saving_a_library_keeps_its_workspace(tmp_path):
-    from sldgridy.fileio.files import library_workspace
+    from electrogridy.fileio.files import library_workspace
 
-    path = tmp_path / "mld.sldglib"
+    path = tmp_path / "mld.grdylib"
     save_library(list(blocks().values()), path, "MLD", "mld")
     save_library([fuse()], path, "MLD")  # e.g. after deleting a block
     assert library_workspace(path) == "mld"
@@ -496,7 +496,7 @@ def test_drop_is_handled_after_the_drag_ends(window, qapp):
     from PyQt6.QtCore import QMimeData
     from PyQt6.QtGui import QDropEvent
 
-    from sldgridy.view.canvas import BLOCK_MIME
+    from electrogridy.view.canvas import BLOCK_MIME
 
     path = write_library("ziehen")
     window.library_dock.reload()
@@ -524,7 +524,7 @@ def test_dragged_block_is_previewed_in_the_drawing(window, qapp):
     from PyQt6.QtCore import QMimeData
     from PyQt6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDragMoveEvent
 
-    from sldgridy.view.canvas import BLOCK_MIME
+    from electrogridy.view.canvas import BLOCK_MIME
 
     path = write_library("vorschau")
     window.library_dock.reload()
@@ -549,7 +549,7 @@ def test_dragged_block_is_previewed_in_the_drawing(window, qapp):
 
 
 def test_block_editor_returns_to_the_page_it_came_from(window):
-    from sldgridy.model.document import DOC_PROJECT
+    from electrogridy.model.document import DOC_PROJECT
 
     window.new_document(DOC_PROJECT)
     page = window.document.sheets[-1]
@@ -568,7 +568,7 @@ def test_block_editor_returns_to_the_page_it_came_from(window):
 
 
 def test_merged_library_keeps_replaces_or_renames():
-    from sldgridy.fileio.library_merge import KEEP, RENAME, REPLACE, merged_library
+    from electrogridy.fileio.library_merge import KEEP, RENAME, REPLACE, merged_library
 
     there = fuse()
     there.entities.remove("c")  # another "Sicherung"
@@ -596,20 +596,20 @@ def test_merged_library_keeps_replaces_or_renames():
 
 
 def test_import_library_into_my_symbols_or_a_new_one(window, monkeypatch, tmp_path):
-    from sldgridy.ui.library_transfer import (
+    from electrogridy.ui.library_transfer import (
         NEW,
         USER,
         BlockConflictDialog,
         ImportTargetDialog,
     )
 
-    source = tmp_path / "fremd.sldglib"
+    source = tmp_path / "fremd.grdylib"
     save_library(list(blocks().values()), source, "Fremde Symbole", "mld")
     target = [USER, ""]
     monkeypatch.setattr(ImportTargetDialog, "exec", lambda self: 1)
     monkeypatch.setattr(ImportTargetDialog, "values", lambda self: tuple(target))
     window.blocks.import_library_file(source)
-    title, mine = load_library(user_library_dir() / "eigene.sldglib")
+    title, mine = load_library(user_library_dir() / "eigene.grdylib")
     assert {b.name for b in mine} >= {"Feld", "Sicherung"}
     assert next(b for b in mine if b.name == "Sicherung").category == "Schalten"
     # Again with a changed fuse: both are compared, the new one gets another name.
@@ -625,21 +625,21 @@ def test_import_library_into_my_symbols_or_a_new_one(window, monkeypatch, tmp_pa
 
     monkeypatch.setattr(BlockConflictDialog, "exec", rename)
     window.blocks.import_library_file(source)
-    _, mine = load_library(user_library_dir() / "eigene.sldglib")
+    _, mine = load_library(user_library_dir() / "eigene.grdylib")
     assert shown["names"][0] == "Sicherung (2)"
     assert {"Sicherung", "Sicherung (2)"} <= {b.name for b in mine}
     # As a library of its own: keeps its workspace (shown in projects only).
-    from sldgridy.fileio.files import library_workspace
+    from electrogridy.fileio.files import library_workspace
 
     save_library(list(blocks().values()), source, "Fremde Symbole", "mld")
     target[:] = [NEW, "Kunde X"]
     window.blocks.import_library_file(source)
-    path = user_library_dir() / "Kunde_X.sldglib"
+    path = user_library_dir() / "Kunde_X.grdylib"
     assert load_library(path)[0] == "Kunde X" and library_workspace(path) == "mld"
 
 
 def test_export_whole_library_category_or_blocks(window, monkeypatch, tmp_path):
-    from sldgridy.ui.library_transfer import ExportDialog
+    from electrogridy.ui.library_transfer import ExportDialog
 
     with_blocks(window)
     window.library_dock.reload()
@@ -652,7 +652,7 @@ def test_export_whole_library_category_or_blocks(window, monkeypatch, tmp_path):
     dialog.check(["Feld"])
     assert dialog.chosen_names() == ["Feld"]
     assert sorted(dialog.names()) == ["Feld", "Sicherung"]  # the nested fuse comes along
-    out = tmp_path / "export.sldglib"
+    out = tmp_path / "export.grdylib"
     monkeypatch.setattr(ExportDialog, "exec", lambda self: (self.check(["Sicherung"]), 1)[1])
     monkeypatch.setattr(
         "PyQt6.QtWidgets.QFileDialog.getSaveFileName", lambda *a, **k: (str(out), "")

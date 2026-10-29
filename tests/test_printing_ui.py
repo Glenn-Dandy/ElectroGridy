@@ -2,13 +2,13 @@ import pytest
 from PyQt6.QtCore import QSettings
 from PyQt6.QtPrintSupport import QPrinter
 
-from sldgridy.model.document import new_sheet
-from sldgridy.model.entities import Line
-from sldgridy.model.geometry import Point
-from sldgridy.printing.layout import Mode
-from sldgridy.ui.main_window import MainWindow
-from sldgridy.ui.print_dialog import PrintDialog
-from sldgridy.view.display import OutputOptions
+from electrogridy.model.document import new_sheet
+from electrogridy.model.entities import Line
+from electrogridy.model.geometry import Point
+from electrogridy.printing.layout import Mode
+from electrogridy.ui.main_window import MainWindow
+from electrogridy.ui.print_dialog import PrintDialog
+from electrogridy.view.display import OutputOptions
 
 
 @pytest.fixture

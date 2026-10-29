@@ -1,6 +1,6 @@
 import pytest
 
-from sldgridy.view.grid import grid_lines, visible_grid_step
+from electrogridy.view.grid import grid_lines, visible_grid_step
 
 
 def test_base_step_kept_when_dense_enough():

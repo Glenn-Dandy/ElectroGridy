@@ -1,7 +1,7 @@
 """Sample entities shared by several tests."""
 
-from sldgridy.model.entities import Arc, Circle, Dimension, Line, Polyline, Rectangle, Text
-from sldgridy.model.geometry import Point
+from electrogridy.model.entities import Arc, Circle, Dimension, Line, Polyline, Rectangle, Text
+from electrogridy.model.geometry import Point
 
 
 def sample_entities():

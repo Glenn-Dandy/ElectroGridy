@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sldgridy"
+name = "electrogridy"
 dynamic = ["version"]
 description = "CAD-style editor for single-line electrical diagrams"
 readme = "README.md"
@@ -14,23 +14,23 @@ authors = [{ name = "Glenn-Dandy" }]
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/Glenn-Dandy/SLDGridy"
-Issues = "https://github.com/Glenn-Dandy/SLDGridy/issues"
+Homepage = "https://github.com/Glenn-Dandy/ElectroGridy"
+Issues = "https://github.com/Glenn-Dandy/ElectroGridy/issues"
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]
 
 [project.scripts]
-sldgridy = "sldgridy.app:main"
+electrogridy = "electrogridy.app:main"
 
 [tool.setuptools.dynamic]
-version = { attr = "sldgridy.__version__" }
+version = { attr = "electrogridy.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-sldgridy = ["resources/**/*"]
+electrogridy = ["resources/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

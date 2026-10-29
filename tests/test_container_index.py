@@ -1,6 +1,6 @@
-from sldgridy.model.container import EntityContainer
-from sldgridy.model.entities import Line
-from sldgridy.model.geometry import Point
+from electrogridy.model.container import EntityContainer
+from electrogridy.model.entities import Line
+from electrogridy.model.geometry import Point
 
 
 def line(i: str) -> Line:

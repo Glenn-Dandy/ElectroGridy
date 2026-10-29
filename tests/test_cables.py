@@ -1,21 +1,21 @@
 import pytest
 from PyQt6.QtCore import QSettings
 
-from sldgridy.fileio.json_format import document_from_dict, document_to_dict
-from sldgridy.model.cables import (
+from electrogridy.fileio.json_format import document_from_dict, document_to_dict
+from electrogridy.model.cables import (
     cable_mark_geometry,
     crossings,
     default_cores,
     mark_cores,
     next_cable_name,
 )
-from sldgridy.model.document import DOC_PROJECT, Document
-from sldgridy.model.entities import CableMark, Line, Text, Wire
-from sldgridy.model.geometry import Point
-from sldgridy.model.grips import move_grip
-from sldgridy.model.reports import cable_rows
-from sldgridy.ui import cable_dialog
-from sldgridy.ui.main_window import MainWindow
+from electrogridy.model.document import DOC_PROJECT, Document
+from electrogridy.model.entities import CableMark, Line, Text, Wire
+from electrogridy.model.geometry import Point
+from electrogridy.model.grips import move_grip
+from electrogridy.model.reports import cable_rows
+from electrogridy.ui import cable_dialog
+from electrogridy.ui.main_window import MainWindow
 
 
 def conductors(xs, top=0.0, bottom=50.0):
@@ -124,7 +124,7 @@ def test_cable_tool_sets_cable_and_cores_on_the_wires(window, monkeypatch):
 
 
 def test_clicked_on_the_outer_conductors_with_cores_from_the_terminals(window, monkeypatch):
-    from sldgridy.ui import point_menu
+    from electrogridy.ui import point_menu
 
     xs = [100, 105, 110, 115]
     for wire in conductors(xs, 60, 140):

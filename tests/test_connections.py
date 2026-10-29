@@ -2,13 +2,13 @@ import pytest
 from PyQt6.QtCore import QPointF, QRectF, QSettings, Qt
 from PyQt6.QtTest import QTest
 
-from sldgridy.fileio.json_format import entity_from_dict, entity_to_dict
-from sldgridy.model.entities import Busbar, JunctionMark, Line, Polyline, Wire
-from sldgridy.model.geometry import Point
-from sldgridy.model.snap import SnapMode, find_snap
-from sldgridy.model.wires import junction_points, remove_vertex
-from sldgridy.ui.main_window import MainWindow
-from sldgridy.ui.point_menu import point_actions
+from electrogridy.fileio.json_format import entity_from_dict, entity_to_dict
+from electrogridy.model.entities import Busbar, JunctionMark, Line, Polyline, Wire
+from electrogridy.model.geometry import Point
+from electrogridy.model.snap import SnapMode, find_snap
+from electrogridy.model.wires import junction_points, remove_vertex
+from electrogridy.ui.main_window import MainWindow
+from electrogridy.ui.point_menu import point_actions
 from waiting import wait_until
 
 BAR = Busbar(id="bar", p1=Point(0, 50), p2=Point(100, 50))
@@ -41,7 +41,7 @@ def test_perpendicular_onto_wire_and_needs_base():
 
 
 def test_connection_points_still_win():
-    from sldgridy.model.snap import SnapHit
+    from electrogridy.model.snap import SnapHit
 
     hit = find_snap(
         Point(10.5, 50.5),

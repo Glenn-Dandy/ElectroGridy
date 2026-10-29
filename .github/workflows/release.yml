@@ -83,11 +83,11 @@ jobs:
           Invoke-WebRequest https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.zip -OutFile build\dejavu.zip
           Expand-Archive build\dejavu.zip build\dejavu
           $src = "build\dejavu\dejavu-fonts-ttf-2.37"
-          $fonts = "src\sldgridy\resources\fonts"
+          $fonts = "src\electrogridy\resources\fonts"
           New-Item -ItemType Directory -Force $fonts | Out-Null
           Copy-Item "$src\ttf\DejaVuSans.ttf", "$src\ttf\DejaVuSans-Bold.ttf" $fonts
           Copy-Item "$src\LICENSE" "$fonts\LICENSE-DejaVu.txt"
-          Copy-Item README.md src\sldgridy\resources\README.md
+          Copy-Item README.md src\electrogridy\resources\README.md
       - name: Tesseract for texts in pictures
         # Shipped in the program folder with German and English language data; on the
         # PATH for the tests.
@@ -115,44 +115,44 @@ jobs:
         run: python -m pytest -q -p no:cacheprovider
       - name: Build program
         run: |
-          python packaging\windows\make_icon.py src\sldgridy\resources\icons\sldgridy.svg build\sldgridy.ico
-          pyinstaller --noconfirm --windowed --name SLDGridy --icon build\sldgridy.ico --paths src --add-data "src\sldgridy\resources;sldgridy\resources" --add-data "build\tesseract;tesseract" --collect-data pdfminer --hidden-import PyQt6.QtPdf packaging\windows\sldgridy_main.py
+          python packaging\windows\make_icon.py src\electrogridy\resources\icons\electrogridy.svg build\electrogridy.ico
+          pyinstaller --noconfirm --windowed --name ElectroGridy --icon build\electrogridy.ico --paths src --add-data "src\electrogridy\resources;electrogridy\resources" --add-data "build\tesseract;tesseract" --collect-data pdfminer --hidden-import PyQt6.QtPdf packaging\windows\electrogridy_main.py
       - name: Start the built program
         # Catches missing modules or files: the program must come up with its own
         # window, not with an error message, and keep running.
         run: |
           foreach ($dir in "library", "templates", "symbols", "i18n", "fonts") {
-            if (-not (Test-Path "dist\SLDGridy\_internal\sldgridy\resources\$dir")) { throw "missing resources\$dir" }
+            if (-not (Test-Path "dist\ElectroGridy\_internal\electrogridy\resources\$dir")) { throw "missing resources\$dir" }
           }
-          if (-not (Test-Path "dist\SLDGridy\_internal\tesseract\tessdata\deu.traineddata")) { throw "missing tesseract" }
-          $p = Start-Process dist\SLDGridy\SLDGridy.exe -PassThru
+          if (-not (Test-Path "dist\ElectroGridy\_internal\tesseract\tessdata\deu.traineddata")) { throw "missing tesseract" }
+          $p = Start-Process dist\ElectroGridy\ElectroGridy.exe -PassThru
           Start-Sleep -Seconds 20
           $p.Refresh()
-          if ($p.HasExited) { throw "SLDGridy ended with exit code $($p.ExitCode)" }
+          if ($p.HasExited) { throw "ElectroGridy ended with exit code $($p.ExitCode)" }
           $titles = (Get-Process -Id $p.Id).MainWindowTitle
           Write-Output "Window: $titles"
-          Get-Content "$env:LOCALAPPDATA\sldgridy\crash.log" -ErrorAction SilentlyContinue
+          Get-Content "$env:LOCALAPPDATA\electrogridy\crash.log" -ErrorAction SilentlyContinue
           Stop-Process -Id $p.Id -Force
           if ($titles -match "exception|error|fehler") { throw "error window: $titles" }
       - name: Build installer
         run: |
-          $version = python -c "import sys; sys.path.insert(0, 'src'); import sldgridy; print(sldgridy.__version__)"
+          $version = python -c "import sys; sys.path.insert(0, 'src'); import electrogridy; print(electrogridy.__version__)"
           $numeric = ($version -split '\.')[0..2] -join '.'
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
-          & $iscc "/DAppVersion=$version" "/DNumericVersion=$numeric" packaging\windows\sldgridy.iss
+          & $iscc "/DAppVersion=$version" "/DNumericVersion=$numeric" packaging\windows\electrogridy.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Attach installer to the release
         if: ${{ github.event_name == 'release' }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" (Get-Item dist\SLDGridy-*-setup.exe).FullName --clobber
+        run: gh release upload "${{ github.event.release.tag_name }}" (Get-Item dist\ElectroGridy-*-setup.exe).FullName --clobber
       - name: Keep installer as workflow artifact
         if: ${{ github.event_name != 'release' }}
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: dist/SLDGridy-*-setup.exe
+          path: dist/ElectroGridy-*-setup.exe
 
   cleanup:
     # Also after a skipped windows job (pre-releases), but not after a failed one.

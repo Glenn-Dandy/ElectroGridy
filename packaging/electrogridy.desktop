@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=ElectroGridy
+GenericName=Single-line diagram editor
+GenericName[de]=Übersichtsschaltpläne zeichnen
+Comment=Draw single-line diagrams for PV systems and transformer stations
+Comment[de]=Einpolige Übersichtsschaltpläne für PV-Anlagen und Transformatorstationen zeichnen
+Exec=electrogridy %f
+Icon=electrogridy
+Terminal=false
+Categories=Graphics;Engineering;
+Keywords=SLD;single-line;Schaltplan;Photovoltaik;PV;Trafostation;CAD;
+StartupWMClass=electrogridy
+MimeType=application/x-electrogridy;

@@ -1,15 +1,15 @@
 import pytest
 from PyQt6.QtGui import QUndoStack
 
+from electrogridy.commands.layers import AddLayerCommand, ChangeLayerCommand, RemoveLayerCommand
+from electrogridy.fileio.json_format import document_to_dict
+from electrogridy.model.document import Document
+from electrogridy.model.entities import Arc, Line, Polyline, Rectangle, Text
+from electrogridy.model.geometry import Point
+from electrogridy.model.grips import grip_kinds, grip_points, move_grip
+from electrogridy.model.layers import Layer
+from electrogridy.tools.coord_input import CoordinateError, parse_coordinate
 from factories import sample_entities
-from sldgridy.commands.layers import AddLayerCommand, ChangeLayerCommand, RemoveLayerCommand
-from sldgridy.fileio.json_format import document_to_dict
-from sldgridy.model.document import Document
-from sldgridy.model.entities import Arc, Line, Polyline, Rectangle, Text
-from sldgridy.model.geometry import Point
-from sldgridy.model.grips import grip_kinds, grip_points, move_grip
-from sldgridy.model.layers import Layer
-from sldgridy.tools.coord_input import CoordinateError, parse_coordinate
 
 
 def test_mirror_line_vertical_axis():

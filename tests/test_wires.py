@@ -4,15 +4,15 @@ import pytest
 from PyQt6.QtGui import QUndoStack
 
 from blocks_fixtures import blocks
-from sldgridy.fileio.files import load_library
-from sldgridy.fileio.json_format import entity_from_dict, entity_to_dict
-from sldgridy.fileio.paths import system_library_dir
-from sldgridy.model.document import Document
-from sldgridy.model.entities import BlockReference, Busbar, ConnectionPoint, Wire
-from sldgridy.model.geometry import Point
-from sldgridy.model.grips import move_grip
-from sldgridy.model.snap import SnapMode, find_snap
-from sldgridy.model.wires import (
+from electrogridy.fileio.files import load_library
+from electrogridy.fileio.json_format import entity_from_dict, entity_to_dict
+from electrogridy.fileio.paths import system_library_dir
+from electrogridy.model.document import Document
+from electrogridy.model.entities import BlockReference, Busbar, ConnectionPoint, Wire
+from electrogridy.model.geometry import Point
+from electrogridy.model.grips import move_grip
+from electrogridy.model.snap import SnapMode, find_snap
+from electrogridy.model.wires import (
     drag_end,
     elbow,
     follow_connections,
@@ -20,9 +20,9 @@ from sldgridy.model.wires import (
     label_text,
     simplify,
 )
-from sldgridy.tools.controller import ToolController
-from sldgridy.tools.draw import BusbarTool, WireTool
-from sldgridy.tools.edit import MoveTool, RotateTool
+from electrogridy.tools.controller import ToolController
+from electrogridy.tools.draw import BusbarTool, WireTool
+from electrogridy.tools.edit import MoveTool, RotateTool
 
 
 def W(id_, *pts, **kw):
@@ -186,7 +186,7 @@ def test_standalone_connection_point_drags_wire():
 
 
 def test_shipped_library_complete():
-    path = system_library_dir() / "din_en_60617.sldglib"
+    path = system_library_dir() / "din_en_60617.grdylib"
     title, defs = load_library(path)
     names = {d.name for d in defs}
     required = {
@@ -229,8 +229,8 @@ def test_shipped_library_complete():
 
 
 def test_load_break_circles_centred_on_the_contact_below_the_bar():
-    _, defs = load_library(system_library_dir() / "din_en_60617.sldglib")
-    from sldgridy.model.entities import Circle, Line
+    _, defs = load_library(system_library_dir() / "din_en_60617.grdylib")
+    from electrogridy.model.entities import Circle, Line
 
     for d in defs:
         circles = [e for e in d.entities if isinstance(e, Circle) and e.radius == 0.75]
@@ -248,7 +248,7 @@ def test_load_break_circles_centred_on_the_contact_below_the_bar():
 
 
 def test_circuit_breaker_has_thermal_and_magnetic_release():
-    _, defs = load_library(system_library_dir() / "din_en_60617.sldglib")
+    _, defs = load_library(system_library_dir() / "din_en_60617.grdylib")
     ls = {d.name: d for d in defs}["Leitungsschutzschalter"]
     ids = {e.id for e in ls.entities}
     assert {"thermal", "magnetic", "link"} <= ids
@@ -256,7 +256,7 @@ def test_circuit_breaker_has_thermal_and_magnetic_release():
 
 
 def test_measuring_relays_and_pv_category():
-    _, defs = load_library(system_library_dir() / "din_en_60617.sldglib")
+    _, defs = load_library(system_library_dir() / "din_en_60617.grdylib")
     by = {d.name: d for d in defs}
     relay = by["Messrelais"]
     assert {a.tag for a in relay.attribute_definitions()} == {"BMK", "TYP", "WERT", "FUNKTION"}
@@ -268,7 +268,7 @@ def test_measuring_relays_and_pv_category():
 
 
 def test_further_symbols_library():
-    title, defs = load_library(system_library_dir() / "weitere_symbole.sldglib")
+    title, defs = load_library(system_library_dir() / "weitere_symbole.grdylib")
     assert title == "SLD: Weitere Symbole (nicht nach DIN EN 60617)"
     by = {d.name: d for d in defs}
     shu = by["Selektiver Hauptschalter netzunabhängig"]
@@ -296,7 +296,7 @@ def test_further_symbols_library():
 def test_circuit_breaker_thermal_release_parallel_to_link():
     import math
 
-    _, defs = load_library(system_library_dir() / "din_en_60617.sldglib")
+    _, defs = load_library(system_library_dir() / "din_en_60617.grdylib")
     ls = {d.name: d for d in defs}["Leitungsschutzschalter"]
     link = next(e for e in ls.entities if e.id == "link")
     thermal = next(e for e in ls.entities if e.id == "thermal")
@@ -310,7 +310,7 @@ def test_circuit_breaker_thermal_release_parallel_to_link():
 def test_circuit_breaker_arrowhead_centred_on_link():
     import math
 
-    _, defs = load_library(system_library_dir() / "din_en_60617.sldglib")
+    _, defs = load_library(system_library_dir() / "din_en_60617.grdylib")
     ls = {d.name: d for d in defs}["Leitungsschutzschalter"]
     link = next(e for e in ls.entities if e.id == "link")
     tip, b1, b2 = next(e for e in ls.entities if e.id == "magnetic").points
@@ -325,7 +325,7 @@ def test_circuit_breaker_arrowhead_centred_on_link():
 
 
 def test_current_transformer_has_measuring_connection():
-    _, defs = load_library(system_library_dir() / "din_en_60617.sldglib")
+    _, defs = load_library(system_library_dir() / "din_en_60617.grdylib")
     ct = {d.name: d for d in defs}["Stromwandler"]
     conns = {c.name: (c.position, c.direction) for c in ct.connection_points()}
     assert conns["S"] == (Point(5, 7.5), 0)
@@ -352,9 +352,9 @@ BOX_DEVICES = [
 
 @pytest.mark.parametrize("name", BOX_DEVICES)
 def test_box_devices_have_four_connections_on_the_edges(name):
-    from sldgridy.model.entities import Line, Rectangle
+    from electrogridy.model.entities import Line, Rectangle
 
-    _, defs = load_library(system_library_dir() / "din_en_60617.sldglib")
+    _, defs = load_library(system_library_dir() / "din_en_60617.grdylib")
     d = {x.name: x for x in defs}[name]
     box = max(
         (e for e in d.entities if isinstance(e, Rectangle)),
@@ -396,7 +396,7 @@ def test_label_alignment_along_segment():
     ],
 )
 def test_manufacturer_attribute_between_designation_and_type(library, name):
-    _, defs = load_library(system_library_dir() / f"{library}.sldglib")
+    _, defs = load_library(system_library_dir() / f"{library}.grdylib")
     definition = {d.name: d for d in defs}[name]
     atts = definition.attribute_definitions()
     assert [a.tag for a in atts][:4] == ["BMK", "HERSTELLER", "TYP", "WERT"]
@@ -419,7 +419,7 @@ def test_label_position_start_end_and_free():
 
 
 def test_label_grip_moves_label_along_wire():
-    from sldgridy.model.grips import grip_points, move_grip
+    from electrogridy.model.grips import grip_points, move_grip
 
     w = W("w", (0, 0), (0, 40), (60, 40), label="X")
     # Ends, label point, then one grip per segment (the bottom one avoids the label).
@@ -438,8 +438,8 @@ def test_label_grip_moves_label_along_wire():
 
 
 def test_segment_grip_moves_segment_and_keeps_the_ends():
-    from sldgridy.model.grips import grip_points, move_grip
-    from sldgridy.model.wires import move_segment
+    from electrogridy.model.grips import grip_points, move_grip
+    from electrogridy.model.wires import move_segment
 
     # Junction at the left, across to x = 70, up to a battery at (70, 20).
     w = W("w", (0, 40), (70, 40), (70, 20))
@@ -465,8 +465,8 @@ def test_segment_grip_moves_segment_and_keeps_the_ends():
 
 
 def test_branch_follows_moved_wire_unless_separated():
-    from sldgridy.model.entities import JunctionMark
-    from sldgridy.model.wires import follow_wires, move_segment
+    from electrogridy.model.entities import JunctionMark
+    from electrogridy.model.wires import follow_wires, move_segment
 
     main = W("main", (0, 0), (0, 100))  # vertical LAN trunk
     branch = W("lan", (0, 40), (35, 40))  # T branch to the battery
@@ -499,8 +499,8 @@ def test_branch_follows_moved_wire_unless_separated():
 
 
 def test_connection_mark_on_a_crossing_stays_on_the_crossing():
-    from sldgridy.model.entities import JunctionMark
-    from sldgridy.model.wires import follow_marks
+    from electrogridy.model.entities import JunctionMark
+    from electrogridy.model.wires import follow_marks
 
     v = W("v", (0, 0), (0, 60))
     h = W("h", (-30, 30), (30, 30))

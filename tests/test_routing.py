@@ -1,7 +1,7 @@
-from sldgridy.model.blocks import BlockDefinition
-from sldgridy.model.entities import BlockReference, ConnectionPoint, Wire
-from sldgridy.model.geometry import Point
-from sldgridy.model.routing import (
+from electrogridy.model.blocks import BlockDefinition
+from electrogridy.model.entities import BlockReference, ConnectionPoint, Wire
+from electrogridy.model.geometry import Point
+from electrogridy.model.routing import (
     Pin,
     connect,
     cut_wire,
@@ -88,8 +88,8 @@ def test_connect_wires_all_poles_without_crossings():
 
 
 def test_rail_arrows_point_the_way_the_conductor_flows():
-    from sldgridy.model.entities import InterruptionPoint, Line
-    from sldgridy.model.interruptions import interruption_geometry
+    from electrogridy.model.entities import InterruptionPoint, Line
+    from electrogridy.model.interruptions import interruption_geometry
 
     def head(direction):
         parts = interruption_geometry(
@@ -108,8 +108,8 @@ def test_rail_arrows_point_the_way_the_conductor_flows():
 
 
 def test_interruption_point_at_a_conductor_end_leads_out_of_it():
-    from sldgridy.model.entities import InterruptionPoint, Line, Text
-    from sldgridy.model.interruptions import interruption_geometry, outward_direction
+    from electrogridy.model.entities import InterruptionPoint, Line, Text
+    from electrogridy.model.interruptions import interruption_geometry, outward_direction
 
     wire = Wire(id="w", points=(P(100, 60), P(200, 60), P(200, 100)))
     entities = [wire, Line(id="l", p1=P(50, 20), p2=P(50, 40))]
@@ -130,7 +130,7 @@ def test_interruption_point_at_a_conductor_end_leads_out_of_it():
 
 
 def terminal_block():
-    from sldgridy.model.entities import AttributeDefinition, Circle
+    from electrogridy.model.entities import AttributeDefinition, Circle
 
     return BlockDefinition(
         name="Klemme",
@@ -155,7 +155,7 @@ def terminal(ref_id, bmk, x, y, rotation=0):
 
 
 def test_terminals_on_one_line_are_labelled_as_a_row():
-    from sldgridy.model.terminals import row_labels
+    from electrogridy.model.terminals import row_labels
 
     blocks = {"Klemme": terminal_block()}
     entities = [
@@ -177,9 +177,9 @@ def test_terminals_on_one_line_are_labelled_as_a_row():
 
 
 def test_terminal_row_texts_replace_the_bmk(qapp):
-    from sldgridy.model.document import DOC_PROJECT, Document
-    from sldgridy.model.entities import Text
-    from sldgridy.view.display import expand_for_display
+    from electrogridy.model.document import DOC_PROJECT, Document
+    from electrogridy.model.entities import Text
+    from electrogridy.view.display import expand_for_display
 
     doc = Document.new_project()
     doc.blocks["Klemme"] = terminal_block()

@@ -1,10 +1,10 @@
 import pytest
 from PyQt6.QtCore import QSettings
 
-from sldgridy import __version__, project
-from sldgridy.ui import about_dialog
-from sldgridy.ui.about_dialog import AboutDialog, issue_url
-from sldgridy.update import UpdateResult, evaluate, parse_version
+from electrogridy import __version__, project
+from electrogridy.ui import about_dialog
+from electrogridy.ui.about_dialog import AboutDialog, issue_url
+from electrogridy.update import UpdateResult, evaluate, parse_version
 
 
 def test_parse_and_compare_versions():
@@ -13,8 +13,8 @@ def test_parse_and_compare_versions():
         "tag_name": "v99.0.0",
         "html_url": "https://example/r",
         "assets": [
-            {"name": "SLDGridy-99.0.0-setup.exe", "browser_download_url": "https://x/s.exe"},
-            {"name": "sldgridy_99.0.0_all.deb", "browser_download_url": "https://x/d.deb"},
+            {"name": "ElectroGridy-99.0.0-setup.exe", "browser_download_url": "https://x/s.exe"},
+            {"name": "electrogridy_99.0.0_all.deb", "browser_download_url": "https://x/d.deb"},
         ],
     }
     r = evaluate("1.0.3", release, "_all.deb")
@@ -82,7 +82,7 @@ def test_dev_versions_sort_before_their_release():
 def test_about_rows_are_never_squeezed(qapp):
     from PyQt6.QtWidgets import QGroupBox
 
-    from sldgridy.ui.about_dialog import AboutDialog, ActionRow
+    from electrogridy.ui.about_dialog import AboutDialog, ActionRow
 
     d = AboutDialog()
     d.show()
@@ -96,10 +96,10 @@ def test_about_rows_are_never_squeezed(qapp):
 
 
 def test_snap_shows_store_updates_instead_of_check(qapp, monkeypatch):
-    from sldgridy.ui.about_dialog import AboutDialog
+    from electrogridy.ui.about_dialog import AboutDialog
 
-    monkeypatch.setenv("SNAP", "/snap/sldgridy/1")
-    monkeypatch.setenv("SNAP_NAME", "sldgridy")
+    monkeypatch.setenv("SNAP", "/snap/electrogridy/1")
+    monkeypatch.setenv("SNAP_NAME", "electrogridy")
     d = AboutDialog()
     assert d.btn_update.isHidden()
     assert "Snap Store" in d.lbl_update.text()

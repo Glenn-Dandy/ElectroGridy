@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from sldgridy import memwatch
+from electrogridy import memwatch
 
 linux_only = pytest.mark.skipif(not sys.platform.startswith("linux"), reason="reads /proc")
 
@@ -30,7 +30,7 @@ def test_limit_ends_the_program_with_a_report(tmp_path: Path):
     log = tmp_path / "crash.log"
     code = (
         "import time\n"
-        "from sldgridy import memwatch\n"
+        "from electrogridy import memwatch\n"
         f"log = open({str(log)!r}, 'w')\n"
         "memwatch.start(log, first_gb=0.0, limit=1)\n"
         "def busy():\n"
@@ -48,7 +48,7 @@ def test_a_hang_is_reported(tmp_path: Path):
     log = tmp_path / "crash.log"
     code = (
         "import time\n"
-        "from sldgridy import memwatch\n"
+        "from electrogridy import memwatch\n"
         f"log = open({str(log)!r}, 'w')\n"
         "memwatch.start(log, hang_seconds=1.5)\n"
         "memwatch.heartbeat()\n"

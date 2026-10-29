@@ -1,8 +1,8 @@
-name: sldgridy
-title: SLDGridy
+name: electrogridy
+title: ElectroGridy
 summary: Single-line diagrams for PV systems and transformer stations
 description: |
-  SLDGridy draws single-line diagrams (one-line / Einstrich-Übersichtsschaltpläne)
+  ElectroGridy draws single-line diagrams (one-line / Einstrich-Übersichtsschaltpläne)
   for photovoltaic systems, transformer stations and low-voltage distribution.
 
   * Symbol library to DIN EN 60617 plus common PV symbols (PV module, inverter,
@@ -13,16 +13,16 @@ description: |
   * Sheets with title block and viewports, printing and export to PDF, SVG, PNG
   * English and German user interface
 
-  SLDGridy zeichnet einpolige Übersichtsschaltpläne für PV-Anlagen,
+  ElectroGridy zeichnet einpolige Übersichtsschaltpläne für PV-Anlagen,
   Trafostationen und Niederspannungsverteilungen, auf Deutsch und Englisch.
 license: GPL-3.0-or-later
-website: https://github.com/Glenn-Dandy/SLDGridy
-source-code: https://github.com/Glenn-Dandy/SLDGridy
-issues: https://github.com/Glenn-Dandy/SLDGridy/issues
-contact: https://github.com/Glenn-Dandy/SLDGridy/issues
+website: https://github.com/Glenn-Dandy/ElectroGridy
+source-code: https://github.com/Glenn-Dandy/ElectroGridy
+issues: https://github.com/Glenn-Dandy/ElectroGridy/issues
+contact: https://github.com/Glenn-Dandy/ElectroGridy/issues
 donation: https://paypal.me/GlennDandy
-icon: src/sldgridy/resources/icons/sldgridy.svg
-adopt-info: sldgridy
+icon: src/electrogridy/resources/icons/electrogridy.svg
+adopt-info: electrogridy
 base: core24
 grade: stable
 confinement: strict
@@ -30,10 +30,10 @@ platforms:
   amd64:
 
 apps:
-  sldgridy:
-    command: bin/sldgridy-launch
-    desktop: usr/share/applications/sldgridy.desktop
-    common-id: io.github.glenn_dandy.SLDGridy
+  electrogridy:
+    command: bin/electrogridy-launch
+    desktop: usr/share/applications/electrogridy.desktop
+    common-id: io.github.glenn_dandy.ElectroGridy
     extensions: [gnome]
     plugs:
       - home
@@ -42,7 +42,7 @@ apps:
       - cups
 
 parts:
-  sldgridy:
+  electrogridy:
     plugin: nil
     source: .
     build-packages:
@@ -68,25 +68,25 @@ parts:
       - fonts-dejavu-core
     override-build: |
       set -eu
-      share="$CRAFT_PART_INSTALL/usr/share/sldgridy"
+      share="$CRAFT_PART_INSTALL/usr/share/electrogridy"
       install -d "$share"
-      cp -r src/sldgridy "$share/sldgridy"
+      cp -r src/electrogridy "$share/electrogridy"
       find "$share" -name __pycache__ -type d -prune -exec rm -rf {} +
       # Library and templates live next to the module, as in the .deb.
       for d in library templates; do
-        if [ -d "$share/sldgridy/resources/$d" ]; then
-          mv "$share/sldgridy/resources/$d" "$share/$d"
+        if [ -d "$share/electrogridy/resources/$d" ]; then
+          mv "$share/electrogridy/resources/$d" "$share/$d"
         fi
       done
-      install -D -m 0644 packaging/sldgridy.desktop \
-        "$CRAFT_PART_INSTALL/usr/share/applications/sldgridy.desktop"
-      install -D -m 0644 src/sldgridy/resources/icons/sldgridy.svg \
-        "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/scalable/apps/sldgridy.svg"
-      install -D -m 0755 snap/local/sldgridy-launch "$CRAFT_PART_INSTALL/bin/sldgridy-launch"
+      install -D -m 0644 packaging/electrogridy.desktop \
+        "$CRAFT_PART_INSTALL/usr/share/applications/electrogridy.desktop"
+      install -D -m 0644 src/electrogridy/resources/icons/electrogridy.svg \
+        "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/scalable/apps/electrogridy.svg"
+      install -D -m 0755 snap/local/electrogridy-launch "$CRAFT_PART_INSTALL/bin/electrogridy-launch"
       # Help > README inside the program, and the file type for the double-click setup
       # described there (a snap cannot register it itself).
-      install -D -m 0644 README.md "$share/sldgridy/resources/README.md"
-      install -D -m 0644 packaging/sldgridy.xml \
-        "$CRAFT_PART_INSTALL/usr/share/mime/packages/sldgridy.xml"
-      version="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/sldgridy/__init__.py)"
+      install -D -m 0644 README.md "$share/electrogridy/resources/README.md"
+      install -D -m 0644 packaging/electrogridy.xml \
+        "$CRAFT_PART_INSTALL/usr/share/mime/packages/electrogridy.xml"
+      version="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/electrogridy/__init__.py)"
       craftctl set version="$version"

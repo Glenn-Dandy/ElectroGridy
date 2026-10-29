@@ -2,11 +2,11 @@
 
 import pytest
 
-from sldgridy.fileio import ocr, pdf_import
-from sldgridy.fileio.json_format import entity_from_dict, entity_to_dict
-from sldgridy.model.entities import Circle, Line, Polyline, RasterImage, Rectangle, Text
-from sldgridy.model.geometry import Point
-from sldgridy.model.vectorize import Ring, Stroke, vectorize
+from electrogridy.fileio import ocr, pdf_import
+from electrogridy.fileio.json_format import entity_from_dict, entity_to_dict
+from electrogridy.model.entities import Circle, Line, Polyline, RasterImage, Rectangle, Text
+from electrogridy.model.geometry import Point
+from electrogridy.model.vectorize import Ring, Stroke, vectorize
 
 
 def _picture(w=40, h=20) -> RasterImage:
@@ -26,9 +26,9 @@ def test_picture_round_trip_and_transforms():
 
 
 def test_picture_scales_and_counts_for_the_bounds():
-    from sldgridy.model.blocks import bounds
-    from sldgridy.model.rotate import rotate_entity
-    from sldgridy.model.scale import scale_entity
+    from electrogridy.model.blocks import bounds
+    from electrogridy.model.rotate import rotate_entity
+    from electrogridy.model.scale import scale_entity
 
     pic = _picture()
     assert scale_entity(pic, Point(0, 0), 2).p2 == Point(80, 40)
@@ -96,7 +96,7 @@ def test_vectorize_joins_pieces_finds_dashes_and_drops_lettering():
 
 
 def test_reading_texts_from_tesseract_output():
-    from sldgridy.fileio import ocr
+    from electrogridy.fileio import ocr
 
     head = "\t".join(
         [
@@ -140,7 +140,7 @@ def test_reading_texts_from_tesseract_output():
 def test_traced_picture_becomes_lines(qapp):
     from PyQt6.QtGui import QColor, QImage, QPainter, QPen
 
-    from sldgridy.ui.picture_import import picture_entity, traced
+    from electrogridy.ui.picture_import import picture_entity, traced
 
     image = QImage(800, 400, QImage.Format.Format_RGB32)
     image.fill(QColor("white"))
@@ -215,7 +215,7 @@ def test_lines_and_texts_from_a_cad_pdf(qapp, tmp_path):
 def test_import_dialog_with_a_picture(qapp, tmp_path):
     from PyQt6.QtGui import QColor, QImage, QPainter, QPen
 
-    from sldgridy.ui.picture_import import PICTURE, TRACE, ImportDialog
+    from electrogridy.ui.picture_import import PICTURE, TRACE, ImportDialog
 
     image = QImage(600, 300, QImage.Format.Format_RGB32)
     image.fill(QColor("white"))
@@ -238,7 +238,7 @@ def test_import_dialog_with_a_picture(qapp, tmp_path):
 
 
 def _has_qtpdf() -> bool:
-    from sldgridy.ui.picture_import import pdf_available
+    from electrogridy.ui.picture_import import pdf_available
 
     return pdf_available()
 
@@ -247,7 +247,7 @@ def _has_qtpdf() -> bool:
 def test_import_dialog_with_a_cad_pdf(qapp, tmp_path):
     from PyQt6.QtCore import QRectF
 
-    from sldgridy.ui.picture_import import PICTURE, VECTORS, ImportDialog
+    from electrogridy.ui.picture_import import PICTURE, VECTORS, ImportDialog
 
     path = tmp_path / "plan.pdf"
     _cad_pdf(path)
@@ -269,8 +269,8 @@ def test_import_dialog_with_a_cad_pdf(qapp, tmp_path):
 
 
 def test_import_menu_entry_asks_for_a_file(qapp, monkeypatch):
-    from sldgridy.ui import main_window
-    from sldgridy.ui.main_window import MainWindow
+    from electrogridy.ui import main_window
+    from electrogridy.ui.main_window import MainWindow
 
     asked = []
 
@@ -290,7 +290,7 @@ def test_dark_background_and_slanted_photo(qapp):
     from PyQt6.QtCore import QPointF
     from PyQt6.QtGui import QColor, QImage, QPainter, QPen, QPolygonF
 
-    from sldgridy.ui.picture_import import traced, unslanted
+    from electrogridy.ui.picture_import import traced, unslanted
 
     image = QImage(800, 400, QImage.Format.Format_RGB32)
     image.fill(QColor("black"))
@@ -328,7 +328,7 @@ def test_marked_region_keeps_the_scale(qapp, tmp_path):
     from PyQt6.QtGui import QColor, QImage
     from PyQt6.QtTest import QTest
 
-    from sldgridy.ui.picture_import import PICTURE_WIDTH, ImportDialog
+    from electrogridy.ui.picture_import import PICTURE_WIDTH, ImportDialog
 
     image = QImage(600, 300, QImage.Format.Format_RGB32)
     image.fill(QColor("white"))
@@ -359,7 +359,7 @@ def test_import_dialog_corners_can_be_dragged(qapp, tmp_path):
     from PyQt6.QtGui import QColor, QImage
     from PyQt6.QtTest import QTest
 
-    from sldgridy.ui.picture_import import PICTURE, ImportDialog
+    from electrogridy.ui.picture_import import PICTURE, ImportDialog
 
     image = QImage(600, 300, QImage.Format.Format_RGB32)
     image.fill(QColor("white"))
@@ -386,7 +386,7 @@ def test_traced_picture_reads_texts(qapp):
     from PyQt6.QtCore import QPointF
     from PyQt6.QtGui import QColor, QFont, QImage, QPainter, QPen
 
-    from sldgridy.ui.picture_import import traced
+    from electrogridy.ui.picture_import import traced
 
     image = QImage(1200, 600, QImage.Format.Format_RGB32)
     image.fill(QColor("white"))

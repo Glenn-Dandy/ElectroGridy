@@ -1,8 +1,8 @@
 import pytest
 
-from sldgridy.model.container import EntityContainer
-from sldgridy.model.entities import Arc, Line, Rectangle, Text
-from sldgridy.model.geometry import Point
+from electrogridy.model.container import EntityContainer
+from electrogridy.model.entities import Arc, Line, Rectangle, Text
+from electrogridy.model.geometry import Point
 
 
 def test_translate_keeps_id():

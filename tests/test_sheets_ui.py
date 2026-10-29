@@ -2,13 +2,13 @@ import pytest
 from PyQt6.QtCore import QPointF, QRectF, QSettings, Qt
 from PyQt6.QtTest import QTest
 
-from sldgridy.fileio.paths import system_template_dir
-from sldgridy.model.entities import Line, Viewport
-from sldgridy.model.geometry import Point
-from sldgridy.ui.main_window import MainWindow
-from sldgridy.ui.sheet_controller import format_scale, parse_scale
-from sldgridy.ui.sheet_dialogs import FieldsDialog, FormatDialog
-from sldgridy.ui.space import MODEL, SHEET
+from electrogridy.fileio.paths import system_template_dir
+from electrogridy.model.entities import Line, Viewport
+from electrogridy.model.geometry import Point
+from electrogridy.ui.main_window import MainWindow
+from electrogridy.ui.sheet_controller import format_scale, parse_scale
+from electrogridy.ui.sheet_dialogs import FieldsDialog, FormatDialog
+from electrogridy.ui.space import MODEL, SHEET
 
 
 @pytest.fixture
@@ -55,8 +55,8 @@ def test_drawing_on_sheet_goes_to_sheet(window):
 
 
 def answer_new_page(window, monkeypatch, kind="drawing"):
-    from sldgridy.model.paper import Orientation
-    from sldgridy.ui.page_dialog import PageSpec
+    from electrogridy.model.paper import Orientation
+    from electrogridy.ui.page_dialog import PageSpec
 
     spec = PageSpec(kind, "", "", "", "A3", Orientation.LANDSCAPE, kind == "drawing")
     monkeypatch.setattr(window.sheets, "_page_spec", lambda title, default, new: spec)
@@ -121,7 +121,7 @@ def test_fit_model_extents(window):
 
 def test_change_format_and_fields(window, monkeypatch):
     window.sheets.tabs.setCurrentIndex(1)
-    from sldgridy.model.paper import Orientation
+    from electrogridy.model.paper import Orientation
 
     monkeypatch.setattr(FormatDialog, "exec", lambda self: 1)
     monkeypatch.setattr(
@@ -152,7 +152,7 @@ def test_tab_move_reorders_sheets(window, monkeypatch):
 
 
 def test_shipped_templates_create_sheets(window):
-    paths = sorted(system_template_dir().glob("*.sldgframe"))
+    paths = sorted(system_template_dir().glob("*.grdyframe"))
     assert len(paths) == 10
     window.sheets.add_from_template(paths[0])
     assert len(window.document.sheets) == 2
@@ -218,10 +218,10 @@ def test_align_model_on_sheet(window, qapp):
 
 
 def test_project_format_for_all_pages(window, monkeypatch):
-    from sldgridy.model.document import DOC_PROJECT
-    from sldgridy.model.paper import Orientation
-    from sldgridy.model.sheet import schematic_title_width
-    from sldgridy.model.title_block import schematic_title_block_name
+    from electrogridy.model.document import DOC_PROJECT
+    from electrogridy.model.paper import Orientation
+    from electrogridy.model.sheet import schematic_title_width
+    from electrogridy.model.title_block import schematic_title_block_name
 
     window.new_document(DOC_PROJECT)
     doc = window.document
@@ -264,11 +264,11 @@ def test_project_format_for_all_pages(window, monkeypatch):
 def test_page_number_by_hand_and_blank_page(window, monkeypatch):
     from dataclasses import replace
 
-    from sldgridy.fileio.json_format import document_from_dict, document_to_dict
-    from sldgridy.model.document import BLANK, DOC_PROJECT, NO_FRAME
-    from sldgridy.model.paper import Orientation
-    from sldgridy.ui.page_dialog import PageDialog, PageSpec
-    from sldgridy.view.display import frame_parts, title_block_parts
+    from electrogridy.fileio.json_format import document_from_dict, document_to_dict
+    from electrogridy.model.document import BLANK, DOC_PROJECT, NO_FRAME
+    from electrogridy.model.paper import Orientation
+    from electrogridy.ui.page_dialog import PageDialog, PageSpec
+    from electrogridy.view.display import frame_parts, title_block_parts
 
     window.new_document(DOC_PROJECT)
     doc = window.document

@@ -6,15 +6,15 @@ import string
 import pytest
 from PyQt6.QtCore import QCoreApplication
 
-from sldgridy import i18n
-from sldgridy.fileio.files import load_library
-from sldgridy.fileio.paths import symbols_dir, system_library_dir, system_template_dir
-from sldgridy.fileio.templates import load_frame
-from sldgridy.model.document import DOC_KINDS, PAGE_KINDS, Document
-from sldgridy.model.reports import COLUMNS, COVER_CAPTIONS
-from sldgridy.model.title_block import CAPTIONS, FIELD_LABELS
+from electrogridy import i18n
+from electrogridy.fileio.files import load_library
+from electrogridy.fileio.paths import symbols_dir, system_library_dir, system_template_dir
+from electrogridy.fileio.templates import load_frame
+from electrogridy.model.document import DOC_KINDS, PAGE_KINDS, Document
+from electrogridy.model.reports import COLUMNS, COVER_CAPTIONS
+from electrogridy.model.title_block import CAPTIONS, FIELD_LABELS
 
-SRC = pathlib.Path(__file__).parents[1] / "src" / "sldgridy"
+SRC = pathlib.Path(__file__).parents[1] / "src" / "electrogridy"
 EN = i18n.load_table("en")
 # Texts kept in the model and translated through variables.
 MODEL_TEXTS = {
@@ -74,13 +74,13 @@ def test_no_unused_translations_for_ui_strings():
 
 def library_texts() -> set[str]:
     texts: set[str] = set()
-    for path in [*system_library_dir().glob("*.sldglib"), *symbols_dir().glob("*.sldglib")]:
+    for path in [*system_library_dir().glob("*.grdylib"), *symbols_dir().glob("*.grdylib")]:
         title, defs = load_library(path)
         texts.add(title)
         for d in defs:
             texts |= {d.name, d.category, d.description}
             texts |= {a.prompt for a in d.attribute_definitions()}
-    for path in system_template_dir().glob("*.sldgframe"):
+    for path in system_template_dir().glob("*.grdyframe"):
         texts.add(load_frame(path)[0])
     texts.discard("")
     return texts
@@ -106,13 +106,13 @@ def test_translator_switches_texts_and_numbers(english):
     assert i18n.library_text("Leitungsschutzschalter") == "Miniature circuit breaker"
     assert QCoreApplication.translate("x", "unbekannt") == "unbekannt"
     assert i18n.ui_locale().decimalPoint() == "."
-    from sldgridy.ui.styles import mm_label
+    from electrogridy.ui.styles import mm_label
 
     assert mm_label(2.5) == "2.5 mm"
 
 
 def test_english_title_block_and_fields(english):
-    from sldgridy.view.display import title_block_parts, title_labels
+    from electrogridy.view.display import title_block_parts, title_labels
 
     doc = Document.new("Sheet 1", title_labels())
     captions = {e.text for e in doc.blocks["Schriftfeld"].entities if hasattr(e, "text")}
@@ -164,9 +164,9 @@ def test_qt_buttons_are_german_in_german_mode(qapp, monkeypatch):
 
 
 def test_qt_translations_are_looked_for_in_the_snap(monkeypatch):
-    monkeypatch.setenv("SNAP", "/snap/sldgridy/7")
+    monkeypatch.setenv("SNAP", "/snap/electrogridy/7")
     dirs = i18n.qt_translation_dirs()
     import os
 
-    assert dirs[0] == os.path.join("/snap/sldgridy/7", "usr", "share", "qt6", "translations")
+    assert dirs[0] == os.path.join("/snap/electrogridy/7", "usr", "share", "qt6", "translations")
     assert any(d.endswith("translations") for d in dirs[1:])

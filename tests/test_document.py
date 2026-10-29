@@ -1,10 +1,10 @@
 import ast
 import pathlib
 
-from sldgridy.model.document import Document
-from sldgridy.model.paper import Orientation
+from electrogridy.model.document import Document
+from electrogridy.model.paper import Orientation
 
-MODEL_DIR = pathlib.Path(__file__).parents[1] / "src" / "sldgridy" / "model"
+MODEL_DIR = pathlib.Path(__file__).parents[1] / "src" / "electrogridy" / "model"
 
 
 def test_new_document_has_model_and_one_a0_landscape_sheet():

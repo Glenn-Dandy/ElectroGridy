@@ -1,7 +1,7 @@
 import pytest
 
-from sldgridy.model.geometry import Point
-from sldgridy.model.pv_layout import (
+from electrogridy.model.geometry import Point
+from electrogridy.model.pv_layout import (
     LayoutParams,
     contains,
     layout_modules,

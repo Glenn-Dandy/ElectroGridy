@@ -1,7 +1,7 @@
 import pytest
 
-from sldgridy.model.geometry import Point
-from sldgridy.tools.dynamic_input import (
+from electrogridy.model.geometry import Point
+from electrogridy.tools.dynamic_input import (
     POLAR,
     SIZE,
     XY,

@@ -1,6 +1,6 @@
 import pytest
 
-from sldgridy.model.geometry import (
+from electrogridy.model.geometry import (
     Point,
     angle_deg,
     distance,

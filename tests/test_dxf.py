@@ -2,8 +2,8 @@ import math
 
 import pytest
 
-from sldgridy.fileio.dxf import DxfError, read_dxf
-from sldgridy.model.entities import (
+from electrogridy.fileio.dxf import DxfError, read_dxf
+from electrogridy.model.entities import (
     Arc,
     AttributeDefinition,
     Circle,
@@ -12,7 +12,7 @@ from sldgridy.model.entities import (
     Polyline,
     Text,
 )
-from sldgridy.model.geometry import Point
+from electrogridy.model.geometry import Point
 
 
 def dxf(*sections: str) -> str:
@@ -170,8 +170,8 @@ def test_binary_and_garbage_rejected(tmp_path):
 def test_dxf_import_into_user_library(qapp, tmp_path):
     from PyQt6.QtCore import QSettings
 
-    from sldgridy.fileio.files import load_library
-    from sldgridy.ui.main_window import MainWindow
+    from electrogridy.fileio.files import load_library
+    from electrogridy.ui.main_window import MainWindow
 
     QSettings().clear()
     body = ent("LINE", (10, 0), (20, 0), (11, 0), (21, -10)) + ent("POINT", (10, 0), (20, 0))
@@ -180,7 +180,7 @@ def test_dxf_import_into_user_library(qapp, tmp_path):
     w = MainWindow()
     try:
         target = w.blocks.import_dxf_file(path, ask=False)
-        assert target.name == "Hersteller_Symbole.sldglib"
+        assert target.name == "Hersteller_Symbole.grdylib"
         title, defs = load_library(target)
         assert title == "Hersteller Symbole"
         assert {d.name for d in defs} == {"Trenner", "Zweiter"}

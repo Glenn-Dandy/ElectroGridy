@@ -2,12 +2,12 @@ import pytest
 from PyQt6.QtCore import QPointF, QRectF, QSettings, Qt
 from PyQt6.QtTest import QTest
 
+from electrogridy.fileio.files import load_document
+from electrogridy.fileio.json_format import document_to_dict
+from electrogridy.model.document import Document
+from electrogridy.model.geometry import Point
+from electrogridy.ui.main_window import MainWindow
 from factories import sample_entities
-from sldgridy.fileio.files import load_document
-from sldgridy.fileio.json_format import document_to_dict
-from sldgridy.model.document import Document
-from sldgridy.model.geometry import Point
-from sldgridy.ui.main_window import MainWindow
 
 
 @pytest.fixture
@@ -98,16 +98,16 @@ def test_delete_and_select_all(window):
 def test_save_and_open_roundtrip(window, tmp_path):
     for e in sample_entities():
         window.document.model_space.add(e)
-    path = tmp_path / "anlage.sldg"
+    path = tmp_path / "anlage.grdy"
     assert window.save_to(path)
     assert not window.isWindowModified()
-    assert window.windowTitle() == "anlage.sldg[*] (Übersichtsschaltplan) - SLDGridy"
+    assert window.windowTitle() == "anlage.grdy[*] (Übersichtsschaltplan) - ElectroGridy"
     assert window.recent_files()[0] == (path.resolve(), "sld")
     window._set_document(Document.new("Blatt 1"), None)
     assert len(window.document.model_space) == 0
     assert window.open_path(path)
     assert document_to_dict(window.document) == document_to_dict(load_document(path))
-    from sldgridy.view.items import EntityItem
+    from electrogridy.view.items import EntityItem
 
     assert len([i for i in window.scene.items() if isinstance(i, EntityItem)]) == len(
         sample_entities()
@@ -115,8 +115,8 @@ def test_save_and_open_roundtrip(window, tmp_path):
 
 
 def test_mouse_side_buttons_undo_and_redo(window):
-    from sldgridy.commands.entities import AddEntitiesCommand
-    from sldgridy.model.entities import Line
+    from electrogridy.commands.entities import AddEntitiesCommand
+    from electrogridy.model.entities import Line
 
     ms = window.document.model_space
     window.push(AddEntitiesCommand(ms, [Line(id="x", p1=Point(0, 0), p2=Point(5, 0))], "Linie"))
@@ -156,13 +156,13 @@ def test_program_settings_have_their_own_menu(window):
 def test_opening_view_modes(window, tmp_path, qapp):
     from PyQt6.QtCore import QPointF, QSettings
 
-    from sldgridy.fileio.files import save_document
-    from sldgridy.model.entities import Line
-    from sldgridy.ui.main_window import OPEN_EXTENTS, OPEN_LAST, OPEN_ORIGIN, OPEN_VIEW_KEY
+    from electrogridy.fileio.files import save_document
+    from electrogridy.model.entities import Line
+    from electrogridy.ui.main_window import OPEN_EXTENTS, OPEN_LAST, OPEN_ORIGIN, OPEN_VIEW_KEY
 
     doc = Document.new("Blatt 1")
     doc.model_space.add(Line(id="far", p1=Point(1000, 1000), p2=Point(1100, 1050)))
-    path = tmp_path / "ansicht.sldg"
+    path = tmp_path / "ansicht.grdy"
     save_document(doc, path)
     canvas = window.canvas
 
@@ -192,13 +192,13 @@ def test_opening_view_modes(window, tmp_path, qapp):
 def test_opening_view_follows_window_size_until_the_user_acts(window, tmp_path, qapp):
     from PyQt6.QtCore import QPointF, QSettings
 
-    from sldgridy.fileio.files import save_document
-    from sldgridy.model.entities import Line
-    from sldgridy.ui.main_window import OPEN_EXTENTS, OPEN_VIEW_KEY
+    from electrogridy.fileio.files import save_document
+    from electrogridy.model.entities import Line
+    from electrogridy.ui.main_window import OPEN_EXTENTS, OPEN_VIEW_KEY
 
     doc = Document.new("Blatt 1")
     doc.model_space.add(Line(id="l", p1=Point(500, 500), p2=Point(700, 600)))
-    path = tmp_path / "gross.sldg"
+    path = tmp_path / "gross.grdy"
     save_document(doc, path)
     QSettings().setValue(OPEN_VIEW_KEY, OPEN_EXTENTS)
     window.resize(700, 500)
@@ -218,20 +218,20 @@ def test_opening_view_follows_window_size_until_the_user_acts(window, tmp_path, 
 
 
 def test_help_menu_starts_with_readme(window):
-    from sldgridy.ui.readme_dialog import ReadmeDialog, readme_markdown
+    from electrogridy.ui.readme_dialog import ReadmeDialog, readme_markdown
 
     help_menu = [a.menu() for a in window.menuBar().actions() if a.text() == "&Hilfe"][0]
     first = [a for a in help_menu.actions() if not a.isSeparator()][0]
     assert first is window.act_readme
     text = readme_markdown()
-    assert "SLDGridy" in text and "[![" not in text  # no remote badges offline
-    assert "application/x-sldgridy" in text  # snap double-click setup is documented
+    assert "ElectroGridy" in text and "[![" not in text  # no remote badges offline
+    assert "application/x-electrogridy" in text  # snap double-click setup is documented
     dialog = ReadmeDialog(window)
     assert "Installation" in dialog.browser.toPlainText()
 
 
 def test_readme_links_jump_to_headings(window):
-    from sldgridy.ui.readme_dialog import ReadmeDialog
+    from electrogridy.ui.readme_dialog import ReadmeDialog
 
     dialog = ReadmeDialog(window)
     assert dialog.jump_to_heading("deutsch")
@@ -240,8 +240,8 @@ def test_readme_links_jump_to_headings(window):
 
 
 def test_document_kinds_show_their_tools_and_libraries(window):
-    from sldgridy.model.document import DOC_DRAWING, DOC_PROJECT
-    from sldgridy.ui.main_window import WORKSPACE_DRAWING, WORKSPACE_SLD
+    from electrogridy.model.document import DOC_DRAWING, DOC_PROJECT
+    from electrogridy.ui.main_window import WORKSPACE_DRAWING, WORKSPACE_SLD
 
     def titles():  # shipped ones; other tests may leave user libraries behind
         libs = window.library_dock.visible_libraries().values()
@@ -279,7 +279,7 @@ def test_document_kinds_show_their_tools_and_libraries(window):
 
 
 def test_library_categories_name_their_group_in_a_project(window):
-    from sldgridy.model.document import DOC_PROJECT
+    from electrogridy.model.document import DOC_PROJECT
 
     window.new_document(DOC_PROJECT)
     dock = window.library_dock
@@ -295,7 +295,7 @@ def test_library_categories_name_their_group_in_a_project(window):
 
 
 def test_start_dialog_creates_the_chosen_kind(window, monkeypatch):
-    from sldgridy.ui import main_window as mw
+    from electrogridy.ui import main_window as mw
 
     class Fake:
         DialogCode = mw.StartDialog.DialogCode
@@ -323,8 +323,8 @@ def test_grid_and_snap_typed_in_the_status_bar_menu(window):
 
 
 def test_layers_are_separate_per_workspace(window):
-    from sldgridy.model.layers import Layer
-    from sldgridy.ui.main_window import WORKSPACE_DRAWING, WORKSPACE_SLD
+    from electrogridy.model.layers import Layer
+    from electrogridy.ui.main_window import WORKSPACE_DRAWING, WORKSPACE_SLD
 
     doc = window.document
     doc.insert_layer(len(doc.layers), Layer("Kabel", workspace=WORKSPACE_SLD))
@@ -346,9 +346,9 @@ def test_layers_are_separate_per_workspace(window):
 
 
 def test_module_field_fills_a_roof_with_a_chimney(window):
-    from sldgridy.model.document import DOC_DRAWING
-    from sldgridy.model.entities import BlockReference, Rectangle
-    from sldgridy.tools.pv import ModuleFieldTool, ModuleSpec
+    from electrogridy.model.document import DOC_DRAWING
+    from electrogridy.model.entities import BlockReference, Rectangle
+    from electrogridy.tools.pv import ModuleFieldTool, ModuleSpec
 
     window.new_document(DOC_DRAWING)
     assert window.act_module_field.isVisible() and not window.act_wire.isVisible()
@@ -371,8 +371,8 @@ def test_module_field_fills_a_roof_with_a_chimney(window):
 
 
 def test_module_field_with_a_number_of_modules(window):
-    from sldgridy.model.entities import BlockReference, Rectangle
-    from sldgridy.tools.pv import ModuleFieldTool, ModuleSpec
+    from electrogridy.model.entities import BlockReference, Rectangle
+    from electrogridy.tools.pv import ModuleFieldTool, ModuleSpec
 
     ms = window.document.model_space
     ms.add(Rectangle(id="roof", p1=Point(0, 0), p2=Point(8000, 5000)))
@@ -388,7 +388,7 @@ def test_module_field_with_a_number_of_modules(window):
 
 
 def test_deleting_many_selected_objects_refreshes_the_dock_once(window):
-    from sldgridy.model.entities import Line as LineEntity
+    from electrogridy.model.entities import Line as LineEntity
 
     ms = window.document.model_space
     for i in range(60):
@@ -404,8 +404,8 @@ def test_deleting_many_selected_objects_refreshes_the_dock_once(window):
 
 
 def test_every_start_begins_with_an_overview_diagram(qapp):
-    from sldgridy.model.document import DOC_DRAWING
-    from sldgridy.ui.main_window import WORKSPACE_SLD, MainWindow
+    from electrogridy.model.document import DOC_DRAWING
+    from electrogridy.ui.main_window import WORKSPACE_SLD, MainWindow
 
     first = MainWindow()
     first.new_document(DOC_DRAWING)

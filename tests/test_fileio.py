@@ -3,10 +3,9 @@ import sys
 
 import pytest
 
-from factories import sample_entities
-from sldgridy.fileio import json_format
-from sldgridy.fileio.files import load_document, save_document
-from sldgridy.fileio.json_format import (
+from electrogridy.fileio import json_format
+from electrogridy.fileio.files import load_document, save_document
+from electrogridy.fileio.json_format import (
     BASE_VERSION,
     FORMAT_VERSION,
     FileFormatError,
@@ -15,9 +14,10 @@ from sldgridy.fileio.json_format import (
     entity_from_dict,
     entity_to_dict,
 )
-from sldgridy.model.document import Document
-from sldgridy.model.layers import Layer
-from sldgridy.model.paper import Orientation
+from electrogridy.model.document import Document
+from electrogridy.model.layers import Layer
+from electrogridy.model.paper import Orientation
+from factories import sample_entities
 
 
 @pytest.mark.parametrize("entity", sample_entities(), ids=lambda e: type(e).__name__)
@@ -38,7 +38,7 @@ def make_document() -> Document:
 
 def test_document_roundtrip_through_file(tmp_path):
     doc = make_document()
-    path = tmp_path / "plan.sldg"
+    path = tmp_path / "plan.grdy"
     save_document(doc, path)
     loaded = load_document(path)
     assert document_to_dict(loaded) == document_to_dict(doc)
@@ -48,12 +48,12 @@ def test_document_roundtrip_through_file(tmp_path):
 
 
 def test_save_keeps_backup_and_leaves_no_temp_files(tmp_path):
-    path = tmp_path / "plan.sldg"
+    path = tmp_path / "plan.grdy"
     save_document(Document.new("Blatt 1"), path)
     first = path.read_text(encoding="utf-8")
     save_document(make_document(), path)
-    assert (tmp_path / "plan.sldg.bak").read_text(encoding="utf-8") == first
-    assert sorted(p.name for p in tmp_path.iterdir()) == ["plan.sldg", "plan.sldg.bak"]
+    assert (tmp_path / "plan.grdy.bak").read_text(encoding="utf-8") == first
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["plan.grdy", "plan.grdy.bak"]
 
 
 def test_newer_format_version_is_rejected():
@@ -96,7 +96,7 @@ def test_version_1_file_gets_title_block_and_viewport():
 
 
 def test_invalid_files_raise_format_error(tmp_path):
-    bad = tmp_path / "bad.sldg"
+    bad = tmp_path / "bad.grdy"
     bad.write_text("{not json", encoding="utf-8")
     with pytest.raises(FileFormatError):
         load_document(bad)
@@ -118,7 +118,7 @@ def test_missing_layer_zero_is_restored():
 def test_saved_file_gets_normal_permissions(tmp_path):
     import os
 
-    path = tmp_path / "rechte.sldg"
+    path = tmp_path / "rechte.grdy"
     save_document(Document.new("Blatt 1"), path)
     umask = os.umask(0)
     os.umask(umask)
@@ -129,8 +129,8 @@ def test_saved_file_gets_normal_permissions(tmp_path):
 
 
 def test_wire_label_roundtrip():
-    from sldgridy.model.entities import Wire
-    from sldgridy.model.geometry import Point
+    from electrogridy.model.entities import Wire
+    from electrogridy.model.geometry import Point
 
     for align in ("left", "center", "right"):
         wire = Wire(
@@ -147,8 +147,8 @@ def test_wire_label_roundtrip():
 
 
 def test_wire_label_position_roundtrip():
-    from sldgridy.model.entities import Wire
-    from sldgridy.model.geometry import Point
+    from electrogridy.model.entities import Wire
+    from electrogridy.model.geometry import Point
 
     for pos, at in (("auto", 0.0), ("start", 0.0), ("end", 0.0), ("free", 12.5)):
         wire = Wire(
@@ -160,8 +160,8 @@ def test_wire_label_position_roundtrip():
 
 
 def test_layer_workspace_roundtrip_and_old_files():
-    from sldgridy.fileio.json_format import _layer_from_dict, _layer_to_dict
-    from sldgridy.model.layers import Layer
+    from electrogridy.fileio.json_format import _layer_from_dict, _layer_to_dict
+    from electrogridy.model.layers import Layer
 
     for workspace in ("", "sld", "drawing"):
         layer = Layer("X", workspace=workspace)
@@ -169,3 +169,11 @@ def test_layer_workspace_roundtrip_and_old_files():
     # Before workspaces: every layer but 0 belonged to the circuit diagram.
     assert _layer_from_dict({"name": "Kabel"}).workspace == "sld"
     assert _layer_from_dict({"name": "0"}).workspace == ""
+
+
+def test_drawing_with_old_suffix_opens(tmp_path):
+    """Drawings of SLDGridy, the name until 1.3.2."""
+    doc = make_document()
+    path = tmp_path / "plan.sldg"
+    save_document(doc, path)
+    assert document_to_dict(load_document(path)) == document_to_dict(doc)

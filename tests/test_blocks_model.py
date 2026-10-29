@@ -2,8 +2,8 @@ import pytest
 from PyQt6.QtGui import QUndoStack
 
 from blocks_fixtures import blocks, fuse
-from sldgridy.commands.blocks import AddBlockCommand, ReplaceBlockCommand, SetBasePointCommand
-from sldgridy.fileio.json_format import (
+from electrogridy.commands.blocks import AddBlockCommand, ReplaceBlockCommand, SetBasePointCommand
+from electrogridy.fileio.json_format import (
     block_signature,
     document_from_dict,
     document_to_dict,
@@ -12,7 +12,7 @@ from sldgridy.fileio.json_format import (
     library_from_dict,
     library_to_dict,
 )
-from sldgridy.model.blocks import (
+from electrogridy.model.blocks import (
     BlockDefinition,
     BlockError,
     dependencies,
@@ -22,9 +22,9 @@ from sldgridy.model.blocks import (
     world_connections,
     would_create_cycle,
 )
-from sldgridy.model.container import EntityContainer
-from sldgridy.model.document import Document
-from sldgridy.model.entities import (
+from electrogridy.model.container import EntityContainer
+from electrogridy.model.document import Document
+from electrogridy.model.entities import (
     AttributeDefinition,
     BlockReference,
     Circle,
@@ -32,7 +32,7 @@ from sldgridy.model.entities import (
     Line,
     Text,
 )
-from sldgridy.model.geometry import Point
+from electrogridy.model.geometry import Point
 
 
 def ref(**kw) -> BlockReference:
@@ -293,10 +293,10 @@ def test_block_in_use_and_layer_usage_inside_blocks():
 
 
 def test_multi_line_attribute_pushes_the_next_ones_down():
-    from sldgridy.model.blocks import BlockDefinition, explode
-    from sldgridy.model.container import EntityContainer
-    from sldgridy.model.entities import AttributeDefinition, BlockReference, Line
-    from sldgridy.model.geometry import Point
+    from electrogridy.model.blocks import BlockDefinition, explode
+    from electrogridy.model.container import EntityContainer
+    from electrogridy.model.entities import AttributeDefinition, BlockReference, Line
+    from electrogridy.model.geometry import Point
 
     def att(tag, y):
         return AttributeDefinition(id=tag, tag=tag, position=Point(7.5, y), height=2.5)
@@ -341,10 +341,10 @@ def replace_rotation(ref, rotation):
 def test_dock_points_follow_the_reference():
     from dataclasses import replace
 
-    from sldgridy.model.blocks import BlockDefinition, dock_target, world_connections
-    from sldgridy.model.container import EntityContainer
-    from sldgridy.model.entities import BlockReference, ConnectionPoint, Rectangle
-    from sldgridy.model.geometry import Point
+    from electrogridy.model.blocks import BlockDefinition, dock_target, world_connections
+    from electrogridy.model.container import EntityContainer
+    from electrogridy.model.entities import BlockReference, ConnectionPoint, Rectangle
+    from electrogridy.model.geometry import Point
 
     box = BlockDefinition(
         name="WR",

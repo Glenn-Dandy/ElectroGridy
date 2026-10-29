@@ -3,15 +3,15 @@
 import pytest
 from PyQt6.QtCore import QSettings
 
-from sldgridy.fileio.paths import system_library_dir
-from sldgridy.model.devices import devices
-from sldgridy.model.document import DOC_PROJECT
-from sldgridy.model.entities import BlockReference, InterruptionPoint, Line, Wire
-from sldgridy.model.geometry import Point
-from sldgridy.ui.block_dialogs import AttributeValuesDialog
-from sldgridy.ui.main_window import MainWindow
+from electrogridy.fileio.paths import system_library_dir
+from electrogridy.model.devices import devices
+from electrogridy.model.document import DOC_PROJECT
+from electrogridy.model.entities import BlockReference, InterruptionPoint, Line, Wire
+from electrogridy.model.geometry import Point
+from electrogridy.ui.block_dialogs import AttributeValuesDialog
+from electrogridy.ui.main_window import MainWindow
 
-MLD = str(system_library_dir() / "mld_symbole.sldglib")
+MLD = str(system_library_dir() / "mld_symbole.grdylib")
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def refs(w):
 
 
 def test_rails_across_the_page_with_page_transitions(window, monkeypatch):
-    from sldgridy.ui import main_window as mw
+    from electrogridy.ui import main_window as mw
 
     class Fake:
         DialogCode = mw.RailsDialog.DialogCode
@@ -98,8 +98,8 @@ def test_wire_tool_routes_all_poles_from_terminal_to_terminal(window):
 
 
 def test_set_terminal_on_a_wire_offers_free_numbers(window, monkeypatch):
-    from sldgridy.model.terminals import free_numbers, strips
-    from sldgridy.ui import point_menu
+    from electrogridy.model.terminals import free_numbers, strips
+    from electrogridy.ui import point_menu
 
     window.container.add(Wire(id="w", points=(Point(50, 30), Point(50, 100))))
     window.container.add(Wire(id="h", points=(Point(80, 50), Point(160, 50))))
@@ -134,9 +134,9 @@ def test_set_terminal_on_a_wire_offers_free_numbers(window, monkeypatch):
 
 
 def test_set_terminal_pe_n_pen_instead_of_a_number(window, monkeypatch):
-    from sldgridy.model.terminals import strips
-    from sldgridy.ui import point_menu
-    from sldgridy.ui.terminal_dialog import TerminalDialog
+    from electrogridy.model.terminals import strips
+    from electrogridy.ui import point_menu
+    from electrogridy.ui.terminal_dialog import TerminalDialog
 
     dialog = TerminalDialog({"-X1": ["1", "2"]}, "-X1")
     offered = [dialog.number.itemText(i) for i in range(dialog.number.count())]
@@ -179,7 +179,7 @@ def test_set_terminal_pe_n_pen_instead_of_a_number(window, monkeypatch):
 
 
 def test_menu_cuts_a_wire(window):
-    from sldgridy.ui import point_menu
+    from electrogridy.ui import point_menu
 
     window.container.add(Wire(id="w", points=(Point(50, 30), Point(50, 100))))
     actions = dict(point_menu.point_actions(window, Point(50, 60)))

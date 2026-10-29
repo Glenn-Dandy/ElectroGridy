@@ -1,7 +1,7 @@
 import pytest
 from PyQt6.QtGui import QUndoStack
 
-from sldgridy.commands.sheets import (
+from electrogridy.commands.sheets import (
     AddSheetCommand,
     ChangeDocumentPropertiesCommand,
     ChangeSheetCommand,
@@ -9,14 +9,14 @@ from sldgridy.commands.sheets import (
     NavigateViewportCommand,
     RemoveSheetCommand,
 )
-from sldgridy.fileio.json_format import document_from_dict, document_to_dict
-from sldgridy.fileio.templates import load_frame, save_frame
-from sldgridy.model.document import Document, new_sheet
-from sldgridy.model.entities import Line, Viewport
-from sldgridy.model.geometry import Point
-from sldgridy.model.paper import Orientation
-from sldgridy.model.sheet import frame_corners, frame_entities, title_block_insert
-from sldgridy.model.title_block import TITLE_BLOCK_NAME, TITLE_BLOCK_WIDTH
+from electrogridy.fileio.json_format import document_from_dict, document_to_dict
+from electrogridy.fileio.templates import load_frame, save_frame
+from electrogridy.model.document import Document, new_sheet
+from electrogridy.model.entities import Line, Viewport
+from electrogridy.model.geometry import Point
+from electrogridy.model.paper import Orientation
+from electrogridy.model.sheet import frame_corners, frame_entities, title_block_insert
+from electrogridy.model.title_block import TITLE_BLOCK_NAME, TITLE_BLOCK_WIDTH
 
 
 def vp(**kw) -> Viewport:
@@ -159,7 +159,7 @@ def test_frame_template_roundtrip(tmp_path):
     sheet = doc.sheets[0]
     sheet.entities.add(Line(id="legend", p1=Point(30, 30), p2=Point(60, 30)))
     sheet.fields["TITEL"] = "nicht in der Vorlage"
-    path = tmp_path / "rahmen.sldgframe"
+    path = tmp_path / "rahmen.grdyframe"
     save_frame(sheet, doc.blocks, path, "Mein Rahmen")
     name, loaded, blocks = load_frame(path)
     assert name == "Mein Rahmen"
@@ -170,7 +170,7 @@ def test_frame_template_roundtrip(tmp_path):
 
 
 def test_paper_of_a_pdf_page():
-    from sldgridy.model.paper import Orientation, paper_of
+    from electrogridy.model.paper import Orientation, paper_of
 
     assert paper_of(420.2, 296.8) == ("A3", Orientation.LANDSCAPE)
     assert paper_of(210, 297) == ("A4", Orientation.PORTRAIT)

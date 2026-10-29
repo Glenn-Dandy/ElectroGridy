@@ -1,17 +1,17 @@
 import pytest
 from PyQt6.QtCore import QSettings
 
-from sldgridy.commands.sheets import ChangeSheetCommand
-from sldgridy.fileio.json_format import document_from_dict, document_to_dict
-from sldgridy.model.dimensions import measured_text
-from sldgridy.model.document import DOC_PROJECT, Document
-from sldgridy.model.entities import BlockReference, Dimension
-from sldgridy.model.geometry import Point
-from sldgridy.model.paper import Orientation
-from sldgridy.tools.coord_input import parse_coordinate
-from sldgridy.tools.dynamic_input import DynamicInput
-from sldgridy.ui.main_window import MainWindow
-from sldgridy.ui.page_dialog import PageDialog, PageSpec
+from electrogridy.commands.sheets import ChangeSheetCommand
+from electrogridy.fileio.json_format import document_from_dict, document_to_dict
+from electrogridy.model.dimensions import measured_text
+from electrogridy.model.document import DOC_PROJECT, Document
+from electrogridy.model.entities import BlockReference, Dimension
+from electrogridy.model.geometry import Point
+from electrogridy.model.paper import Orientation
+from electrogridy.tools.coord_input import parse_coordinate
+from electrogridy.tools.dynamic_input import DynamicInput
+from electrogridy.ui.main_window import MainWindow
+from electrogridy.ui.page_dialog import PageDialog, PageSpec
 
 
 def test_typed_lengths_are_real_millimetres_on_a_scaled_page():
@@ -30,8 +30,8 @@ def test_dimension_shows_the_real_length_and_files_keep_scales():
     d = Dimension(id="d", p1=Point(0, 0), p2=Point(120, 0), position=Point(60, -10), factor=5)
     assert measured_text(d) == "600"
     # The value drawn on the page, not only the one in the properties (dev14/15 drew 120).
-    from sldgridy.model.dimensions import dimension_geometry
-    from sldgridy.model.entities import Text
+    from electrogridy.model.dimensions import dimension_geometry
+    from electrogridy.model.entities import Text
 
     assert [e.text for e in dimension_geometry(d) if isinstance(e, Text)] == ["600"]
     doc = Document.new("Blatt 1", kind=DOC_PROJECT)
@@ -52,7 +52,7 @@ def test_page_dialog_offers_the_scale(qapp):
 
 @pytest.fixture
 def window(qapp, monkeypatch):
-    from sldgridy.ui.block_dialogs import AttributeValuesDialog
+    from electrogridy.ui.block_dialogs import AttributeValuesDialog
 
     QSettings().clear()
     monkeypatch.setattr(AttributeValuesDialog, "exec", lambda self: 1)
@@ -70,12 +70,12 @@ def window(qapp, monkeypatch):
 
 
 def test_symbols_and_dimensions_follow_the_page_scale(window):
-    from sldgridy.fileio.paths import system_library_dir
+    from electrogridy.fileio.paths import system_library_dir
 
     page = window.document.sheets[0]
     window.push(ChangeSheetCommand(window.document, page.id, "", scale=0.2))
     assert window.drawing_scale() == 0.2
-    library = str(system_library_dir() / "din_en_60617.sldglib")
+    library = str(system_library_dir() / "din_en_60617.grdylib")
     window.blocks.insert_from_source(library, "Schmelzsicherung", Point(100, 100))
     (ref,) = [e for e in window.container if isinstance(e, BlockReference)]
     assert ref.scale == pytest.approx(0.2)
@@ -93,7 +93,7 @@ def test_symbols_and_dimensions_follow_the_page_scale(window):
 def test_changing_the_scale_rescales_what_is_drawn(window, monkeypatch):
     from dataclasses import replace
 
-    from sldgridy.model.entities import Rectangle, Text
+    from electrogridy.model.entities import Rectangle, Text
 
     page = window.document.sheets[0]
     box = Rectangle(id="box", p1=Point(50, 50), p2=Point(650, 850))

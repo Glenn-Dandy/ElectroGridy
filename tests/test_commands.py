@@ -1,14 +1,14 @@
 from PyQt6.QtGui import QUndoStack
 
-from factories import sample_entities
-from sldgridy.commands.entities import (
+from electrogridy.commands.entities import (
     AddEntitiesCommand,
     RemoveEntitiesCommand,
     ReplaceEntitiesCommand,
 )
-from sldgridy.fileio.json_format import document_to_dict
-from sldgridy.model.document import Document
-from sldgridy.model.geometry import Point
+from electrogridy.fileio.json_format import document_to_dict
+from electrogridy.model.document import Document
+from electrogridy.model.geometry import Point
+from factories import sample_entities
 
 
 def make_doc() -> Document:

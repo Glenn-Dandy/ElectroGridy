@@ -1,10 +1,9 @@
 import pytest
 
-from factories import sample_entities
-from sldgridy.fileio.json_format import entity_from_dict, entity_to_dict
-from sldgridy.model.blocks import BlockDefinition, expand, point_to_local, world_connections
-from sldgridy.model.container import EntityContainer
-from sldgridy.model.entities import (
+from electrogridy.fileio.json_format import entity_from_dict, entity_to_dict
+from electrogridy.model.blocks import BlockDefinition, expand, point_to_local, world_connections
+from electrogridy.model.container import EntityContainer
+from electrogridy.model.entities import (
     BlockReference,
     Circle,
     ConnectionPoint,
@@ -13,8 +12,9 @@ from sldgridy.model.entities import (
     Text,
     Wire,
 )
-from sldgridy.model.geometry import Point
-from sldgridy.model.scale import scale_entity, scale_point
+from electrogridy.model.geometry import Point
+from electrogridy.model.scale import scale_entity, scale_point
+from factories import sample_entities
 
 BASE = Point(10, 10)
 

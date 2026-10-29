@@ -1,14 +1,14 @@
 import pytest
 from PyQt6.QtCore import QSettings
 
-from sldgridy.fileio.json_format import (
+from electrogridy.fileio.json_format import (
     BASE_VERSION,
     FORMAT_VERSION,
     document_from_dict,
     document_to_dict,
 )
-from sldgridy.model.blocks import BlockDefinition
-from sldgridy.model.document import (
+from electrogridy.model.blocks import BlockDefinition
+from electrogridy.model.document import (
     CABLES,
     CIRCUIT,
     COVER,
@@ -19,9 +19,9 @@ from sldgridy.model.document import (
     Document,
     new_page,
 )
-from sldgridy.model.entities import AttributeDefinition, BlockReference, Line
-from sldgridy.model.geometry import Point
-from sldgridy.model.sheet import (
+from electrogridy.model.entities import AttributeDefinition, BlockReference, Line
+from electrogridy.model.geometry import Point
+from electrogridy.model.sheet import (
     column_at,
     column_edges,
     row_count,
@@ -30,11 +30,11 @@ from sldgridy.model.sheet import (
     schematic_outer,
     schematic_title_width,
 )
-from sldgridy.model.title_block import (
+from electrogridy.model.title_block import (
     schematic_title_block_definition,
     schematic_title_block_name,
 )
-from sldgridy.ui.main_window import MainWindow
+from electrogridy.ui.main_window import MainWindow
 
 
 def doc_with_pages() -> Document:
@@ -130,8 +130,8 @@ def window(qapp):
 
 
 def answer(window, monkeypatch, kind=CIRCUIT, name="", plant="", location="", viewport=False):
-    from sldgridy.model.paper import Orientation
-    from sldgridy.ui.page_dialog import PageSpec
+    from electrogridy.model.paper import Orientation
+    from electrogridy.ui.page_dialog import PageSpec
 
     spec = PageSpec(kind, name, plant, location, "A3", Orientation.LANDSCAPE, viewport)
     monkeypatch.setattr(window.sheets, "_page_spec", lambda title, default, new: spec)
@@ -166,7 +166,7 @@ def test_new_pages_with_types(window, monkeypatch):
 
 
 def test_page_print_list(window):
-    from sldgridy.ui.print_dialog import PrintDialog
+    from electrogridy.ui.print_dialog import PrintDialog
 
     dialog = PrintDialog(window.document, window.sheets.current_sheet(), parent=window)
     assert dialog.rb_all.text() == "Alle Seiten"
@@ -185,13 +185,13 @@ def test_grid_shows_on_paper(window):
 
 
 def ip(pid, name, x, y, direction=0):
-    from sldgridy.model.entities import InterruptionPoint
+    from electrogridy.model.entities import InterruptionPoint
 
     return InterruptionPoint(id=pid, name=name, position=Point(x, y), direction=direction)
 
 
 def test_interruption_pairs_refer_to_each_other():
-    from sldgridy.model.interruptions import interruption_targets, partner, unpaired_names
+    from electrogridy.model.interruptions import interruption_targets, partner, unpaired_names
 
     doc = doc_with_pages()
     p = doc.sheets
@@ -210,9 +210,9 @@ def test_interruption_pairs_refer_to_each_other():
 
 
 def test_interruption_geometry_and_file():
-    from sldgridy.fileio.json_format import entity_from_dict, entity_to_dict
-    from sldgridy.model.entities import Text
-    from sldgridy.model.interruptions import interruption_geometry
+    from electrogridy.fileio.json_format import entity_from_dict, entity_to_dict
+    from electrogridy.model.entities import Text
+    from electrogridy.model.interruptions import interruption_geometry
 
     point = ip("a", "L1", 100, 50, 90)
     texts = [e.text for e in interruption_geometry(point, "/2.1") if isinstance(e, Text)]
@@ -223,7 +223,7 @@ def test_interruption_geometry_and_file():
 
 
 def test_interruption_tool_and_jump(window, monkeypatch):
-    from sldgridy.model.entities import InterruptionPoint
+    from electrogridy.model.entities import InterruptionPoint
 
     sheets = window.sheets
     assert window.act_interruption.isVisible()
@@ -253,7 +253,7 @@ def test_interruption_tool_and_jump(window, monkeypatch):
 
 
 def test_interruption_point_on_a_wire_end_takes_one_click(window, monkeypatch):
-    from sldgridy.model.entities import InterruptionPoint, Wire
+    from electrogridy.model.entities import InterruptionPoint, Wire
 
     answer(window, monkeypatch, CIRCUIT, "Eins")
     window.sheets.new_sheet()
@@ -280,9 +280,9 @@ def test_interruption_point_on_a_wire_end_takes_one_click(window, monkeypatch):
 
 
 def block(name, function, contact="", terminals=("A1", "A2")):
-    from sldgridy.model.blocks import BlockDefinition
-    from sldgridy.model.container import EntityContainer
-    from sldgridy.model.entities import ConnectionPoint, Rectangle
+    from electrogridy.model.blocks import BlockDefinition
+    from electrogridy.model.container import EntityContainer
+    from electrogridy.model.entities import ConnectionPoint, Rectangle
 
     cps = [
         ConnectionPoint(id=f"c{i}", name=t, position=Point(0, 10 * i))
@@ -297,7 +297,7 @@ def block(name, function, contact="", terminals=("A1", "A2")):
 
 
 def ref(rid, name, bmk, x, y=60, **attrs):
-    from sldgridy.model.entities import BlockReference
+    from electrogridy.model.entities import BlockReference
 
     values = (("BMK", bmk), *attrs.items())
     return BlockReference(id=rid, name=name, insert=Point(x, y), attributes=tuple(values))
@@ -320,7 +320,7 @@ def roles_doc() -> Document:
 
 
 def test_device_occurrences_and_cross_references():
-    from sldgridy.model.devices import crossref_texts, crossrefs, devices, problems
+    from electrogridy.model.devices import crossref_texts, crossrefs, devices, problems
 
     doc = roles_doc()
     found = devices(doc)
@@ -337,7 +337,7 @@ def test_device_occurrences_and_cross_references():
 
 
 def test_block_role_is_saved():
-    from sldgridy.fileio.json_format import block_from_dict, block_to_dict
+    from electrogridy.fileio.json_format import block_from_dict, block_to_dict
 
     doc = roles_doc()
     again = block_from_dict(block_to_dict(doc.blocks["Öffner"]))
@@ -347,7 +347,7 @@ def test_block_role_is_saved():
 
 
 def test_device_dock_rename_everywhere(window):
-    from sldgridy.model.devices import devices
+    from electrogridy.model.devices import devices
 
     window._set_document(roles_doc(), None)
     dock = window.devices_dock
@@ -370,7 +370,7 @@ def test_device_dock_rename_everywhere(window):
 
 def wired_doc() -> Document:
     """-Q1 (page 2) -> wire -> L1 ... L1 (page 3) -> terminal -X1:1 -> cable -W1 -> -M1."""
-    from sldgridy.model.entities import InterruptionPoint, Wire
+    from electrogridy.model.entities import InterruptionPoint, Wire
 
     doc = Document.new("Blatt 1", kind=DOC_PROJECT)
     doc.sheets += [
@@ -397,7 +397,7 @@ def wired_doc() -> Document:
 
 
 def test_nets_follow_wires_and_interruption_points():
-    from sldgridy.model.netlist import netlist
+    from electrogridy.model.netlist import netlist
 
     nl = netlist(wired_doc())
     names = {f"{p.bmk}:{p.name}" for p in nl.pins_of_net(nl.net_of_pin("q1", "2"))}
@@ -409,7 +409,7 @@ def test_nets_follow_wires_and_interruption_points():
 
 
 def test_list_rows():
-    from sldgridy.model.reports import cable_rows, parts_rows, terminal_rows, toc_rows
+    from electrogridy.model.reports import cable_rows, parts_rows, terminal_rows, toc_rows
 
     doc = wired_doc()
     assert toc_rows(doc)[1] == ["=PV1", "", "2", "Stromlaufplan", "Einspeisung", "", ""]
@@ -424,8 +424,8 @@ def test_list_rows():
 
 
 def test_generated_pages_follow_the_project():
-    from sldgridy.model.entities import Text
-    from sldgridy.model.reports import generated_entities, report_rows, table_area
+    from electrogridy.model.entities import Text
+    from electrogridy.model.reports import generated_entities, report_rows, table_area
 
     doc = wired_doc()
     parts = new_page(PARTS)
@@ -455,7 +455,7 @@ def test_generated_pages_follow_the_project():
 def strip_doc() -> Document:
     """A 24 V rail feeding -X1:1..3 (each on to a device), two PE terminals and -X1:6
     with cable -W1 (core bl) to -Y4."""
-    from sldgridy.model.entities import Wire
+    from electrogridy.model.entities import Wire
 
     doc = Document.new("Blatt 1", kind=DOC_PROJECT)
     doc.sheets.append(new_page(CIRCUIT, "Steuerung", paper="A3"))
@@ -487,7 +487,7 @@ def strip_doc() -> Document:
 
 
 def test_terminal_plan_targets_bridges_and_cables():
-    from sldgridy.model.terminal_plan import plan_pages, terminal_plan
+    from electrogridy.model.terminal_plan import plan_pages, terminal_plan
 
     (plan,) = terminal_plan(strip_doc())
     assert plan.strip == "-X1"
@@ -510,8 +510,8 @@ def test_terminal_plan_targets_bridges_and_cables():
 
 
 def test_terminal_plan_page_follows_the_form():
-    from sldgridy.model.entities import Circle, Text
-    from sldgridy.model.reports import generated_entities, pages_needed, report_rows
+    from electrogridy.model.entities import Circle, Text
+    from electrogridy.model.reports import generated_entities, pages_needed, report_rows
 
     doc = strip_doc()
     page = new_page(TERMINALS, paper="A3")
@@ -556,7 +556,7 @@ def test_complete_pages_and_csv(window, tmp_path):
 
 
 def test_suggest_bmk_counts_up_and_contacts_take_the_last():
-    from sldgridy.model.devices import suggest_bmk
+    from electrogridy.model.devices import suggest_bmk
 
     doc = Document()
     assert suggest_bmk(doc, "-Q1") == "-Q1"
@@ -576,7 +576,7 @@ def test_suggest_bmk_counts_up_and_contacts_take_the_last():
 
 
 def test_rail_ends_refer_to_the_neighbouring_pages():
-    from sldgridy.model.interruptions import interruption_targets
+    from electrogridy.model.interruptions import interruption_targets
 
     doc = doc_with_pages()
     p = doc.sheets
@@ -600,10 +600,10 @@ def test_rail_ends_refer_to_the_neighbouring_pages():
 
 
 def test_new_project_is_a4_and_the_cover_fits_a3_and_a4():
-    from sldgridy.model.entities import Text
-    from sldgridy.model.paper import Orientation
-    from sldgridy.model.reports import cover_entities
-    from sldgridy.model.title_block import SCHEMATIC_TITLE_HEIGHT
+    from electrogridy.model.entities import Text
+    from electrogridy.model.paper import Orientation
+    from electrogridy.model.reports import cover_entities
+    from electrogridy.model.title_block import SCHEMATIC_TITLE_HEIGHT
 
     doc = Document.new_project()
     cover, page = doc.sheets
@@ -616,8 +616,8 @@ def test_new_project_is_a4_and_the_cover_fits_a3_and_a4():
 
 
 def test_a3_page_fitted_onto_a4_prints_with_the_standard_margins():
-    from sldgridy.model.sheet import FRAME_WEIGHT
-    from sldgridy.printing.layout import fit
+    from electrogridy.model.sheet import FRAME_WEIGHT
+    from electrogridy.printing.layout import fit
 
     (page,) = fit(420, 297, 210, 297)
     a, b = schematic_outer(420, 297)
@@ -646,12 +646,12 @@ def test_title_blocks_of_older_files_follow_the_frame():
 def test_logos_of_company_and_customer_in_the_title_block(qapp, tmp_path, monkeypatch):
     from PyQt6.QtGui import QColor, QImage
 
-    from sldgridy.fileio.files import load_library
-    from sldgridy.fileio.paths import user_library_dir
-    from sldgridy.model.entities import RasterImage
-    from sldgridy.model.title_block import LOGO_CATEGORY, schematic_logo_boxes
-    from sldgridy.ui.sheet_dialogs import FieldsDialog
-    from sldgridy.view.display import title_block_parts
+    from electrogridy.fileio.files import load_library
+    from electrogridy.fileio.paths import user_library_dir
+    from electrogridy.model.entities import RasterImage
+    from electrogridy.model.title_block import LOGO_CATEGORY, schematic_logo_boxes
+    from electrogridy.ui.sheet_dialogs import FieldsDialog
+    from electrogridy.view.display import title_block_parts
 
     QSettings().clear()
     window = MainWindow()
@@ -679,7 +679,7 @@ def test_logos_of_company_and_customer_in_the_title_block(qapp, tmp_path, monkey
         )
         window.blocks.act_import_logo.trigger()
         assert window.blocks.import_logo(svg) == "Kunde"
-        title, mine = load_library(user_library_dir() / "logos.sldglib")
+        title, mine = load_library(user_library_dir() / "logos.grdylib")
         assert title == "Eigene Logos"
         logos = {b.name: b for b in mine if b.category == LOGO_CATEGORY}
         assert set(logos) == {"Firma", "Kunde"}
@@ -713,11 +713,11 @@ def test_logos_of_company_and_customer_in_the_title_block(qapp, tmp_path, monkey
 
 
 def test_logos_from_my_symbols_move_to_my_logos(tmp_path):
-    from sldgridy.fileio.files import load_library, save_library
-    from sldgridy.fileio.library_merge import move_category
-    from sldgridy.model.blocks import BlockDefinition
+    from electrogridy.fileio.files import load_library, save_library
+    from electrogridy.fileio.library_merge import move_category
+    from electrogridy.model.blocks import BlockDefinition
 
-    symbols, logos = tmp_path / "eigene.sldglib", tmp_path / "logos.sldglib"
+    symbols, logos = tmp_path / "eigene.grdylib", tmp_path / "logos.grdylib"
     save_library(
         [BlockDefinition("Logo A", category="Logos"), BlockDefinition("Schalter")],
         symbols,
@@ -733,10 +733,10 @@ def test_logos_from_my_symbols_move_to_my_logos(tmp_path):
 def test_logo_dialog_shows_the_library(qapp):
     from PyQt6.QtGui import QColor, QImage
 
-    from sldgridy.model.blocks import BlockDefinition
-    from sldgridy.model.container import EntityContainer
-    from sldgridy.ui.picture_import import picture_entity
-    from sldgridy.ui.sheet_dialogs import LogoDialog
+    from electrogridy.model.blocks import BlockDefinition
+    from electrogridy.model.container import EntityContainer
+    from electrogridy.ui.picture_import import picture_entity
+    from electrogridy.ui.sheet_dialogs import LogoDialog
 
     image = QImage(200, 100, QImage.Format.Format_ARGB32)
     image.fill(QColor("#1565c0"))
@@ -754,12 +754,12 @@ def test_logo_dialog_shows_the_library(qapp):
 def test_title_block_texts_fit_their_fields(qapp):
     from PyQt6.QtGui import QColor, QImage
 
-    from sldgridy.model.blocks import BlockDefinition
-    from sldgridy.model.container import EntityContainer
-    from sldgridy.model.entities import RasterImage, Text
-    from sldgridy.ui.picture_import import picture_entity
-    from sldgridy.view.display import title_block_parts
-    from sldgridy.view.render import text_width
+    from electrogridy.model.blocks import BlockDefinition
+    from electrogridy.model.container import EntityContainer
+    from electrogridy.model.entities import RasterImage, Text
+    from electrogridy.ui.picture_import import picture_entity
+    from electrogridy.view.display import title_block_parts
+    from electrogridy.view.render import text_width
 
     doc = Document.new_project()
     page = doc.sheets[1]
@@ -776,7 +776,7 @@ def test_title_block_texts_fit_their_fields(qapp):
     name, project = texts[long_name], texts["TST"]
     assert name.position.x > max(logo.p1.x, logo.p2.x)  # right of the logo
     assert 1.2 < name.height < 2.5  # made smaller until it fits
-    from sldgridy.model.title_block import schematic_text_boxes
+    from electrogridy.model.title_block import schematic_text_boxes
 
     width = schematic_title_width(*page.size)
     right = schematic_text_boxes(width)["KUNDE"][1] + schematic_inner(*page.size)[1].x
@@ -792,7 +792,7 @@ def test_title_block_texts_fit_their_fields(qapp):
 def test_older_title_block_of_the_same_width_is_replaced_on_opening():
     """dev9 kept the old layout ("A4 quer", page type in the number field) in files
     whose width had not changed (Florian's screenshot 2026-10-28)."""
-    from sldgridy.model.entities import AttributeDefinition
+    from electrogridy.model.entities import AttributeDefinition
 
     doc = Document.new_project()
     name = doc.sheets[1].title_block
@@ -809,11 +809,11 @@ def test_older_title_block_of_the_same_width_is_replaced_on_opening():
 
 
 def test_customer_with_address_in_several_lines(qapp):
-    from sldgridy.model.entities import Text
-    from sldgridy.model.reports import cover_entities
-    from sldgridy.model.title_block import LOGO_BOTTOM, LOGO_TOP
-    from sldgridy.ui.sheet_dialogs import FieldsDialog, MultiLineEdit
-    from sldgridy.view.display import title_block_parts
+    from electrogridy.model.entities import Text
+    from electrogridy.model.reports import cover_entities
+    from electrogridy.model.title_block import LOGO_BOTTOM, LOGO_TOP
+    from electrogridy.ui.sheet_dialogs import FieldsDialog, MultiLineEdit
+    from electrogridy.view.display import title_block_parts
 
     customer = "Stadtwerke Musterstadt\nHauptstraße 12\n07407 Rudolstadt"
     dialog = FieldsDialog({"KUNDE": customer}, {}, "Blatt")
@@ -841,10 +841,10 @@ def test_customer_with_address_in_several_lines(qapp):
 
 
 def test_company_in_several_lines(qapp):
-    from sldgridy.model.entities import Text
-    from sldgridy.model.reports import cover_entities
-    from sldgridy.ui.sheet_dialogs import FieldsDialog, MultiLineEdit
-    from sldgridy.view.display import title_block_parts
+    from electrogridy.model.entities import Text
+    from electrogridy.model.reports import cover_entities
+    from electrogridy.ui.sheet_dialogs import FieldsDialog, MultiLineEdit
+    from electrogridy.view.display import title_block_parts
 
     company = "Elektro Muster GmbH\nIndustriestraße 5"
     dialog = FieldsDialog({"FIRMA": company}, {}, "Blatt")
