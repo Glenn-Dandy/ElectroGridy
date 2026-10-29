@@ -27,7 +27,13 @@ from PyQt6.QtWidgets import (
 from sldgridy.i18n import library_text
 from sldgridy.model.blocks import BlockDefinition
 from sldgridy.model.paper import PAPER_FORMATS, Orientation
-from sldgridy.model.title_block import DOCUMENT_FIELDS, FIELD_LABELS, LOGO_KEYS, SHEET_FIELDS
+from sldgridy.model.title_block import (
+    DOCUMENT_FIELDS,
+    FIELD_LABELS,
+    LOGO_KEYS,
+    MULTILINE_FIELDS,
+    SHEET_FIELDS,
+)
 from sldgridy.view.thumbnails import block_icon
 
 # What the logo choosers need: the logos on offer (name: block) and a way to import one.
@@ -133,10 +139,6 @@ class LogoChooser(QToolButton):
         dialog = LogoDialog(self.name, self._logos, self._importer, self)
         if dialog.exec() == LogoDialog.DialogCode.Accepted:
             self.choose(dialog.chosen())
-
-
-# Fields with several lines (the customer with an address); Enter starts a new line.
-MULTILINE_FIELDS = ("KUNDE",)
 
 
 class MultiLineEdit(QPlainTextEdit):

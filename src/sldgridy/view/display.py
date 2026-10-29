@@ -49,6 +49,7 @@ from sldgridy.model.title_block import (
     FIELD_LABELS,
     LOGO_BOTTOM,
     LOGO_TOP,
+    MULTILINE_FIELDS,
     NAME_GAP,
     logo_references,
     schematic_text_boxes,
@@ -358,6 +359,9 @@ def title_block_parts(doc: Document, sheet: SheetLayout) -> list[Entity]:
         portrait=QCoreApplication.translate("display", "hoch"),
         kinds=kind_names(),
     )
+    if sheet.frame != SCHEMATIC_FRAME:
+        for tag in MULTILINE_FIELDS:  # other title blocks have room for one line
+            values[tag] = ", ".join(values.get(tag, "").splitlines())
     logos = []
     if sheet.frame == SCHEMATIC_FRAME:
         insert = schematic_title_insert(w, h)

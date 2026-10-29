@@ -836,3 +836,29 @@ def test_customer_with_address_in_several_lines(qapp):
     )
     cover = {t.text for t in cover_entities(doc, doc.sheets[0]) if isinstance(t, Text)}
     assert set(customer.split("\n")) <= cover
+
+
+def test_company_in_several_lines(qapp):
+    from sldgridy.model.entities import Text
+    from sldgridy.model.reports import cover_entities
+    from sldgridy.ui.sheet_dialogs import FieldsDialog, MultiLineEdit
+    from sldgridy.view.display import title_block_parts
+
+    company = "Elektro Muster GmbH\nIndustriestraße 5"
+    dialog = FieldsDialog({"FIRMA": company}, {}, "Blatt")
+    assert isinstance(dialog._doc_edits["FIRMA"], MultiLineEdit)
+    doc = Document.new_project()
+    doc.properties["FIRMA"] = company
+    lines = [
+        p.text
+        for p in title_block_parts(doc, doc.sheets[1])
+        if isinstance(p, Text) and p.id.startswith("att_firma")
+    ]
+    assert lines == company.split("\n")
+    cover = [t.text for t in cover_entities(doc, doc.sheets[0]) if isinstance(t, Text)]
+    assert cover.index("Industriestraße 5") == cover.index("Elektro Muster GmbH") + 1
+    # The plain title block has one line for the company: the lines joined by commas.
+    plain = Document.new("Blatt 1")
+    plain.properties["FIRMA"] = company
+    texts = {getattr(p, "text", None) for p in title_block_parts(plain, plain.sheets[0])}
+    assert "Elektro Muster GmbH, Industriestraße 5" in texts

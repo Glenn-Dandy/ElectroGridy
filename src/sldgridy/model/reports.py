@@ -319,7 +319,7 @@ def cover_entities(doc: Document, page: SheetLayout, tr: Translate = str) -> lis
         ("Anlagenbezeichnung", ", ".join(v for v in (p.get("ANLAGE"), p.get("ORT")) if v)),
     ):
         out.append(_text(left, y, tr(caption) + ":", normal))
-        lines = value.split("\n")  # the customer may have an address below the name
+        lines = value.split("\n")  # an address may follow below the name
         for i, line in enumerate(lines):
             out.append(_text(value_x, y + i * 7 * k, line, normal))
         y += (11 + 7 * (len(lines) - 1)) * k
@@ -328,9 +328,10 @@ def cover_entities(doc: Document, page: SheetLayout, tr: Translate = str) -> lis
     y += 14 * k
     address = [part.strip() for part in p.get("ADRESSE", "").split(",") if part.strip()]
     out.append(_text(left, y, tr("Hersteller (Firma)") + ":", normal))
-    for i, value in enumerate([p.get("FIRMA", ""), *address]):
+    company = [*p.get("FIRMA", "").split("\n"), *address]
+    for i, value in enumerate(company):
         out.append(_text(value_x, y + i * 7 * k, value, normal))
-    y += (7 * max(len(address) + 1, 1) + 8) * k
+    y += (7 * len(company) + 8) * k
     for caption, value in (
         ("Schaltplanersteller", p.get("BEARBEITER", "")),
         ("Schaltplan Nr.", p.get("SCHALTPLANNR", "")),

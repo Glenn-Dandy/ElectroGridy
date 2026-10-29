@@ -36,6 +36,9 @@ SHEET_FIELDS = (
     "ERSF",
     "ERSD",
 )
+# Fields with several lines (name with address below). The circuit diagram title
+# block shows the lines one below the other, other title blocks in one line.
+MULTILINE_FIELDS = ("FIRMA", "KUNDE")
 COMPUTED_FIELDS = ("BLATT", "BLATTNR", "VON", "FORMAT", "SEITENTYP")
 ALL_FIELDS = DOCUMENT_FIELDS + SHEET_FIELDS + COMPUTED_FIELDS
 
