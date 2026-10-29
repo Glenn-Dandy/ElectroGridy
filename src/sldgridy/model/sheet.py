@@ -63,11 +63,13 @@ def title_block_reference(
 
 
 # -- circuit diagram frame (Florian's template) ----------------------------------------
-# Margins left, right and bottom 5 mm, top 15 mm (filing) on the printed A4 sheet, a
+# Margins left, right and bottom 5 mm, top 20 mm (filing) on the printed A4 sheet, a
 # 3.5 mm band all round with the column numbers 0 … n-1 (top and bottom) and row letters
 # A … (left and right). References read "/page.column".
 
-SCHEMATIC_TOP = 15.0
+# Top 15 mm until 1.3.3.dev1: punched holes (ISO 838: 6 mm, centre 12 mm from the
+# edge) reached the frame (Florian 2026-10-29).
+SCHEMATIC_TOP = 20.0
 SCHEMATIC_SIDE = 5.0
 PRINT_SHORT_SIDE = 210.0  # A4: what the pages are printed on
 # The numbered band: 5 mm until 1.3.2.dev5, 4 mm until dev12; made narrower from the
@@ -84,7 +86,7 @@ FRAME_WEIGHT = 0.5
 def schematic_margins(width: float, height: float) -> tuple[float, float]:
     """(left, right and bottom margin; top margin) of the frame. Larger sheets than A4
     have them enlarged in proportion, so that the sheet fitted onto A4 paper prints with
-    exactly 5 and 15 mm (A3: 7.1 and 21.2 mm)."""
+    exactly 5 and 20 mm (A3: 7.1 and 28.3 mm)."""
     k = max(1.0, min(width, height) / PRINT_SHORT_SIDE)
     return round(SCHEMATIC_SIDE * k, 1), round(SCHEMATIC_TOP * k, 1)
 

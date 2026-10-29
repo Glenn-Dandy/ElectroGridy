@@ -67,11 +67,11 @@ def test_pages_are_numbered_through_the_project():
 
 
 def test_circuit_diagram_frame():
-    # A4: margins 5 mm, top 15 to the outer edge of the 0.5 mm line, then the 3.5 mm band.
-    assert schematic_inner(297, 210) == (Point(8.75, 18.75), Point(288.25, 201.25))
+    # A4: margins 5 mm, top 20 to the outer edge of the 0.5 mm line, then the 3.5 mm band.
+    assert schematic_inner(297, 210) == (Point(8.75, 23.75), Point(288.25, 201.25))
     # A3: margins enlarged so that the page fitted onto A4 has exactly those.
     a, b = schematic_inner(420, 297)
-    assert (a, b) == (Point(10.85, 24.95), Point(409.15, 286.15))
+    assert (a, b) == (Point(10.85, 32.05), Point(409.15, 286.15))
     assert row_count(420, 297) == 6 and row_count(297, 210) == 4
     edges = column_edges(420, 297, 10)
     assert edges[0] == 10.85 and edges[-1] == pytest.approx(409.15)
@@ -626,7 +626,7 @@ def test_a3_page_fitted_onto_a4_prints_with_the_standard_margins():
     right, bottom = page.to_page(b.x + edge, b.y + edge)
     assert (page.width, page.height) == (297, 210)
     assert left == pytest.approx(5, abs=0.05) and 297 - right == pytest.approx(5, abs=0.05)
-    assert top == pytest.approx(15, abs=0.05) and 210 - bottom == pytest.approx(5, abs=0.05)
+    assert top == pytest.approx(20, abs=0.05) and 210 - bottom == pytest.approx(5, abs=0.05)
 
 
 def test_title_blocks_of_older_files_follow_the_frame():

@@ -71,7 +71,7 @@ class SheetLayout:
         return [e for e in self.entities if isinstance(e, Viewport)]
 
 
-PAGE_FORMAT = "A4"  # prints 1:1 with 5/5/5/15 mm margins (see sheet.schematic_margins)
+PAGE_FORMAT = "A4"  # prints 1:1 with 5/5/5/20 mm margins (see sheet.schematic_margins)
 PAGE_COLUMNS = 10
 SCHEMATIC_FRAME = "schematic"
 NO_FRAME = "none"  # a blank page: no frame, no title block
