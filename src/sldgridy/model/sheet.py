@@ -64,15 +64,17 @@ def title_block_reference(
 
 # -- circuit diagram frame (Florian's template) ----------------------------------------
 # Margins left, right and bottom 5 mm, top 15 mm (filing) on the printed A4 sheet, a
-# 5 mm band all round with the column numbers 0 … n-1 (top and bottom) and row letters
+# 3.5 mm band all round with the column numbers 0 … n-1 (top and bottom) and row letters
 # A … (left and right). References read "/page.column".
 
 SCHEMATIC_TOP = 15.0
 SCHEMATIC_SIDE = 5.0
 PRINT_SHORT_SIDE = 210.0  # A4: what the pages are printed on
-BAND = 4.0  # the numbered band (5 mm until 1.3.2.dev5)
+# The numbered band: 5 mm until 1.3.2.dev5, 4 mm until dev12; made narrower from the
+# inside, the outer line stays (Florian 2026-10-29).
+BAND = 3.5
 ROW_HEIGHT = 44.5  # A3 landscape: six rows A … F, A4 landscape: four
-BAND_TEXT = 2.5
+BAND_TEXT = 2.0
 
 
 def schematic_margins(width: float, height: float) -> tuple[float, float]:

@@ -67,14 +67,14 @@ def test_pages_are_numbered_through_the_project():
 
 
 def test_circuit_diagram_frame():
-    # A4: margins 5 mm, top 15, then the 5 mm band.
-    assert schematic_inner(297, 210) == (Point(9, 19), Point(288, 201))  # band 4 mm
+    # A4: margins 5 mm, top 15, then the 3.5 mm band.
+    assert schematic_inner(297, 210) == (Point(8.5, 18.5), Point(288.5, 201.5))
     # A3: margins enlarged so that the page fitted onto A4 has exactly those.
     a, b = schematic_inner(420, 297)
-    assert (a, b) == (Point(11.1, 25.2), Point(408.9, 285.9))
+    assert (a, b) == (Point(10.6, 24.7), Point(409.4, 286.4))
     assert row_count(420, 297) == 6 and row_count(297, 210) == 4
     edges = column_edges(420, 297, 10)
-    assert edges[0] == 11.1 and edges[-1] == pytest.approx(408.9)
+    assert edges[0] == 10.6 and edges[-1] == pytest.approx(409.4)
     assert column_at(420, 297, 10, 13) == 0
     assert column_at(420, 297, 10, 200) == 4
     assert column_at(420, 297, 10, 999) == 9
@@ -143,7 +143,7 @@ def test_new_pages_with_types(window, monkeypatch):
     sheets.new_sheet()
     page = sheets.current_sheet()
     assert (page.kind, page.frame, page.paper) == (CIRCUIT, "schematic", "A3")
-    assert page.title_block == "Schriftfeld Schaltplan 397.8" in window.document.blocks
+    assert page.title_block == "Schriftfeld Schaltplan 398.8" in window.document.blocks
     answer(window, monkeypatch, PARTS)
     sheets.new_sheet()
     texts = [sheets.tabs.tabText(i) for i in range(sheets.tabs.count())]
@@ -659,7 +659,7 @@ def test_logos_of_company_and_customer_in_the_title_block(qapp, tmp_path, monkey
         window.sheets.show_sheet(page.id)
         # A wide PNG and an SVG become blocks in "Eigene Logos", category Logos.
         png = tmp_path / "firma.png"
-        image = QImage(400, 100, QImage.Format.Format_ARGB32)
+        image = QImage(800, 100, QImage.Format.Format_ARGB32)
         image.fill(QColor("#1565c0"))
         image.save(str(png))
         svg = tmp_path / "kunde.svg"

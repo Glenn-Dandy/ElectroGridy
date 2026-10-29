@@ -1,5 +1,6 @@
 """Grip points of entities and how dragging a grip changes the entity."""
 
+import math
 from dataclasses import replace
 
 from sldgridy.model.entities import (
@@ -39,9 +40,9 @@ def grip_points(e: Entity) -> list[Point]:
             return [e.insert]
         case AttributeDefinition() | ConnectionPoint() | JunctionMark() | InterruptionPoint():
             return [e.position]
-        case Polyline():
-            return list(e.points)
-        case Rectangle() | Viewport() | RasterImage():
+        case Polyline() | Rectangle():
+            return [p for _, p in _outline_grips(e)]
+        case Viewport() | RasterImage():
             return rect_corners(e)
         case Circle():
             return [e.center]
@@ -56,7 +57,45 @@ def grip_kinds(e: Entity) -> list[str]:
     """How each grip of ``grip_points`` is drawn: "point", "segment" or "label"."""
     if isinstance(e, Wire):
         return ["point" if kind == "end" else kind for (kind, _), _ in _wire_grips(e)]
+    if isinstance(e, Polyline | Rectangle):
+        return [kind for (kind, _), _ in _outline_grips(e)]
     return ["point"] * len(grip_points(e))
+
+
+def _outline_grips(e: Polyline | Rectangle) -> list[tuple[tuple[str, int], Point]]:
+    """Grips of a polyline or rectangle: the corners, then the middle of every side,
+    which shifts that side parallel."""
+    corners = list(e.points) if isinstance(e, Polyline) else rect_corners(e)
+    grips = [(("point", i), p) for i, p in enumerate(corners)]
+    closed = isinstance(e, Rectangle) or (e.closed and len(corners) > 2)
+    for i, (a, b) in enumerate(_sides(corners, closed)):
+        if a != b:
+            grips.append((("segment", i), Point((a.x + b.x) / 2, (a.y + b.y) / 2)))
+    return grips
+
+
+def _sides(corners: list[Point], closed: bool) -> list[tuple[Point, Point]]:
+    ends = corners[1:] + corners[:1] if closed else corners[1:]
+    return list(zip(corners, ends, strict=False))
+
+
+def _shift_side(e: Polyline | Rectangle, side: int, p: Point) -> Entity | None:
+    """Side ``side`` moved across its direction so that it passes through ``p``; the
+    neighbouring sides stretch."""
+    if isinstance(e, Rectangle):
+        # Sides: top (p1.y), right (p2.x), bottom (p2.y), left (p1.x).
+        field, axis = (("p1", "y"), ("p2", "x"), ("p2", "y"), ("p1", "x"))[side]
+        corner = getattr(e, field)
+        new = replace(e, **{field: replace(corner, **{axis: getattr(p, axis)})})
+        return new if new.p1.x != new.p2.x and new.p1.y != new.p2.y else None
+    pts = list(e.points)
+    j = (side + 1) % len(pts)
+    a, b = pts[side], pts[j]
+    length = math.hypot(b.x - a.x, b.y - a.y)
+    nx, ny = -(b.y - a.y) / length, (b.x - a.x) / length
+    d = (p.x - a.x) * nx + (p.y - a.y) * ny
+    pts[side], pts[j] = a.translated(d * nx, d * ny), b.translated(d * nx, d * ny)
+    return replace(e, points=tuple(pts))
 
 
 def _wire_grips(w: Wire) -> list[tuple[tuple[str, int], Point]]:
@@ -104,11 +143,19 @@ def move_grip(e: Entity, index: int, p: Point) -> Entity | None:
             # The measured points, or (third grip) the position of the dimension line.
             field = ("p1", "p2", "position", "vertex")[index]
             return replace(e, **{field: p})
-        case Polyline():
-            pts = list(e.points)
-            pts[index] = p
-            return replace(e, points=tuple(pts))
-        case Rectangle() | Viewport() | RasterImage():
+        case Polyline() | Rectangle():
+            kind, i = _outline_grips(e)[index][0]
+            if kind == "segment":
+                return _shift_side(e, i, p)
+            if isinstance(e, Polyline):
+                pts = list(e.points)
+                pts[i] = p
+                return replace(e, points=tuple(pts))
+            opposite = rect_corners(e)[(i + 2) % 4]
+            if p.x == opposite.x or p.y == opposite.y:
+                return None
+            return replace(e, p1=opposite, p2=p)
+        case Viewport() | RasterImage():
             opposite = rect_corners(e)[(index + 2) % 4]
             if p.x == opposite.x or p.y == opposite.y:
                 return None

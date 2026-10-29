@@ -5,9 +5,9 @@ from factories import sample_entities
 from sldgridy.commands.layers import AddLayerCommand, ChangeLayerCommand, RemoveLayerCommand
 from sldgridy.fileio.json_format import document_to_dict
 from sldgridy.model.document import Document
-from sldgridy.model.entities import Arc, Line, Rectangle, Text
+from sldgridy.model.entities import Arc, Line, Polyline, Rectangle, Text
 from sldgridy.model.geometry import Point
-from sldgridy.model.grips import grip_points, move_grip
+from sldgridy.model.grips import grip_kinds, grip_points, move_grip
 from sldgridy.model.layers import Layer
 from sldgridy.tools.coord_input import CoordinateError, parse_coordinate
 
@@ -35,10 +35,35 @@ def test_mirror_text_keeps_rotation():
 
 def test_grips_and_rectangle_corner_drag():
     rect = Rectangle(id="r", p1=Point(0, 0), p2=Point(20, 10))
-    assert grip_points(rect) == [Point(0, 0), Point(20, 0), Point(20, 10), Point(0, 10)]
+    assert grip_points(rect)[:4] == [Point(0, 0), Point(20, 0), Point(20, 10), Point(0, 10)]
     moved = move_grip(rect, 2, Point(30, 15))
     assert (moved.p1, moved.p2) == (Point(0, 0), Point(30, 15))
     assert move_grip(rect, 2, Point(0, 15)) is None
+
+
+def test_rectangle_side_is_shifted_parallel():
+    rect = Rectangle(id="r", p1=Point(0, 0), p2=Point(20, 10))
+    assert grip_points(rect)[4:] == [Point(10, 0), Point(20, 5), Point(10, 10), Point(0, 5)]
+    assert grip_kinds(rect) == ["point"] * 4 + ["segment"] * 4
+    right = move_grip(rect, 5, Point(27, 8))  # only across: the side stays upright
+    assert (right.p1, right.p2) == (Point(0, 0), Point(27, 10))
+    top = move_grip(rect, 4, Point(3, -4))
+    assert (top.p1, top.p2) == (Point(0, -4), Point(20, 10))
+    assert move_grip(rect, 7, Point(20, 1)) is None  # left onto right: nothing left
+
+
+def test_polyline_side_is_shifted_parallel():
+    open_ = Polyline(id="p", points=(Point(0, 0), Point(10, 0), Point(10, 10)))
+    assert grip_points(open_)[3:] == [Point(5, 0), Point(10, 5)]
+    moved = move_grip(open_, 4, Point(14, 2))  # the vertical side to x = 14
+    assert moved.points == (Point(0, 0), Point(14, 0), Point(14, 10))
+    closed = Polyline(id="q", points=(Point(0, 0), Point(10, 0), Point(10, 10)), closed=True)
+    assert len(grip_points(closed)) == 6  # the closing side too
+    moved = move_grip(closed, 5, Point(0, 10))  # the slanted side through (0, 10)
+    a, b = moved.points[2], moved.points[0]
+    assert b.x - a.x == pytest.approx(-10) and b.y - a.y == pytest.approx(-10)  # parallel
+    assert a.x - a.y == pytest.approx(-10)  # (0, 10) lies on it
+    assert moved.points[1] == Point(10, 0)
 
 
 def test_arc_grip_changes_angle_only():
