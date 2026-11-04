@@ -188,3 +188,31 @@ def test_menu_cuts_a_wire(window):
     assert sorted((w.points for w in page_wires(window)), key=lambda p: p[0].y) == [
         (Point(50, 30), Point(50, 60)), (Point(50, 60), Point(50, 100))
     ]  # fmt: skip
+
+
+def test_set_terminal_where_nothing_is_drawn(window, monkeypatch):
+    from electrogridy.model.blocks import world_connections
+    from electrogridy.ui import point_menu
+
+    class Fake:
+        DialogCode = point_menu.TerminalDialog.DialogCode
+
+        def __init__(self, found, last, parent):
+            pass
+
+        def exec(self):
+            return self.DialogCode.Accepted
+
+        def values(self):
+            return ("-X5", "1")
+
+    monkeypatch.setattr(point_menu, "TerminalDialog", Fake)
+    actions = dict(point_menu.point_actions(window, Point(120, 70)))
+    assert "Leitung hier auftrennen" not in actions
+    actions["Klemme setzen …"]()
+    (ref,) = refs(window)
+    assert ref.attribute("BMK") == "-X5:1" and ref.rotation == 0
+    pins = world_connections(ref, window.document.blocks)
+    assert pins[0].position.x == pins[1].position.x == 120  # upright, centred on the point
+    assert (pins[0].position.y + pins[1].position.y) / 2 == 70
+    assert not page_wires(window)

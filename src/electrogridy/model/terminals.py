@@ -101,6 +101,27 @@ def place_terminal(
     return None
 
 
+def free_terminal(
+    p: Point, definition: BlockDefinition, bmk: str, layer: str, color: str = ""
+) -> BlockReference | None:
+    """A terminal standing upright with the middle of its connection points on ``p``,
+    away from any wire (Florian 2026-11-04: also where nothing is drawn yet)."""
+    blocks: Mapping[str, BlockDefinition] = {definition.name: definition}
+    probe = BlockReference(id="", name=definition.name, insert=Point(0, 0))
+    world = world_connections(probe, blocks)
+    if len(world) < 2:
+        return None
+    cx = sum(c.position.x for c in world[:2]) / 2
+    cy = sum(c.position.y for c in world[:2]) / 2
+    return replace(
+        probe,
+        id=new_id(),
+        insert=Point(round(p.x - cx, 6), round(p.y - cy, 6)),
+        layer=layer,
+        attributes=(("BMK", bmk),) + ((("FARBE", color),) if color else ()),
+    )
+
+
 def terminal_center(
     ref: BlockReference, blocks: Mapping[str, BlockDefinition]
 ) -> tuple[Point, bool] | None:

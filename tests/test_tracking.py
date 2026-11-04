@@ -124,3 +124,34 @@ def test_text_reference_point_snaps_and_tracks(window):
     QTest.keyClick(window.canvas, Qt.Key.Key_Return)
     new = [e for e in window.document.model_space if isinstance(e, Line)][0]
     assert new.p2.x == 30  # straight below the text's reference point
+
+
+def test_tracking_while_a_library_block_is_dragged(window):
+    import json
+
+    from PyQt6.QtCore import QMimeData
+    from PyQt6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDragMoveEvent
+
+    from electrogridy.fileio.files import load_library
+    from electrogridy.fileio.paths import system_library_dir
+    from electrogridy.view.canvas import BLOCK_MIME
+
+    path = system_library_dir() / "din_en_60617.grdylib"
+    name = load_library(path)[1][0].name
+    window.document.model_space.add(Line(id="a", p1=Point(20, 20), p2=Point(20, 40)))
+    data = QMimeData()
+    data.setData(BLOCK_MIME, json.dumps({"path": str(path), "name": name}).encode())
+    canvas = window.canvas
+    args = (
+        Qt.DropAction.CopyAction,
+        data,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    canvas.dragEnterEvent(QDragEnterEvent(vp(window, 20.3, 40.2), *args))
+    canvas.dragMoveEvent(QDragMoveEvent(vp(window, 20.3, 40.2), *args))  # rest on the end
+    assert wait_until(lambda: canvas.acquired == [Point(20, 40)])
+    canvas.dragMoveEvent(QDragMoveEvent(vp(window, 20.6, 71.1), *args))
+    assert canvas.cursor_point() == QPointF(20, 70)  # on the vertical track
+    canvas.dragLeaveEvent(QDragLeaveEvent())
+    assert canvas.acquired == []

@@ -36,6 +36,7 @@ from electrogridy.model.netlist import Netlist, Pin, _key, _on_segment, netlist
 from electrogridy.model.sheet import schematic_inner
 from electrogridy.model.terminals import TERMINAL_PE
 from electrogridy.model.title_block import SCHEMATIC_TITLE_HEIGHT
+from electrogridy.model.wires import TEE_STYLE_KEY, Tee, tees
 
 ROWS = 24  # terminals per page (21 with the title on two lines up to 1.3.1.dev12)
 COLOR, NOTE = "FARBE", "BEMERKUNG"  # attributes of the terminal symbol
@@ -81,8 +82,12 @@ class _Graph:
             self.pins_at.setdefault(node, []).append(pin)
             stops.setdefault(node[0], []).append(Point(node[1], node[2]))
         areas = [(MODEL, doc.model_space)] + [(p.id, p.entities) for p in doc.sheets]
+        wired_in_order = doc.properties.get(TEE_STYLE_KEY) == "tee"
         for area, entities in areas:
             self._add_area(area, list(entities), stops.get(area, []))
+            if wired_in_order:
+                for tee in tees(entities)[1]:
+                    self._wire_through(area, tee)
 
     def _link(self, a, b, length: float) -> None:
         self.edges.setdefault(a, []).append((b, length))
@@ -117,6 +122,34 @@ class _Graph:
                 on.sort(key=lambda p: math.hypot(p.x - a.x, p.y - a.y))
                 for p, q in zip(on, on[1:], strict=False):
                     self._link(_key(area, p), _key(area, q), math.hypot(q.x - p.x, q.y - p.y))
+
+    def _wire_through(self, area: str, tee: Tee) -> None:
+        """Wiring direction of a T branch (Florian 2026-11-04): the wire from the far
+        side goes into the branch device and from there on in the direction of the
+        diagonal. So the diagonal side is not joined at the junction but behind the
+        first piece of the branch, and the way along the conductor leads through the
+        branch device."""
+        node = _key(area, tee.position)
+
+        def towards(direction) -> tuple[object, float] | None:
+            for nxt, length in self.edges.get(node, []):
+                if not isinstance(nxt, tuple) or len(nxt) != 3 or nxt[0] != area:
+                    continue
+                dx, dy = nxt[1] - node[1], nxt[2] - node[2]
+                along = abs(dx * direction[1] - dy * direction[0]) < 1e-6
+                if length > 0 and along and dx * direction[0] + dy * direction[1] > 0:
+                    return nxt, length
+            return None
+
+        side, branch = towards(tee.side), towards(tee.branch)
+        if side is None or branch is None:
+            return
+        (far, length), (down, branch_length) = side, branch
+        self.edges[node].remove((far, length))
+        self.edges[far].remove((node, length))
+        behind = ("tee", *node)
+        self._link(behind, far, length)
+        self._link(behind, down, branch_length)
 
     def nearest(self, start, skip: set[str]) -> list[Pin]:
         """The connection points closest to ``start`` along the conductors, leaving out

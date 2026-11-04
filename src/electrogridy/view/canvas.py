@@ -570,7 +570,10 @@ class Canvas(QGraphicsView):
         return self.controller is not None and self.controller.active is not None
 
     def _picking_point(self) -> bool:
-        """True while the active command waits for a point."""
+        """True while the active command waits for a point, or while a block from the
+        library is dragged over the drawing (Florian 2026-11-04: tracking then too)."""
+        if self._drag_payload is not None:
+            return True
         return self._tool_active() and not self.controller.selecting()
 
     def _selecting(self) -> bool:
@@ -855,6 +858,7 @@ class Canvas(QGraphicsView):
     def dragLeaveEvent(self, event) -> None:
         self._drag_payload = None
         self._cursor_view = None
+        self.clear_tracking()
         self.viewport().update()
         event.accept()
 
@@ -864,12 +868,14 @@ class Canvas(QGraphicsView):
         return self.drag_preview(self._drag_payload, mpt(self._cursor_scene))
 
     def dropEvent(self, event) -> None:
-        self._drag_payload = None
         payload = self._block_payload(event.mimeData())
         if payload is None:
+            self._drag_payload = None
             event.ignore()
             return
-        self._update_cursor(event.position())
+        self._update_cursor(event.position())  # still tracking: the point it shows
+        self._drag_payload = None
+        self.clear_tracking()
         event.acceptProposedAction()
         self.setFocus()
         # Handle the drop only after the drag has fully ended: inserting may open

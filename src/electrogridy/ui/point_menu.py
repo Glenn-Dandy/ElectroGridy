@@ -31,6 +31,7 @@ from electrogridy.model.geometry import Point
 from electrogridy.model.routing import split_wire
 from electrogridy.model.terminals import (
     TERMINAL_PE,
+    free_terminal,
     normalized_strip,
     place_terminal,
     strips,
@@ -209,10 +210,11 @@ def _wire_actions(w, p: Point, entities, push) -> list[tuple[str, Callable[[], N
     container = w.container
     wires = [e for e in entities if isinstance(e, Wire)]
     on = [e for e in wires if any(on_segment(p, a, b) for a, b in segments(e.points))]
-    if not on or w.document.kind == DOC_DRAWING:
+    if w.document.kind == DOC_DRAWING:
         return []
     actions: list[tuple[str, Callable[[], None]]] = []
     if w.document.is_project and w.space.kind != BLOCK:
+        # On a wire it goes into the wire, elsewhere it stands upright on its own.
         actions.append((tr("Klemme setzen …"), lambda: set_terminal(w, p, on)))
     for wire in on:
         pieces = split_wire(wire, p)
@@ -256,11 +258,19 @@ def set_terminal(w: "MainWindow", p: Point, wires: list[Wire]) -> None:
     if definition is None:
         w.message(tr("Klemmensymbol nicht gefunden"))
         return
-    placed = place_terminal(wires, p, definition, f"{strip}:{number}", w.current_layer, color)
-    if placed is None:
-        w.message(tr("Hier liegt kein gerades Stück Leitung"))
-        return
-    ref, removed, added = placed
+    bmk = f"{strip}:{number}"
+    if wires:
+        placed = place_terminal(wires, p, definition, bmk, w.current_layer, color)
+        if placed is None:
+            w.message(tr("Hier liegt kein gerades Stück Leitung"))
+            return
+        ref, removed, added = placed
+    else:
+        ref = free_terminal(p, definition, bmk, w.current_layer, color)
+        if ref is None:
+            w.message(tr("Klemmensymbol nicht gefunden"))
+            return
+        removed, added = [], []
     container = w.container
     w.tools.cancel()
     w.begin_macro(tr("Klemme {bmk} setzen").format(bmk=f"{strip}:{number}"))

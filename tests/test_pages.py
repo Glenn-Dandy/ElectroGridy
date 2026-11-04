@@ -864,3 +864,32 @@ def test_company_in_several_lines(qapp):
     plain.properties["FIRMA"] = company
     texts = {getattr(p, "text", None) for p in title_block_parts(plain, plain.sheets[0])}
     assert "Elektro Muster GmbH, Industriestraße 5" in texts
+
+
+def test_t_branches_lead_the_wire_through_the_branch_device():
+    """Rail from -A1 on the left, branches down to -B1 and -C1, both diagonals to the
+    right: -A1 is wired to -B1 and -B1 on to -C1, never -C1 straight to -A1."""
+    from electrogridy.model.entities import Wire
+    from electrogridy.model.netlist import netlist
+    from electrogridy.model.terminal_plan import _Graph
+    from electrogridy.model.wires import TEE_STYLE_KEY
+
+    doc = Document.new("Blatt 1", kind=DOC_PROJECT)
+    doc.sheets.append(new_page(CIRCUIT, "Verteilung", paper="A3"))
+    page = doc.sheets[1]
+    doc.blocks["Gerät"] = block("Gerät", "main", terminals=("1",))
+    page.entities.add(ref("a", "Gerät", "-A1", 20, 10))
+    page.entities.add(Wire(id="rail", points=(Point(20, 10), Point(100, 10))))
+    page.entities.add(Wire(id="b", points=(Point(30, 10), Point(30, 40))))
+    page.entities.add(ref("b1", "Gerät", "-B1", 30, 40))
+    page.entities.add(Wire(id="c", points=(Point(70, 10), Point(70, 30))))
+    page.entities.add(ref("c1", "Gerät", "-C1", 70, 30))
+
+    def nearest_to_c1():
+        graph = _Graph(doc, netlist(doc))
+        start = (page.id, 70.0, 30.0)
+        return [p.bmk for p in graph.nearest(start, {"c1"})]
+
+    assert nearest_to_c1() == ["-A1"]  # dots: just the shortest way along the rail
+    doc.properties[TEE_STYLE_KEY] = "tee"
+    assert nearest_to_c1() == ["-B1"]  # wired in order: through -B1
