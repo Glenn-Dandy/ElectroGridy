@@ -64,6 +64,9 @@ def ensure_text_font() -> None:
 DASH_PATTERNS: dict[str, list[float]] = {
     "dashed": [12.0, 3.0],
     "dashdot": [24.0, 3.0, 0.5, 3.0],
+    # Only for the short sides of cable shields (not offered as a line type): the ISO
+    # dash of 6 mm at 0.25 mm would cover a whole side (Florian 2026-11-04).
+    "dashdot_short": [10.0, 2.5, 1.0, 2.5],
 }
 
 

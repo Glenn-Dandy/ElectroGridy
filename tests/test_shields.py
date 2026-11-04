@@ -22,7 +22,10 @@ def test_shield_around_the_conductors_with_connection_points_in_the_grid():
     assert (shield.p1, shield.p2) == (Point(8.75, 20), Point(21.25, 20))
     parts = shield_geometry(shield)
     sides = [p for p in parts if isinstance(p, Line)]
-    assert {(s.p1.y, s.linetype) for s in sides} == {(18.75, "dashdot"), (21.25, "dashdot")}
+    assert {(s.p1.y, s.linetype) for s in sides} == {
+        (18.75, "dashdot_short"),
+        (21.25, "dashdot_short"),
+    }
     assert len([p for p in parts if isinstance(p, Arc)]) == 2
     assert not [p for p in parts if isinstance(p, ConnectionPoint)]  # not even helpers
     ends = [(c.position, c.direction) for c in shield_connections(shield)]
@@ -108,3 +111,10 @@ def test_wiring_tool_bar_starts_a_wire_and_follows_the_kind_of_file(window):
     window.new_document(DOC_DRAWING)
     assert not window.wire_menu.menuAction().isVisible()
     assert not window.wiring_toolbar.isVisible()
+
+
+def test_shield_fits_around_plain_lines_of_an_imported_plan():
+    lines = [Line(id=f"l{x}", p1=Point(x, 0), p2=Point(x, 50)) for x in (10, 15)]
+    shield = fitted_shield(CableShield(id="s", p1=Point(8, 20), p2=Point(17, 20)), lines)
+    assert shield == fitted_shield(CableShield(id="s", p1=Point(5, 20), p2=Point(20, 20)), lines)
+    assert [c.position for c in shield_connections(shield)] == [Point(7.5, 20), Point(17.5, 20)]

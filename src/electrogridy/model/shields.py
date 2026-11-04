@@ -5,29 +5,36 @@ with a connection point at either end for the wire to the shield terminal. Pure 
 from collections.abc import Iterable
 from dataclasses import replace
 
-from electrogridy.model.entities import Arc, CableShield, ConnectionPoint, Entity, Line
+from electrogridy.model.entities import (
+    Arc,
+    CableShield,
+    ConnectionPoint,
+    Entity,
+    Line,
+    Polyline,
+    Wire,
+)
 from electrogridy.model.geometry import Point
 
 RADIUS = 1.25  # mm, half the height of the oval
 # The straight sides reach this far beyond the outer conductors; with the rounded ends
 # the connection points lie 2.5 mm beyond them, in the grid.
 OVERHANG = 1.25
-SIDE_LINETYPE = "dashdot"
+SIDE_LINETYPE = "dashdot_short"
+EPS = 1e-6  # as in model.wires, which imports this module
 
 
 def fitted_shield(shield: CableShield, entities: Iterable[Entity]) -> CableShield:
     """Exactly ``OVERHANG`` beyond the outer conductors it crosses, wherever the clicks
     were: so the connection points come to lie in the grid."""
-    from electrogridy.model.cables import crossings  # cables imports the wiring modules
-
-    found = crossings(shield, entities)
+    found = conductors_crossed(shield, entities)
     if not found:
         return shield
     a = _span(shield)[0]
     if is_horizontal(shield):
-        xs = [p.x for p, _w in found]
+        xs = [p.x for p in found]
         return replace(shield, p1=Point(min(xs) - OVERHANG, a.y), p2=Point(max(xs) + OVERHANG, a.y))
-    ys = [p.y for p, _w in found]
+    ys = [p.y for p in found]
     return replace(shield, p1=Point(a.x, min(ys) - OVERHANG), p2=Point(a.x, max(ys) + OVERHANG))
 
 
@@ -40,6 +47,31 @@ def _span(shield: CableShield) -> tuple[Point, Point]:
     a, b = shield.p1, shield.p2
     key = (lambda p: p.x) if is_horizontal(shield) else (lambda p: p.y)
     return (a, b) if key(a) <= key(b) else (b, a)
+
+
+def conductors_crossed(shield: CableShield, entities: Iterable[Entity]) -> list[Point]:
+    """Where the middle line crosses wires or plain straight lines: an imported plan
+    has its conductors as lines (Florian 2026-11-04)."""
+    a, b = _span(shield)
+    horizontal = is_horizontal(shield)
+    found = []
+    for e in entities:
+        if isinstance(e, Wire | Polyline):
+            edges = list(zip(e.points, e.points[1:], strict=False))
+        elif isinstance(e, Line):
+            edges = [(e.p1, e.p2)]
+        else:
+            continue
+        for s, t in edges:
+            if horizontal:
+                across = abs(s.x - t.x) <= EPS and a.x - EPS <= s.x <= b.x + EPS
+                if across and min(s.y, t.y) - EPS <= a.y <= max(s.y, t.y) + EPS:
+                    found.append(Point(s.x, a.y))
+            else:
+                across = abs(s.y - t.y) <= EPS and a.y - EPS <= s.y <= b.y + EPS
+                if across and min(s.x, t.x) - EPS <= a.x <= max(s.x, t.x) + EPS:
+                    found.append(Point(a.x, s.y))
+    return found
 
 
 def shield_connections(shield: CableShield) -> list[ConnectionPoint]:
