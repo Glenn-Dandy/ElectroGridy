@@ -251,7 +251,7 @@ class TextTool(_DrawTool):
         result = self.ctx.ask_text()
         if result is not None:
             content, height, *anchor = result
-            halign, valign = anchor[0] if anchor else ("left", "baseline")
+            halign, valign = anchor[0] if anchor and anchor[0] else ("left", "bottom")
             if content.strip():
                 text = Text(
                     id=new_id(),

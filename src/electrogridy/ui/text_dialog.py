@@ -1,7 +1,6 @@
 """Dialog for entering or editing a text entity, or a cable outlet label (with its
 cable)."""
 
-from PyQt6.QtCore import QCoreApplication
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -12,26 +11,8 @@ from PyQt6.QtWidgets import (
 )
 
 from electrogridy.model.entities import DEFAULT_TEXT_HEIGHT
+from electrogridy.ui.anchor_picker import DEFAULT_ANCHOR, Anchor, AnchorPicker, anchor_names
 from electrogridy.ui.styles import HeightCombo
-
-LEFT_BASELINE = ("left", "baseline")
-Anchor = tuple[str, str]  # (halign, valign) of a text
-
-
-def text_anchors() -> list[tuple[str, Anchor]]:
-    """Reference points a text can have, with their names."""
-
-    def tr(text: str) -> str:
-        return QCoreApplication.translate("TextAnchor", text)
-
-    return [
-        (tr("Links (Grundlinie)"), ("left", "baseline")),
-        (tr("Mittig (Grundlinie)"), ("center", "baseline")),
-        (tr("Rechts (Grundlinie)"), ("right", "baseline")),
-        (tr("Links, Mitte"), ("left", "middle")),
-        (tr("Mitte"), ("center", "middle")),
-        (tr("Rechts, Mitte"), ("right", "middle")),
-    ]
 
 
 class TextDialog(QDialog):
@@ -54,12 +35,9 @@ class TextDialog(QDialog):
 
         form = QFormLayout()
         form.addRow(self.tr("Texthöhe:"), self.height_box)
-        self.anchor_box: QComboBox | None = None
+        self.anchor_box: AnchorPicker | None = None
         if anchor is not None:
-            self.anchor_box = QComboBox()
-            for label, key in text_anchors():
-                self.anchor_box.addItem(label, key)
-            self.anchor_box.setCurrentIndex(max(self.anchor_box.findData(anchor), 0))
+            self.anchor_box = AnchorPicker(anchor)
             self.anchor_box.setToolTip(
                 self.tr("Wo der Punkt des Textes sitzt, an dem er gefangen und verschoben wird")
             )
@@ -93,8 +71,11 @@ class TextDialog(QDialog):
     def cable(self) -> str:
         return self.cable_box.currentText().strip() if self.cable_box is not None else ""
 
-    def anchor(self) -> Anchor:
-        return tuple(self.anchor_box.currentData()) if self.anchor_box else LEFT_BASELINE
+    def anchor(self) -> Anchor | None:
+        """The chosen point; None if none is shown (a text of several lines on its first
+        baseline, as before 1.4.1) and none was picked."""
+        chosen = self.anchor_box.anchor() if self.anchor_box else DEFAULT_ANCHOR
+        return chosen if chosen in anchor_names() else None
 
     def text_height(self) -> float:
         return self.height_box.height() or DEFAULT_TEXT_HEIGHT

@@ -77,6 +77,12 @@ BLOCK_MIME = "application/x-electrogridy-block"
 
 # Characters that start typed coordinate input while the canvas has focus.
 COORD_INPUT_CHARS = set("0123456789@.,;-")
+NUDGE_KEYS = {
+    Qt.Key.Key_Left: (-1, 0),
+    Qt.Key.Key_Right: (1, 0),
+    Qt.Key.Key_Up: (0, -1),
+    Qt.Key.Key_Down: (0, 1),
+}
 
 # Area shown by "zoom extents" when the drawing is empty (A3 landscape).
 EMPTY_EXTENTS = QRectF(0.0, 0.0, 420.0, 297.0)
@@ -115,6 +121,8 @@ class Canvas(QGraphicsView):
     empty_double_clicked = pyqtSignal(QPointF)
     # Right click without a running command: snapped scene point and global position.
     point_menu_requested = pyqtSignal(QPointF, QPoint)
+    # Shift and an arrow key outside a command: move the selection (steps right, down).
+    nudge_requested = pyqtSignal(int, int)
     # Shift + right click: object snap mode menu at the global position.
     osnap_menu_requested = pyqtSignal(QPoint)
 
@@ -1025,6 +1033,15 @@ class Canvas(QGraphicsView):
         key = event.key()
         controller = self.controller
         text = event.text()
+        step = NUDGE_KEYS.get(key)
+        if (
+            step is not None
+            and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+            and not self._tool_active()
+        ):
+            self.nudge_requested.emit(*step)
+            event.accept()
+            return
         if key == Qt.Key.Key_Escape:
             if self.acquired:
                 self.clear_tracking()

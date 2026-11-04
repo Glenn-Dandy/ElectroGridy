@@ -33,6 +33,7 @@ from electrogridy.model.entities import (
     Rectangle,
     Text,
 )
+from electrogridy.ui.anchor_picker import AnchorPicker, shown_anchor
 from electrogridy.ui.styles import (
     BY_LAYER,
     MIXED,
@@ -43,7 +44,6 @@ from electrogridy.ui.styles import (
     lineweight_items,
     standard_colors,
 )
-from electrogridy.ui.text_dialog import text_anchors
 from electrogridy.view.render import realigned
 
 
@@ -100,9 +100,7 @@ class PropertiesDock(QDockWidget):
         self.txt_text.setMaximumHeight(90)
         self.btn_apply_text = QPushButton(self.tr("Text übernehmen"))
         self.cmb_height = HeightCombo()
-        self.cmb_anchor = QComboBox()
-        for label, key in text_anchors():
-            self.cmb_anchor.addItem(label, "|".join(key))
+        self.cmb_anchor = AnchorPicker(None)
         self.cmb_anchor.setToolTip(
             self.tr("Wo der Punkt des Textes sitzt; der Text bleibt dabei stehen")
         )
@@ -114,7 +112,7 @@ class PropertiesDock(QDockWidget):
         )
         self.cmb_type.activated.connect(lambda _i: self._apply_combo(self.cmb_type, "linetype"))
         self.cmb_height.value_chosen.connect(self._apply_height)
-        self.cmb_anchor.activated.connect(lambda _i: self._apply_anchor())
+        self.cmb_anchor.chosen.connect(self._apply_anchor)
         self.btn_apply_text.clicked.connect(self._apply_text)
 
         self.form = QFormLayout()
@@ -184,7 +182,8 @@ class PropertiesDock(QDockWidget):
             if len(texts) == 1:
                 self.txt_text.setPlainText(texts[0].text)
             self.cmb_height.set_height(_common([t.height for t in texts]))
-            self._fill_simple(self.cmb_anchor, _common([f"{t.halign}|{t.valign}" for t in texts]))
+            common = _common([shown_anchor(t) for t in texts])
+            self.cmb_anchor.set_anchor(None if common == MIXED else common)
         while self.extra_area.count():
             item = self.extra_area.takeAt(0)
             if item.widget():
@@ -285,13 +284,9 @@ class PropertiesDock(QDockWidget):
             return
         self._apply_combo(self.cmb_color, "color")
 
-    def _apply_anchor(self) -> None:
+    def _apply_anchor(self, halign: str, valign: str) -> None:
         if self._updating:
             return
-        value = self.cmb_anchor.currentData()
-        if value == MIXED:
-            return
-        halign, valign = value.split("|")
         new = [realigned(e, halign, valign) if isinstance(e, Text) else e for e in self._entities]
         self._push(new, self.tr("Bezugspunkt ändern"))
 

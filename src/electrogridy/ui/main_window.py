@@ -49,10 +49,15 @@ from PyQt6.QtWidgets import (
     QToolButton,
     QVBoxLayout,
     QWidget,
+    QWidgetAction,
 )
 
 from electrogridy import i18n, platform_choice, project
-from electrogridy.commands.entities import RemoveEntitiesCommand, ReplaceEntitiesCommand
+from electrogridy.commands.entities import (
+    NudgeCommand,
+    RemoveEntitiesCommand,
+    ReplaceEntitiesCommand,
+)
 from electrogridy.commands.sheets import ChangeDocumentPropertiesCommand
 from electrogridy.fileio.files import (
     DRAWING_SUFFIX,
@@ -126,9 +131,11 @@ from electrogridy.tools.edit import (
     RotateFreeTool,
     RotateTool,
     ScaleTool,
+    with_followers,
 )
 from electrogridy.ui import appearance, clipboard
 from electrogridy.ui.about_dialog import AboutDialog, app_icon, issue_url, open_url
+from electrogridy.ui.anchor_picker import DEFAULT_ANCHOR, Anchor, anchor_names, shown_anchor
 from electrogridy.ui.autosave import AutoSaver, orphaned_backups, remove_backup
 from electrogridy.ui.block_controller import BlockController
 from electrogridy.ui.cable_dialog import place_cable
@@ -153,7 +160,7 @@ from electrogridy.ui.sheet_dialogs import ProjectDialog
 from electrogridy.ui.space import BLOCK, MODEL, SHEET, Space
 from electrogridy.ui.start_dialog import StartDialog
 from electrogridy.ui.styles import MIXED, HeightCombo
-from electrogridy.ui.text_dialog import LEFT_BASELINE, Anchor, TextDialog, text_anchors
+from electrogridy.ui.text_dialog import TextDialog
 from electrogridy.view import theme
 from electrogridy.view.canvas import BACKGROUND_COLOR, EMPTY_EXTENTS, Canvas, select_items
 from electrogridy.view.display import (
@@ -178,7 +185,8 @@ APP_NAME = "ElectroGridy"
 FAST_DISPLAY_KEY = "view/fast_display"
 # Set once the wiring tool bar (1.4.1.dev5) has been put in front of the draw tool bar.
 WIRING_TOOLBAR_KEY = "main_window/wiring_toolbar"
-TEXT_ANCHOR_KEY = "text/anchor"  # reference point of the text drawn last, "left|baseline"
+NUDGE_STEP = 1.0  # mm per Shift + arrow key (Florian 2026-11-04)
+TEXT_ANCHOR_KEY = "text/anchor"  # reference point of the text drawn last, "left|bottom"
 
 
 def wait_for_mouse_release() -> None:
@@ -209,12 +217,21 @@ OPEN_EXTENTS, OPEN_LAST, OPEN_ORIGIN = "extents", "last", "origin"
 LAST_VIEW_GROUP = "last_views"
 
 
-def _fill_menu(menu: QMenu, entries) -> None:
-    """Entries (label, callback), (label, callback, checked) or (label, [entries]) for a
-    submenu."""
+def _fill_menu(menu: QMenu, entries, root: QMenu | None = None) -> None:
+    """Entries (label, callback), (label, callback, checked), (label, [entries]) for a
+    submenu or (label, widget) for a submenu holding the widget; a widget's ``chosen``
+    signal closes the menu."""
+    root = root or menu
     for label, target, *checked in entries:
         if isinstance(target, list):
-            _fill_menu(menu.addMenu(label), target)
+            _fill_menu(menu.addMenu(label), target, root)
+            continue
+        if isinstance(target, QWidget):
+            action = QWidgetAction(menu)
+            action.setDefaultWidget(target)
+            menu.addMenu(label).addAction(action)
+            if hasattr(target, "chosen"):
+                target.chosen.connect(lambda *_a: root.close())
             continue
         action = menu.addAction(label, target)
         if checked:
@@ -292,6 +309,7 @@ class MainWindow(QMainWindow):
         self.canvas.drag_preview = self.blocks.drag_preview
         self.canvas.empty_double_clicked.connect(self.sheets.on_empty_double_click)
         self.canvas.point_menu_requested.connect(self._show_point_menu)
+        self.canvas.nudge_requested.connect(self.nudge_selection)
         self.canvas.osnap_menu_requested.connect(lambda pos: self.osnap_menu.exec(pos))
         self.sheets.rebuild_tabs()
         self.command_line.submitted.connect(self._on_command_input)
@@ -426,21 +444,22 @@ class MainWindow(QMainWindow):
 
     def ask_text(
         self, text: str = "", height: float | None = None, anchor: Anchor | None = None
-    ) -> tuple[str, float, Anchor] | None:
+    ) -> tuple[str, float, Anchor | None] | None:
         """Content, height and reference point of a text; a new text (``anchor`` None)
         proposes the reference point chosen last."""
         settings = QSettings()
         new = anchor is None
         if new:
-            anchor = tuple(str(settings.value(TEXT_ANCHOR_KEY, "left|baseline")).split("|"))
-            if anchor not in [key for _label, key in text_anchors()]:
-                anchor = LEFT_BASELINE
+            anchor = tuple(str(settings.value(TEXT_ANCHOR_KEY, "left|bottom")).split("|"))
+            if anchor not in anchor_names():
+                anchor = DEFAULT_ANCHOR
         dialog = TextDialog(self, text, height, anchor=anchor)
         if dialog.exec() != TextDialog.DialogCode.Accepted:
             return None
-        if new:
-            settings.setValue(TEXT_ANCHOR_KEY, "|".join(dialog.anchor()))
-        return dialog.text(), dialog.text_height(), dialog.anchor()
+        chosen = dialog.anchor()
+        if new and chosen is not None:
+            settings.setValue(TEXT_ANCHOR_KEY, "|".join(chosen))
+        return dialog.text(), dialog.text_height(), chosen
 
     def message(self, text: str) -> None:
         self.statusBar().showMessage(text, 5000)
@@ -1973,6 +1992,18 @@ class MainWindow(QMainWindow):
         _fill_menu(menu, actions)
         menu.exec(global_pos)
 
+    def nudge_selection(self, dx: int, dy: int) -> None:
+        """Move the selection ``NUDGE_STEP`` mm per step; attached wires follow."""
+        ids = [i for i in self.selected_ids() if i in self.container]
+        if not ids:
+            return
+        old = [self.container.get(i) for i in ids]
+        new = [e.translated(dx * NUDGE_STEP, dy * NUDGE_STEP) for e in old]
+        moved = with_followers(self, old, new, separate=True)
+        self.push(
+            NudgeCommand(self.container, moved, self.tr("Verschieben (Pfeiltaste)"), frozenset(ids))
+        )
+
     def field_parts(self, skip: set[str]) -> list[Entity]:
         """What may border a field around a text: the objects of the open area (symbols
         taken apart) and on a page its frame and title block."""
@@ -2025,15 +2056,15 @@ class MainWindow(QMainWindow):
             return
         if not isinstance(entity, Text):
             return
-        result = self.ask_text(entity.text, entity.height, (entity.halign, entity.valign))
+        result = self.ask_text(entity.text, entity.height, shown_anchor(entity) or ("", ""))
         if result is None:
             return
-        content, height, (halign, valign) = result
+        content, height, anchor = result
         if not content.strip():
             return
         changed = replace(entity, text=content, height=height)
-        if (halign, valign) != (entity.halign, entity.valign):
-            changed = realigned(changed, halign, valign)
+        if anchor is not None and anchor != shown_anchor(entity):
+            changed = realigned(changed, *anchor)
         if changed != entity:
             self.push(ReplaceEntitiesCommand(self.container, [changed], self.tr("Text ändern")))
 

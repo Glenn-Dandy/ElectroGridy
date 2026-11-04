@@ -63,9 +63,9 @@ def test_right_click_on_a_text_sets_its_point_and_centres_it_in_its_field(window
     text = window.container.get("t")
     inside = text_scene_center(text)
     actions = dict(point_actions(window, Point(0, 0), inside))
-    anchors = actions["Bezugspunkt"]
-    assert [checked for _label, _cb, checked in anchors] == [True] + [False] * 5
-    dict((label, cb) for label, cb, _c in anchors)["Rechts, Mitte"]()
+    picker = actions["Bezugspunkt"]
+    assert picker.anchor() == ("left", "bottom")  # one line on its baseline
+    picker.chosen.emit("right", "middle")
     moved = window.container.get("t")
     assert (moved.halign, moved.valign) == ("right", "middle") and box(moved) == box(text)
     actions = dict(point_actions(window, Point(0, 0), inside))
@@ -106,12 +106,44 @@ def test_text_tool_and_double_click_use_the_reference_point(window, monkeypatch)
     window.tools.pick(Point(80, 55))
     (text,) = [e for e in window.container if isinstance(e, Text)]
     assert (text.position, text.halign, text.valign) == (Point(80, 55), "center", "middle")
-    assert Fake.offered == ("left", "baseline")
+    assert Fake.offered == ("left", "bottom")
     window.act_text.trigger()
     window.tools.pick(Point(80, 75))
     assert Fake.offered == ("center", "middle")  # the choice made last
-    Fake.chosen = ("left", "baseline")
+    Fake.chosen = ("right", "top")
     window._edit_entity(text.id)
     edited = window.container.get(text.id)
-    assert (edited.halign, edited.valign) == ("left", "baseline")
+    assert (edited.halign, edited.valign) == ("right", "top")
     assert box(edited) == box(text)
+
+
+def test_nine_points_of_a_text_of_two_lines(qapp):
+    text = Text(id="t", position=Point(0, 0), text="Zeile 1\nZeile 2", height=2.5)
+    top = realigned(text, "left", "top")
+    bottom = realigned(text, "left", "bottom")
+    assert box(top) == box(text) == box(bottom)
+    assert top.position.y < text.position.y < bottom.position.y  # first baseline between
+    assert round(bottom.position.y - text.position.y, 6) == round(1.6 * 2.5, 6)
+
+
+def test_shift_and_arrow_keys_move_the_selection_in_one_undo_step(window):
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+
+    from electrogridy.model.entities import Busbar, Wire
+
+    window.container.add(Busbar(id="l", p1=Point(10, 10), p2=Point(20, 10)))
+    window.container.add(Wire(id="w", points=(Point(20, 10), Point(20, 30))))
+    window.container.add(Line(id="other", p1=Point(50, 50), p2=Point(60, 50)))
+    window.space.sync.item("l").setSelected(True)
+    window.canvas.setFocus()
+    for key in (Qt.Key.Key_Right, Qt.Key.Key_Right, Qt.Key.Key_Down):
+        QTest.keyClick(window.canvas, key, Qt.KeyboardModifier.ShiftModifier)
+    assert window.container.get("l").p1 == Point(12, 11)
+    assert window.container.get("w").points[0] == Point(22, 11)  # the wire follows
+    QTest.keyClick(window.canvas, Qt.Key.Key_Right)  # without Shift: nothing moves
+    assert window.container.get("l").p1 == Point(12, 11)
+    window.act_undo.trigger()  # all presses at once
+    assert window.container.get("l").p1 == Point(10, 10)
+    assert window.container.get("w").points[0] == Point(20, 10)
+    assert window.container.get("other").p1 == Point(50, 50)

@@ -161,9 +161,13 @@ def _x_offset(e: Text, width: float) -> float:
 
 def _y_offset(e: Text) -> float:
     """Shift of the first baseline relative to the anchor."""
+    last = (len(_text_lines(e)) - 1) * LINE_SPACING * e.height
     if e.valign == "middle":
-        last = (len(_text_lines(e)) - 1) * LINE_SPACING * e.height
         return (e.height - last) / 2
+    if e.valign == "top":  # top of the capitals of the first line
+        return e.height
+    if e.valign == "bottom":  # baseline of the last line
+        return -last
     return 0.0
 
 

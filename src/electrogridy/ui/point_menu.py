@@ -47,9 +47,9 @@ from electrogridy.model.wires import (
     segments,
 )
 from electrogridy.tools.draw import ExtendTool, LineTool
+from electrogridy.ui.anchor_picker import AnchorPicker, shown_anchor
 from electrogridy.ui.space import BLOCK
 from electrogridy.ui.terminal_dialog import TerminalDialog
-from electrogridy.ui.text_dialog import text_anchors
 from electrogridy.view.render import realigned, text_scene_center, text_scene_path
 
 if TYPE_CHECKING:
@@ -157,11 +157,14 @@ def _text_actions(w, raw: Point, entities, push) -> list[tuple]:
     if not texts:
         return []
     container = w.container
-    current = {(t.halign, t.valign) for t in texts}
+    current = {shown_anchor(t) for t in texts}
+    picker = AnchorPicker(current.pop() if len(current) == 1 else None)
 
-    def set_anchor(key) -> None:
-        changed = [realigned(t, *key) for t in texts]
+    def set_anchor(halign: str, valign: str) -> None:
+        changed = [realigned(t, halign, valign) for t in texts]
         push(ReplaceEntitiesCommand(container, changed, tr("Bezugspunkt ändern")))
+
+    picker.chosen.connect(set_anchor)
 
     def centre() -> None:
         parts = w.field_parts({t.id for t in texts})
@@ -177,10 +180,7 @@ def _text_actions(w, raw: Point, entities, push) -> list[tuple]:
         if missing:
             w.message(tr("Kein geschlossenes Feld um den Text gefunden"))
 
-    anchors = [
-        (label, lambda key=key: set_anchor(key), current == {key}) for label, key in text_anchors()
-    ]
-    return [(tr("Bezugspunkt"), anchors), (tr("In Feld zentrieren"), centre)]
+    return [(tr("Bezugspunkt"), picker), (tr("In Feld zentrieren"), centre)]
 
 
 def _wire_actions(w, p: Point, entities, push) -> list[tuple[str, Callable[[], None]]]:

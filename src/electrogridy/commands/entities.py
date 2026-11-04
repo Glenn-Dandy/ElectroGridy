@@ -69,3 +69,39 @@ class ReplaceEntitiesCommand(QUndoCommand):
                 self._container.remove(e.id)
             for e in self._old:
                 self._container.replace(e)
+
+
+class NudgeCommand(ReplaceEntitiesCommand):
+    """The selection moved with Shift and an arrow key: presses in a row on the same
+    selection are one undo step."""
+
+    ID = 7301
+
+    def __init__(
+        self, container: EntityContainer, new: Iterable[Entity], text: str, selection: frozenset
+    ) -> None:
+        super().__init__(container, new, text)
+        self._selection = selection
+
+    def id(self) -> int:
+        return self.ID
+
+    def mergeWith(self, other: QUndoCommand) -> bool:  # noqa: N802 - Qt name
+        if (
+            not isinstance(other, NudgeCommand)
+            or other._container is not self._container
+            or other._selection != self._selection
+        ):
+            return False
+        mine = {e.id: i for i, e in enumerate(self._new)}
+        added = {e.id: i for i, e in enumerate(self._added)}
+        for e, old in zip(other._new, other._old, strict=True):
+            if e.id in mine:
+                self._new[mine[e.id]] = e
+            elif e.id in added:
+                self._added[added[e.id]] = e
+            else:
+                self._new.append(e)
+                self._old.append(old)
+        self._added += other._added
+        return True

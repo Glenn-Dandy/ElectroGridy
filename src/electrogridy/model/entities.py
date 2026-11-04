@@ -127,8 +127,9 @@ class Text(Entity):
     """Single or multi-line text.
 
     ``position`` is the anchor: by default the left end of the first baseline.
-    ``halign`` moves it to the centre or right end, ``valign`` "middle" to the
-    vertical middle between the top of the first line and the last baseline.
+    ``halign`` moves it to the centre or right end, ``valign`` "top" to the top of the
+    capitals of the first line, "bottom" to the last baseline and "middle" halfway
+    between them.
     """
 
     position: Point
