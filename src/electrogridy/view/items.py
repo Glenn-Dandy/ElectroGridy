@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 
-from PyQt6.QtCore import QRectF
+from PyQt6.QtCore import QRectF, Qt
 from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPainterPathStroker
 from PyQt6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem
 
@@ -15,6 +15,8 @@ from electrogridy.view.render import (
     entity_path,
     junction_mark_path,
     paint_entity,
+    screen_pen,
+    stroked,
     text_scene_path,
 )
 
@@ -76,6 +78,10 @@ class EntityItem(QGraphicsItem):
         self._styles = [self._resolve_style(part) for part in self._parts]
         bounds = QRectF()
         shape = QPainterPath()
+        # What paint() does: (style, path) draws a path with a pen, (style, part) paints
+        # the part. Neighbouring solid outlines of one style share a path, so a repaint
+        # needs one pen and one drawPath for them instead of one per part.
+        ops: list[tuple[Style, QPainterPath | Entity]] = []
         for part, style in zip(self._parts, self._styles, strict=True):
             bounds = bounds.united(entity_bounds(part, style.lineweight))
             shown = displayed(part)
@@ -86,11 +92,25 @@ class EntityItem(QGraphicsItem):
             elif isinstance(shown, JunctionMark):
                 shape.addPath(junction_mark_path(shown))
             else:
+                path = entity_path(shown)
                 stroker = QPainterPathStroker()
                 stroker.setWidth(max(style.lineweight, 0.01))
-                shape.addPath(stroker.createStroke(entity_path(shown)))
+                shape.addPath(stroker.createStroke(path))
+            if not stroked(shown):
+                ops.append((style, part))
+            elif (
+                style.linetype == "continuous"
+                and ops
+                and ops[-1][0] == style
+                and isinstance(ops[-1][1], QPainterPath)
+            ):
+                ops[-1][1].addPath(path)
+            else:
+                # Dashes restart at each subpath, so dashed outlines keep a path each.
+                ops.append((style, QPainterPath(path)))
         self._bounds = bounds
         self._shape = shape
+        self._ops = ops
 
     def boundingRect(self) -> QRectF:
         return self._bounds
@@ -101,7 +121,12 @@ class EntityItem(QGraphicsItem):
     def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget=None) -> None:
         lod = option.levelOfDetailFromTransform(painter.worldTransform())
         selected = self.isSelected()
-        for part, style in zip(self._parts, self._styles, strict=True):
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        for style, what in self._ops:
             if selected:
                 style = Style(SELECTION_COLOR, style.lineweight, style.linetype)
-            paint_entity(painter, part, style, lod)
+            if isinstance(what, QPainterPath):
+                painter.setPen(screen_pen(style.color, style.lineweight, lod, style.linetype))
+                painter.drawPath(what)
+            else:
+                paint_entity(painter, what, style, lod)

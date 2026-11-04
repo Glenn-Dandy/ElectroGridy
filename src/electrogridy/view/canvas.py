@@ -5,7 +5,7 @@ import math
 from collections.abc import Callable
 from dataclasses import replace
 
-from PyQt6.QtCore import QEvent, QPoint, QPointF, QRectF, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, QRectF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (
     QBrush,
     QColor,
@@ -261,15 +261,22 @@ class Canvas(QGraphicsView):
             pixmap = QPixmap(max(1, round(vp.width() * dpr)), max(1, round(vp.height() * dpr)))
             pixmap.setDevicePixelRatio(dpr)
             pixmap.fill(theme.surface(self.background_color))
+            shift = self._layer_shift(key)
             self._rendering_layer = True
             try:
                 p = QPainter(pixmap)
-                self.render(
-                    p,
-                    QRectF(0, 0, vp.width(), vp.height()),
-                    vp.rect(),
-                    Qt.AspectRatioMode.IgnoreAspectRatio,
-                )
+                if shift is None:
+                    self._render_layer(p, vp.rect())
+                else:
+                    # Panned: the old picture moves along, only the uncovered strips
+                    # are drawn.
+                    dx, dy = shift
+                    p.drawPixmap(QPointF(dx, dy), self._layer)
+                    w, h = vp.width(), vp.height()
+                    if dx:
+                        self._render_layer(p, QRect(0 if dx > 0 else w + dx, 0, abs(dx), h))
+                    if dy:
+                        self._render_layer(p, QRect(0, 0 if dy > 0 else h + dy, w, abs(dy)))
                 p.end()
             finally:
                 self._rendering_layer = False
@@ -280,6 +287,24 @@ class Canvas(QGraphicsView):
         painter.setTransform(self.viewportTransform())
         self.drawForeground(painter, self.mapToScene(vp.rect()).boundingRect())
         painter.end()
+
+    def _render_layer(self, painter: QPainter, rect: QRect) -> None:
+        self.render(painter, QRectF(rect), rect, Qt.AspectRatioMode.IgnoreAspectRatio)
+
+    def _layer_shift(self, key: tuple) -> tuple[int, int] | None:
+        """Whole-pixel offset by which the cached picture moved when the view was only
+        panned since it was drawn; None if it has to be drawn anew."""
+        old = self._layer_key_value
+        if self._layer is None or not old or old[:4] != key[:4] or old[6:] != key[6:]:
+            return None
+        dx, dy = key[4] - old[4], key[5] - old[5]
+        dpr = key[8]
+        if any(abs(v - round(v)) > 1e-6 or abs(v * dpr - round(v * dpr)) > 1e-6 for v in (dx, dy)):
+            return None
+        dx, dy = round(dx), round(dy)
+        if abs(dx) >= key[6] or abs(dy) >= key[7]:
+            return None
+        return dx, dy
 
     def set_scene(self, scene: QGraphicsScene) -> None:
         """Switch to another scene (model, sheet, block editor)."""

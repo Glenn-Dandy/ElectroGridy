@@ -5,6 +5,7 @@ from PyQt6.QtTest import QTest
 from electrogridy.fileio.files import load_document
 from electrogridy.fileio.json_format import document_to_dict
 from electrogridy.model.document import Document
+from electrogridy.model.entities import Line
 from electrogridy.model.geometry import Point
 from electrogridy.ui.main_window import MainWindow
 from factories import sample_entities
@@ -128,14 +129,41 @@ def test_mouse_side_buttons_undo_and_redo(window):
         assert "x" in ms
 
 
-def test_layer_cache_is_off_on_first_start_and_can_be_switched_on(window):
-    assert not window.act_layer_cache.isChecked()
-    assert not window.canvas.layer_cache_enabled
-    plain = window.canvas.viewport().grab()
-    window.act_layer_cache.setChecked(True)
+def test_fast_display_is_on_on_first_start_and_can_be_switched_off(window):
+    assert window.act_layer_cache.isChecked()
     assert window.canvas.layer_cache_enabled
     cached = window.canvas.viewport().grab()
+    window.act_layer_cache.setChecked(False)
+    assert not window.canvas.layer_cache_enabled
+    plain = window.canvas.viewport().grab()
     assert cached.size() == plain.size()
+
+
+def test_panning_moves_the_cached_picture_like_a_full_redraw(window):
+    for i in range(30):
+        y = i * 7.0
+        window.document.model_space.add(
+            Line(id=f"l{i}", p1=Point(0, y), p2=Point(300, y + 40), lineweight=0.5)
+        )
+    canvas = window.canvas
+    canvas.set_layer_cache_enabled(True)
+    canvas.set_view(2.0, QPointF(150, 100))
+    canvas.viewport().repaint()
+    drawn = []
+    render = canvas._render_layer
+    canvas._render_layer = lambda p, rect: (drawn.append(rect), render(p, rect))
+    for delta in (QPointF(37, 0), QPointF(0, -23), QPointF(-51, 19)):
+        canvas._scroll_by(delta)
+        canvas.viewport().repaint()
+    canvas._render_layer = render
+    assert sorted((r.width(), r.height()) for r in drawn if r.width() < r.height()) == [
+        (37, canvas.viewport().height()),
+        (51, canvas.viewport().height()),
+    ]
+    panned = canvas._layer.toImage()
+    canvas._invalidate_layer()
+    canvas.viewport().repaint()
+    assert canvas._layer.toImage() == panned
 
 
 def test_program_settings_have_their_own_menu(window):

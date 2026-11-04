@@ -167,6 +167,9 @@ from electrogridy.view.render import Style
 from electrogridy.view.scene_sync import SceneSync
 
 APP_NAME = "ElectroGridy"
+# Fast display is on by default since 1.4.1; "view/layer_cache" (off by default before)
+# is no longer read, so it comes on once for everybody (Florian 2026-11-04).
+FAST_DISPLAY_KEY = "view/fast_display"
 
 
 def wait_for_mouse_release() -> None:
@@ -2271,7 +2274,7 @@ class MainWindow(QMainWindow):
             )
             chosen |= {m for m in SnapMode if m.value not in known_set}
             self.canvas.osnap_modes = frozenset(chosen)
-        self.act_layer_cache.setChecked(settings.value("view/layer_cache", False, type=bool))
+        self.act_layer_cache.setChecked(settings.value(FAST_DISPLAY_KEY, True, type=bool))
         self.act_dynamic_input.setChecked(settings.value("view/dynamic_input", True, type=bool))
         self.canvas.polar_increment = settings.value("view/polar_increment", 15.0, type=float)
         self.canvas.set_dynamic_enabled(self.act_dynamic_input.isChecked())
@@ -2365,7 +2368,7 @@ class MainWindow(QMainWindow):
         settings.setValue("view/ortho_enabled", self.act_ortho.isChecked())
         settings.setValue("view/osnap_enabled", self.act_osnap.isChecked())
         settings.setValue("view/otrack_enabled", self.act_otrack.isChecked())
-        settings.setValue("view/layer_cache", self.act_layer_cache.isChecked())
+        settings.setValue(FAST_DISPLAY_KEY, self.act_layer_cache.isChecked())
         settings.setValue("view/dynamic_input", self.act_dynamic_input.isChecked())
         settings.setValue("view/osnap_modes", sorted(m.value for m in self.canvas.osnap_modes))
         settings.setValue("view/osnap_known", sorted(m.value for m in SnapMode))

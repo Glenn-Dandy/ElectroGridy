@@ -235,6 +235,21 @@ def make_pen(
     return pen
 
 
+@functools.lru_cache(maxsize=4096)
+def _screen_pen(rgba: int, lineweight: float, px_per_mm: float, linetype: str) -> QPen:
+    return make_pen(QColor.fromRgba(rgba), lineweight, px_per_mm, linetype)
+
+
+def screen_pen(color: QColor, lineweight: float, px_per_mm: float, linetype: str) -> QPen:
+    """``make_pen`` for repaints: the same few pens are needed thousands of times."""
+    return _screen_pen(color.rgba(), lineweight, px_per_mm, linetype)
+
+
+def stroked(e: Entity) -> bool:
+    """Drawn as an outline path with a pen (not a text, marker or picture)."""
+    return not isinstance(e, Text | ConnectionPoint | JunctionMark | RasterImage)
+
+
 def displayed(e: Entity) -> Entity:
     """Attribute definitions show their tag outside of block references."""
     if isinstance(e, AttributeDefinition):
