@@ -10,6 +10,7 @@ from electrogridy.model.entities import (
     Arc,
     Busbar,
     CableMark,
+    CableShield,
     Circle,
     Dimension,
     Entity,
@@ -24,6 +25,7 @@ from electrogridy.model.entities import (
 from electrogridy.model.geometry import Point, angle_deg, distance, ortho
 from electrogridy.model.interruptions import axis_direction, outward_direction
 from electrogridy.model.routing import Pin, connect, pin_at, pins_of, rails
+from electrogridy.model.shields import fitted_shield
 from electrogridy.model.snap import edges_of
 from electrogridy.model.wires import elbow, simplify
 from electrogridy.tools.base import PREVIEW_ID, Tool, tr
@@ -719,6 +721,48 @@ class CableTool(_DrawTool):
             id=PREVIEW_ID, layer=self.ctx.current_layer, p1=self._start, p2=end, name="-W?"
         )
         return [fitted(mark, self.ctx.container)]
+
+
+class ShieldTool(_DrawTool):
+    """Cable shield: like the cable mark a line across the conductors, from beside the
+    first to beyond the last; drawn as an oval around them with a connection point at
+    either end. Stays active for the next one."""
+
+    def __init__(self, ctx) -> None:
+        super().__init__(ctx)
+        self._start: Point | None = None
+
+    def prompt(self) -> str:
+        if self._start is None:
+            return tr("Schirm: Punkt neben der ersten Leitung angeben")
+        return tr("Schirm: Punkt hinter der letzten Leitung angeben")
+
+    def base_point(self) -> Point | None:
+        return self._start
+
+    def _shield(self, p: Point, entity_id: str) -> CableShield | None:
+        assert self._start is not None
+        end = ortho(self._start, p)
+        if end == self._start:
+            return None
+        shield = CableShield(id=entity_id, layer=self.ctx.current_layer, p1=self._start, p2=end)
+        return fitted_shield(shield, self.ctx.container)
+
+    def pick(self, p: Point) -> None:
+        if self._start is None:
+            self._start = p
+            return
+        shield = self._shield(p, new_id())
+        if shield is None:
+            return
+        self._start = None
+        self._add(shield, tr("Schirm zeichnen"))
+
+    def preview(self) -> list[Entity]:
+        if self._start is None or self.cursor is None:
+            return []
+        shield = self._shield(self.cursor, PREVIEW_ID)
+        return [shield] if shield is not None else []
 
 
 class OutletTool(_DrawTool):

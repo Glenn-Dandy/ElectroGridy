@@ -80,6 +80,7 @@ from electrogridy.model.entities import (
     BlockReference,
     Busbar,
     CableMark,
+    CableShield,
     ConnectionPoint,
     Dimension,
     Entity,
@@ -93,6 +94,7 @@ from electrogridy.model.layers import DEFAULT_LAYER
 from electrogridy.model.paper import Orientation
 from electrogridy.model.routing import GRID
 from electrogridy.model.sheet import schematic_inner
+from electrogridy.model.shields import shield_connections, shield_geometry
 from electrogridy.model.snap import ALL_MODES, SnapHit, SnapMode
 from electrogridy.model.title_block import schematic_title_block_definition
 from electrogridy.model.wires import label_anchor, label_text, project_on_path
@@ -112,6 +114,7 @@ from electrogridy.tools.draw import (
     PolylineTool,
     RailsTool,
     RectangleTool,
+    ShieldTool,
     TextTool,
     WireTool,
 )
@@ -593,6 +596,13 @@ class MainWindow(QMainWindow):
                 "dann Kabel (z. B. -W1), Kabeltyp und Adern. Füllt Klemmenplan und Kabelliste."
             )
         )
+        self.act_shield = self._tool_action(self.tr("Sc&hirm"), ShieldTool)
+        self.act_shield.setToolTip(
+            self.tr(
+                "Kabelschirm: Linie quer über die Adern ziehen wie beim Kabel. Links und "
+                "rechts bekommt der Schirm einen Anschlusspunkt für die Leitung zur Schirmklemme."
+            )
+        )
         self.act_outlet = self._tool_action(self.tr("Kabel&abgang"), OutletTool)
         self.act_outlet.setToolTip(
             self.tr(
@@ -611,7 +621,24 @@ class MainWindow(QMainWindow):
             self.act_interruption,
             self.act_rails,
             self.act_cable,
+            self.act_shield,
             self.act_outlet,
+        ]
+        # The draw menu in groups (Florian 2026-11-04: cables on top); hidden actions
+        # leave no empty group, Qt drops the doubled separators.
+        self.draw_groups = [
+            [self.act_cable, self.act_shield, self.act_outlet],
+            [self.act_wire, self.act_busbar, self.act_rails, self.act_interruption],
+            [
+                self.act_line,
+                self.act_polyline,
+                self.act_rectangle,
+                self.act_circle,
+                self.act_arc,
+                self.act_text,
+            ],
+            [self.act_dimension, self.act_dimension_aligned, self.act_dimension_angle],
+            [self.act_module_field],
         ]
         self.draw_actions = [
             self.act_wire,
@@ -619,6 +646,7 @@ class MainWindow(QMainWindow):
             self.act_rails,
             self.act_interruption,
             self.act_cable,
+            self.act_shield,
             self.act_outlet,
             self.act_line,
             self.act_polyline,
@@ -843,7 +871,9 @@ class MainWindow(QMainWindow):
         self.settings_menu = m
 
         m = bar.addMenu(self.tr("&Zeichnen"))
-        m.addActions(self.draw_actions)
+        for group in self.draw_groups:
+            m.addSeparator()
+            m.addActions(group)
         self.draw_menu = m
 
         m = bar.addMenu(self.tr("Ä&ndern"))
@@ -939,6 +969,7 @@ class MainWindow(QMainWindow):
                 Wire: self.tr("Leitung"),
                 Busbar: self.tr("Sammelschiene"),
                 InterruptionPoint: self.tr("Unterbrechungspunkt"),
+                CableShield: self.tr("Schirm"),
             }
         )
         self.properties_dock.extra_editors.append(self._interruption_editor)
@@ -1119,6 +1150,8 @@ class MainWindow(QMainWindow):
             return interruption_geometry(entity, target[0] if target else None)
         if isinstance(entity, CableMark):
             return cable_mark_geometry(entity, cable_cores_of(self.document).get(entity.id, []))
+        if isinstance(entity, CableShield):
+            return shield_geometry(entity)
         if isinstance(entity, BlockReference):
             definitions = blocks if blocks is not None else self.document.blocks
             try:
@@ -1162,6 +1195,8 @@ class MainWindow(QMainWindow):
     def _snap_extra(self, entity: Entity) -> list[SnapHit]:
         if isinstance(entity, ConnectionPoint):
             return [SnapHit(entity.position, SnapMode.CONNECTION)]
+        if isinstance(entity, CableShield):
+            return [SnapHit(c.position, SnapMode.CONNECTION) for c in shield_connections(entity)]
         if isinstance(entity, BlockReference):
             return [
                 SnapHit(c.position, SnapMode.CONNECTION)

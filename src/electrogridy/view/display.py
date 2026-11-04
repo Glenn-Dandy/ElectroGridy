@@ -25,6 +25,7 @@ from electrogridy.model.document import (
 from electrogridy.model.entities import (
     BlockReference,
     CableMark,
+    CableShield,
     Dimension,
     Entity,
     InterruptionPoint,
@@ -42,6 +43,7 @@ from electrogridy.model.sheet import (
     schematic_title_width,
     title_block_reference,
 )
+from electrogridy.model.shields import shield_geometry
 from electrogridy.model.terminal_plan import terminal_plan
 from electrogridy.model.terminals import row_labels, terminal_center
 from electrogridy.model.title_block import (
@@ -243,6 +245,8 @@ def expand_for_display(doc: Document, e: Entity) -> list[Entity]:
         return interruption_geometry(e, target[0] if target else None)
     if isinstance(e, CableMark):
         return cable_mark_geometry(e, cable_cores_of(doc).get(e.id, []))
+    if isinstance(e, CableShield):
+        return shield_geometry(e)
     if isinstance(e, BlockReference):
         try:
             parts = expand(e, doc.blocks)

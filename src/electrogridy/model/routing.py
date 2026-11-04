@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 from electrogridy.model.blocks import BlockDefinition, world_connections
 from electrogridy.model.entities import (
     BlockReference,
+    CableShield,
     ConnectionPoint,
     Entity,
     InterruptionPoint,
@@ -19,6 +20,7 @@ from electrogridy.model.entities import (
     new_id,
 )
 from electrogridy.model.geometry import Point
+from electrogridy.model.shields import shield_connections
 from electrogridy.model.wires import EPS, path_length, same, segments, simplify
 
 POLE_SPACING = 5.0  # mm between L1, L2, L3, N, PE: the same for every symbol and rail
@@ -161,6 +163,10 @@ def pins_of(entities: Iterable[Entity], blocks: Mapping[str, BlockDefinition]) -
     for e in entities:
         if isinstance(e, BlockReference):
             for c in world_connections(e, blocks):
+                out.append(Pin(e.id, c.name, c.position, c.direction % 360))
+        elif isinstance(e, CableShield):
+            # The wire to the shield terminal starts here like at a symbol.
+            for c in shield_connections(e):
                 out.append(Pin(e.id, c.name, c.position, c.direction % 360))
     return out
 

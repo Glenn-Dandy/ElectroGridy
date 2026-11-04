@@ -12,6 +12,7 @@ from electrogridy.model.entities import (
     BlockReference,
     Busbar,
     CableMark,
+    CableShield,
     Circle,
     ConnectionPoint,
     Dimension,
@@ -54,6 +55,8 @@ def scale_entity(e: Entity, center: Point, factor: float) -> Entity:
             return replace(e, points=tuple(s(p) for p in e.points))
         case CableMark():
             return replace(e, p1=s(e.p1), p2=s(e.p2), height=e.height * factor)
+        case CableShield():
+            return replace(e, p1=s(e.p1), p2=s(e.p2))
         case Wire():
             return replace(
                 e,

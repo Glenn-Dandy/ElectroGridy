@@ -298,6 +298,19 @@ class CableMark(Entity):
 
 
 @dataclass(frozen=True, kw_only=True)
+class CableShield(Entity):
+    """Shield of a cable: a long oval around its conductors (``p1``, ``p2`` along the
+    middle, across the conductors) with a connection point at either end, where the
+    wire to the shield terminal is drawn by hand."""
+
+    p1: Point
+    p2: Point
+
+    def _mapped(self, fn, quarters):
+        return replace(self, p1=fn(self.p1), p2=fn(self.p2))
+
+
+@dataclass(frozen=True, kw_only=True)
 class Busbar(Entity):
     """Bus bar; wires may connect anywhere along it."""
 

@@ -8,6 +8,7 @@ from electrogridy.model.blocks import BlockDefinition, world_connections
 from electrogridy.model.entities import (
     BlockReference,
     Busbar,
+    CableShield,
     ConnectionPoint,
     Entity,
     JunctionMark,
@@ -15,6 +16,7 @@ from electrogridy.model.entities import (
     Wire,
 )
 from electrogridy.model.geometry import Point, distance
+from electrogridy.model.shields import shield_connections
 
 EPS = 1e-6
 LABEL_GAP = 1.0  # mm between wire and label
@@ -366,6 +368,9 @@ def connection_positions(
                 result[(e.id, c.name + "#" + c.id)] = c.position
         elif isinstance(e, ConnectionPoint):
             result[(e.id, "")] = e.position
+        elif isinstance(e, CableShield):
+            for c in shield_connections(e):
+                result[(e.id, c.name)] = c.position
     return result
 
 

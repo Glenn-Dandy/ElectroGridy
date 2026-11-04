@@ -1018,5 +1018,11 @@
  "Noch keine Logos. Mit „Logo importieren …“ eines in „Eigene Logos“ ablegen.": "No logos yet. \"Import logo …\" puts one into \"My logos\".",
  "Einfügepunkt (Bezugspunkt von Texten)": "Insertion point (reference point of texts)",
  "Format des Blatts; ändern über Seite > Format": "Format of the sheet; change it under Page > Format",
- "Name, darunter z. B. Straße und Ort (Enter: neue Zeile)": "Name, below it e.g. street and town (Enter: new line)"
+ "Name, darunter z. B. Straße und Ort (Enter: neue Zeile)": "Name, below it e.g. street and town (Enter: new line)",
+ "Sc&hirm": "S&hield",
+ "Schirm": "Shield",
+ "Kabelschirm: Linie quer über die Adern ziehen wie beim Kabel. Links und rechts bekommt der Schirm einen Anschlusspunkt für die Leitung zur Schirmklemme.": "Cable shield: draw a line across the cores as for a cable. The shield gets a connection point on the left and right for the wire to the shield terminal.",
+ "Schirm: Punkt neben der ersten Leitung angeben": "Shield: point beside the first wire",
+ "Schirm: Punkt hinter der letzten Leitung angeben": "Shield: point beyond the last wire",
+ "Schirm zeichnen": "Draw shield"
 }

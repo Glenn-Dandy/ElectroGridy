@@ -10,7 +10,15 @@ from collections.abc import Iterable
 from dataclasses import replace
 
 from electrogridy.model.document import Document
-from electrogridy.model.entities import CableMark, Entity, InterruptionPoint, Line, Text, Wire
+from electrogridy.model.entities import (
+    CableMark,
+    CableShield,
+    Entity,
+    InterruptionPoint,
+    Line,
+    Text,
+    Wire,
+)
 from electrogridy.model.geometry import Point
 from electrogridy.model.wires import EPS, segments
 
@@ -37,18 +45,20 @@ def default_cores(count: int) -> list[str]:
     return [str(i) for i in range(1, count)] + ["GNYE"] if count > 0 else []
 
 
-def is_horizontal(mark: CableMark) -> bool:
+def is_horizontal(mark: CableMark | CableShield) -> bool:
     return abs(mark.p2.x - mark.p1.x) >= abs(mark.p2.y - mark.p1.y)
 
 
-def _span(mark: CableMark) -> tuple[Point, Point]:
+def _span(mark: CableMark | CableShield) -> tuple[Point, Point]:
     """Both ends, the left (upper) one first."""
     a, b = mark.p1, mark.p2
     key = (lambda p: p.x) if is_horizontal(mark) else (lambda p: p.y)
     return (a, b) if key(a) <= key(b) else (b, a)
 
 
-def crossings(mark: CableMark, entities: Iterable[Entity]) -> list[tuple[Point, Wire]]:
+def crossings(
+    mark: CableMark | CableShield, entities: Iterable[Entity]
+) -> list[tuple[Point, Wire]]:
     """Wires crossing the mark, one point each, in order along the mark."""
     a, b = _span(mark)
     horizontal = is_horizontal(mark)

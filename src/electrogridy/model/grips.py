@@ -9,6 +9,7 @@ from electrogridy.model.entities import (
     BlockReference,
     Busbar,
     CableMark,
+    CableShield,
     Circle,
     ConnectionPoint,
     Dimension,
@@ -29,7 +30,7 @@ from electrogridy.model.primitives import arc_endpoints, rect_corners
 
 def grip_points(e: Entity) -> list[Point]:
     match e:
-        case Line() | Busbar() | CableMark():
+        case Line() | Busbar() | CableMark() | CableShield():
             return [e.p1, e.p2]
         case Wire():
             return [p for _, p in _wire_grips(e)]
@@ -118,7 +119,7 @@ def move_grip(e: Entity, index: int, p: Point) -> Entity | None:
         case Line() | Busbar():
             new = replace(e, p1=p) if index == 0 else replace(e, p2=p)
             return new if new.p1 != new.p2 else None
-        case CableMark():
+        case CableMark() | CableShield():
             # Stays across the conductors: only along its own direction.
             other = e.p2 if index == 0 else e.p1
             horizontal = abs(e.p2.x - e.p1.x) >= abs(e.p2.y - e.p1.y)

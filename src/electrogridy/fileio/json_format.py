@@ -28,6 +28,7 @@ from electrogridy.model.entities import (
     BlockReference,
     Busbar,
     CableMark,
+    CableShield,
     Circle,
     ConnectionPoint,
     Dimension,
@@ -126,6 +127,7 @@ _TYPE_NAMES: dict[type, str] = {
     JunctionMark: "junction",
     InterruptionPoint: "interruption",
     CableMark: "cable_mark",
+    CableShield: "cable_shield",
     Dimension: "dimension",
 }
 
@@ -201,6 +203,8 @@ def entity_to_dict(e: Entity) -> dict[str, Any]:
         case InterruptionPoint():
             d["name"], d["position"] = e.name, _pt(e.position)
             d["direction"], d["height"] = _angle(e.direction), e.height
+        case CableShield():
+            d["p1"], d["p2"] = _pt(e.p1), _pt(e.p2)
         case CableMark():
             d["p1"], d["p2"], d["name"], d["height"] = _pt(e.p1), _pt(e.p2), e.name, e.height
             if e.cable_type:
@@ -282,6 +286,8 @@ def entity_from_dict(d: dict[str, Any]) -> Entity:
                 height=float(d.get("height", 2.5)),
                 **common,
             )
+        case "cable_shield":
+            return CableShield(p1=_to_pt(d["p1"]), p2=_to_pt(d["p2"]), **common)
         case "junction":
             return JunctionMark(
                 position=_to_pt(d["position"]), connected=bool(d.get("connected", True)), **common
@@ -497,7 +503,7 @@ def _needs_version_3(doc: Document) -> bool:
     if doc.kind != DOC_SLD or any(s.kind or s.frame for s in doc.sheets):
         return True
     return any(
-        isinstance(e, InterruptionPoint | RasterImage | CableMark)
+        isinstance(e, InterruptionPoint | RasterImage | CableMark | CableShield)
         for c in doc.containers()
         for e in c
     )

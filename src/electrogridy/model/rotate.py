@@ -15,6 +15,7 @@ from electrogridy.model.entities import (
     BlockReference,
     Busbar,
     CableMark,
+    CableShield,
     Circle,
     ConnectionPoint,
     Dimension,
@@ -32,7 +33,7 @@ from electrogridy.model.entities import (
 from electrogridy.model.geometry import Point
 
 EPS = 1e-9
-QUARTER_ONLY = (BlockReference, Wire, Busbar, Viewport, RasterImage, CableMark)
+QUARTER_ONLY = (BlockReference, Wire, Busbar, Viewport, RasterImage, CableMark, CableShield)
 
 
 def rotate_point(p: Point, center: Point, degrees: float) -> Point:
