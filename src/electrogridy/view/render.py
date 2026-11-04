@@ -2,7 +2,7 @@
 
 import functools
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import (
@@ -178,6 +178,22 @@ def text_local_rect(e: Text) -> QRectF:
     top = dy - fm.ascent() * k
     bottom = dy + (len(widths) - 1) * LINE_SPACING * e.height + fm.descent() * k
     return QRectF(left, top, right - left, bottom - top)
+
+
+def realigned(e: Text, halign: str, valign: str) -> Text:
+    """``e`` with another reference point (``halign`` left/center/right, ``valign``
+    baseline/middle) where the text stays put: its box keeps its place, only the point
+    moves to the chosen spot."""
+    new = replace(e, halign=halign, valign=valign)
+    old_rect, new_rect = text_local_rect(e), text_local_rect(new)
+    shift = QTransform().rotate(-e.rotation).map(old_rect.topLeft() - new_rect.topLeft())
+    return replace(new, position=Point(e.position.x + shift.x(), e.position.y + shift.y()))
+
+
+def text_scene_center(e: Text) -> Point:
+    """Middle of the text's box on the drawing."""
+    c = _text_transform(e).map(text_local_rect(e).center())
+    return Point(c.x(), c.y())
 
 
 def text_scene_path(e: Text) -> QPainterPath:

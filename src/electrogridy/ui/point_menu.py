@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QCoreApplication
+from PyQt6.QtCore import QCoreApplication, QPointF
 
 from electrogridy.commands.blocks import AddBlockCommand, ReplaceBlockCommand
 from electrogridy.commands.entities import (
@@ -18,7 +18,15 @@ from electrogridy.fileio.paths import symbols_dir
 from electrogridy.i18n import library_text
 from electrogridy.model.blocks import BlockDefinition, dock_target, point_to_world
 from electrogridy.model.document import DOC_DRAWING
-from electrogridy.model.entities import BlockReference, JunctionMark, Line, Polyline, Wire, new_id
+from electrogridy.model.entities import (
+    BlockReference,
+    JunctionMark,
+    Line,
+    Polyline,
+    Text,
+    Wire,
+    new_id,
+)
 from electrogridy.model.geometry import Point
 from electrogridy.model.routing import split_wire
 from electrogridy.model.terminals import (
@@ -28,6 +36,7 @@ from electrogridy.model.terminals import (
     strips,
     terminal_kind,
 )
+from electrogridy.model.text_fields import field_center
 from electrogridy.model.wires import (
     entities_at,
     insert_point,
@@ -40,6 +49,8 @@ from electrogridy.model.wires import (
 from electrogridy.tools.draw import ExtendTool, LineTool
 from electrogridy.ui.space import BLOCK
 from electrogridy.ui.terminal_dialog import TerminalDialog
+from electrogridy.ui.text_dialog import text_anchors
+from electrogridy.view.render import realigned, text_scene_center, text_scene_path
 
 if TYPE_CHECKING:
     from electrogridy.ui.main_window import MainWindow
@@ -49,8 +60,10 @@ def tr(text: str) -> str:
     return QCoreApplication.translate("PointMenu", text)
 
 
-def point_actions(w: "MainWindow", p: Point) -> list[tuple[str, Callable[[], None]]]:
-    """Menu entries for the point ``p`` of the active container."""
+def point_actions(w: "MainWindow", p: Point, raw: Point | None = None) -> list[tuple]:
+    """Menu entries for the point ``p`` of the active container; ``raw`` is where the
+    mouse really is (texts under it). An entry is (label, callback) or (label, [entries])
+    for a submenu, whose entries may carry a third value: checked."""
     container = w.container
     entities = list(container)
     actions: list[tuple[str, Callable[[], None]]] = []
@@ -85,6 +98,7 @@ def point_actions(w: "MainWindow", p: Point) -> list[tuple[str, Callable[[], Non
             )
         )
 
+    actions += _text_actions(w, raw or p, entities, push)
     actions += _dock_actions(w, p, entities, push)
     actions += _wire_actions(w, p, entities, push)
 
@@ -130,6 +144,43 @@ def point_actions(w: "MainWindow", p: Point) -> list[tuple[str, Callable[[], Non
         elif isinstance(e, Line) and (same(e.p1, p) or same(e.p2, p)):
             actions.append((tr("Verlängern (Linie)"), lambda: w.start_tool(_line_from(p))))
     return actions
+
+
+def _text_actions(w, raw: Point, entities, push) -> list[tuple]:
+    """Reference point and centring of the selected texts, or of the text under the
+    mouse (Florian 2026-11-04: a text in the middle of a field)."""
+    selected = set(w.selected_ids())
+    texts = [e for e in entities if isinstance(e, Text) and e.id in selected]
+    if not texts:
+        at = QPointF(raw.x, raw.y)
+        texts = [e for e in entities if isinstance(e, Text) and text_scene_path(e).contains(at)]
+    if not texts:
+        return []
+    container = w.container
+    current = {(t.halign, t.valign) for t in texts}
+
+    def set_anchor(key) -> None:
+        changed = [realigned(t, *key) for t in texts]
+        push(ReplaceEntitiesCommand(container, changed, tr("Bezugspunkt ändern")))
+
+    def centre() -> None:
+        parts = w.field_parts({t.id for t in texts})
+        changed, missing = [], 0
+        for t in texts:
+            middle = field_center(text_scene_center(t), parts)
+            if middle is None:
+                missing += 1
+                continue
+            changed.append(replace(t, halign="center", valign="middle", position=middle))
+        if changed:
+            push(ReplaceEntitiesCommand(container, changed, tr("In Feld zentrieren")))
+        if missing:
+            w.message(tr("Kein geschlossenes Feld um den Text gefunden"))
+
+    anchors = [
+        (label, lambda key=key: set_anchor(key), current == {key}) for label, key in text_anchors()
+    ]
+    return [(tr("Bezugspunkt"), anchors), (tr("In Feld zentrieren"), centre)]
 
 
 def _wire_actions(w, p: Point, entities, push) -> list[tuple[str, Callable[[], None]]]:

@@ -43,6 +43,8 @@ from electrogridy.ui.styles import (
     lineweight_items,
     standard_colors,
 )
+from electrogridy.ui.text_dialog import text_anchors
+from electrogridy.view.render import realigned
 
 
 def tr(text: str) -> str:
@@ -98,6 +100,12 @@ class PropertiesDock(QDockWidget):
         self.txt_text.setMaximumHeight(90)
         self.btn_apply_text = QPushButton(self.tr("Text übernehmen"))
         self.cmb_height = HeightCombo()
+        self.cmb_anchor = QComboBox()
+        for label, key in text_anchors():
+            self.cmb_anchor.addItem(label, "|".join(key))
+        self.cmb_anchor.setToolTip(
+            self.tr("Wo der Punkt des Textes sitzt; der Text bleibt dabei stehen")
+        )
 
         self.cmb_layer.activated.connect(lambda _i: self._apply_combo(self.cmb_layer, "layer"))
         self.cmb_color.activated.connect(self._on_color)
@@ -106,6 +114,7 @@ class PropertiesDock(QDockWidget):
         )
         self.cmb_type.activated.connect(lambda _i: self._apply_combo(self.cmb_type, "linetype"))
         self.cmb_height.value_chosen.connect(self._apply_height)
+        self.cmb_anchor.activated.connect(lambda _i: self._apply_anchor())
         self.btn_apply_text.clicked.connect(self._apply_text)
 
         self.form = QFormLayout()
@@ -116,6 +125,7 @@ class PropertiesDock(QDockWidget):
         self.form.addRow(self.tr("Text:"), self.txt_text)
         self.form.addRow("", self.btn_apply_text)
         self.form.addRow(self.tr("Texthöhe:"), self.cmb_height)
+        self.form.addRow(self.tr("Bezugspunkt:"), self.cmb_anchor)
 
         # Area for type specific editors (block attributes).
         self.extra_area = QVBoxLayout()
@@ -164,6 +174,7 @@ class PropertiesDock(QDockWidget):
         self._set_row_visible(self.txt_text, all_text and len(texts) == 1)
         self._set_row_visible(self.btn_apply_text, all_text and len(texts) == 1)
         self._set_row_visible(self.cmb_height, all_text)
+        self._set_row_visible(self.cmb_anchor, all_text)
         if has:
             self._fill_layer(_common([e.layer for e in entities]))
             self._fill_color(_common([e.color or BY_LAYER for e in entities]))
@@ -173,6 +184,7 @@ class PropertiesDock(QDockWidget):
             if len(texts) == 1:
                 self.txt_text.setPlainText(texts[0].text)
             self.cmb_height.set_height(_common([t.height for t in texts]))
+            self._fill_simple(self.cmb_anchor, _common([f"{t.halign}|{t.valign}" for t in texts]))
         while self.extra_area.count():
             item = self.extra_area.takeAt(0)
             if item.widget():
@@ -272,6 +284,16 @@ class PropertiesDock(QDockWidget):
             self._push(new, self.tr("Eigenschaften ändern"))
             return
         self._apply_combo(self.cmb_color, "color")
+
+    def _apply_anchor(self) -> None:
+        if self._updating:
+            return
+        value = self.cmb_anchor.currentData()
+        if value == MIXED:
+            return
+        halign, valign = value.split("|")
+        new = [realigned(e, halign, valign) if isinstance(e, Text) else e for e in self._entities]
+        self._push(new, self.tr("Bezugspunkt ändern"))
 
     def _apply_text(self) -> None:
         if len(self._entities) != 1 or not isinstance(self._entities[0], Text):

@@ -153,20 +153,23 @@ from electrogridy.ui.sheet_dialogs import ProjectDialog
 from electrogridy.ui.space import BLOCK, MODEL, SHEET, Space
 from electrogridy.ui.start_dialog import StartDialog
 from electrogridy.ui.styles import MIXED, HeightCombo
-from electrogridy.ui.text_dialog import TextDialog
+from electrogridy.ui.text_dialog import LEFT_BASELINE, Anchor, TextDialog, text_anchors
 from electrogridy.view import theme
 from electrogridy.view.canvas import BACKGROUND_COLOR, EMPTY_EXTENTS, Canvas, select_items
 from electrogridy.view.display import (
     cable_cores_of,
     crossrefs_of,
+    expand_for_display,
+    frame_parts,
     interruption_targets_of,
     terminal_labels_of,
     terminal_texts,
+    title_block_parts,
     title_labels,
 )
 from electrogridy.view.items import EntityItem
 from electrogridy.view.junctions import JunctionItem
-from electrogridy.view.render import Style
+from electrogridy.view.render import Style, realigned
 from electrogridy.view.scene_sync import SceneSync
 
 APP_NAME = "ElectroGridy"
@@ -175,6 +178,7 @@ APP_NAME = "ElectroGridy"
 FAST_DISPLAY_KEY = "view/fast_display"
 # Set once the wiring tool bar (1.4.1.dev5) has been put in front of the draw tool bar.
 WIRING_TOOLBAR_KEY = "main_window/wiring_toolbar"
+TEXT_ANCHOR_KEY = "text/anchor"  # reference point of the text drawn last, "left|baseline"
 
 
 def wait_for_mouse_release() -> None:
@@ -197,10 +201,25 @@ OPEN_VIEW_KEY = "view/on_open"
 SNAP_PARTS_KEPT = 64  # symbols whose parts the object snap keeps
 RECENT_KEY, RECENT_COUNT = "files/recent", 10
 # Rails end this far inside the frame, room for the interruption arrows and references.
+# Rails start 15 mm inside the frame; an end with an interruption point keeps 22.5 mm
+# for "PEN  /12.9" (Florian 2026-11-04: on the left it ran into the frame).
 RAIL_INSET_LEFT, RAIL_INSET_RIGHT = 15.0, 22.5
 START_DIALOG_KEY = "start/show_dialog"
 OPEN_EXTENTS, OPEN_LAST, OPEN_ORIGIN = "extents", "last", "origin"
 LAST_VIEW_GROUP = "last_views"
+
+
+def _fill_menu(menu: QMenu, entries) -> None:
+    """Entries (label, callback), (label, callback, checked) or (label, [entries]) for a
+    submenu."""
+    for label, target, *checked in entries:
+        if isinstance(target, list):
+            _fill_menu(menu.addMenu(label), target)
+            continue
+        action = menu.addAction(label, target)
+        if checked:
+            action.setCheckable(True)
+            action.setChecked(bool(checked[0]))
 
 
 class MainWindow(QMainWindow):
@@ -405,11 +424,23 @@ class MainWindow(QMainWindow):
         items.sort(key=lambda i: i.zValue())
         return [i.entity_id for i in items]
 
-    def ask_text(self, text: str = "", height: float | None = None) -> tuple[str, float] | None:
-        dialog = TextDialog(self, text, height)
+    def ask_text(
+        self, text: str = "", height: float | None = None, anchor: Anchor | None = None
+    ) -> tuple[str, float, Anchor] | None:
+        """Content, height and reference point of a text; a new text (``anchor`` None)
+        proposes the reference point chosen last."""
+        settings = QSettings()
+        new = anchor is None
+        if new:
+            anchor = tuple(str(settings.value(TEXT_ANCHOR_KEY, "left|baseline")).split("|"))
+            if anchor not in [key for _label, key in text_anchors()]:
+                anchor = LEFT_BASELINE
+        dialog = TextDialog(self, text, height, anchor=anchor)
         if dialog.exec() != TextDialog.DialogCode.Accepted:
             return None
-        return dialog.text(), dialog.text_height()
+        if new:
+            settings.setValue(TEXT_ANCHOR_KEY, "|".join(dialog.anchor()))
+        return dialog.text(), dialog.text_height(), dialog.anchor()
 
     def message(self, text: str) -> None:
         self.statusBar().showMessage(text, 5000)
@@ -1508,7 +1539,7 @@ class MainWindow(QMainWindow):
             a, b = schematic_inner(*sheet.size)
             # Ends on the 2.5 mm grid, inside the insets.
             span = (
-                math.ceil((a.x + RAIL_INSET_LEFT) / GRID) * GRID,
+                math.ceil((a.x + (RAIL_INSET_RIGHT if ends else RAIL_INSET_LEFT)) / GRID) * GRID,
                 math.floor((b.x - RAIL_INSET_RIGHT) / GRID) * GRID,
             )
         self.start_tool(lambda ctx: RailsTool(ctx, names, ends, span))
@@ -1934,13 +1965,23 @@ class MainWindow(QMainWindow):
         self.canvas.osnap_modes = frozenset(modes)
 
     def _show_point_menu(self, scene_pos: QPointF, global_pos) -> None:
-        actions = point_actions(self, Point(scene_pos.x(), scene_pos.y()))
+        raw = self.canvas.menu_scene_raw or scene_pos
+        actions = point_actions(self, Point(scene_pos.x(), scene_pos.y()), Point(raw.x(), raw.y()))
         if not actions:
             return
         menu = QMenu(self)
-        for label, callback in actions:
-            menu.addAction(label, callback)
+        _fill_menu(menu, actions)
         menu.exec(global_pos)
+
+    def field_parts(self, skip: set[str]) -> list[Entity]:
+        """What may border a field around a text: the objects of the open area (symbols
+        taken apart) and on a page its frame and title block."""
+        parts = [q for e in self.container if e.id not in skip for q in self._expand(e)]
+        sheet = self.sheets.current_sheet()
+        if sheet is not None:
+            for e in [*frame_parts(self.document, sheet), *title_block_parts(self.document, sheet)]:
+                parts += expand_for_display(self.document, e)
+        return parts
 
     def _edit_osnap_settings(self) -> None:
         dialog = OsnapDialog(self.canvas.osnap_modes, self)
@@ -1984,14 +2025,17 @@ class MainWindow(QMainWindow):
             return
         if not isinstance(entity, Text):
             return
-        result = self.ask_text(entity.text, entity.height)
+        result = self.ask_text(entity.text, entity.height, (entity.halign, entity.valign))
         if result is None:
             return
-        content, height = result
-        if not content.strip() or (content, height) == (entity.text, entity.height):
+        content, height, (halign, valign) = result
+        if not content.strip():
             return
         changed = replace(entity, text=content, height=height)
-        self.push(ReplaceEntitiesCommand(self.container, [changed], self.tr("Text ändern")))
+        if (halign, valign) != (entity.halign, entity.valign):
+            changed = realigned(changed, halign, valign)
+        if changed != entity:
+            self.push(ReplaceEntitiesCommand(self.container, [changed], self.tr("Text ändern")))
 
     def _common(self, values: list) -> object:
         """The shared value, or MIXED when the selected objects differ."""

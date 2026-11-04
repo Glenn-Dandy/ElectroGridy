@@ -1025,5 +1025,18 @@
  "Schirm: Punkt neben der ersten Leitung angeben": "Shield: point beside the first wire",
  "Schirm: Punkt hinter der letzten Leitung angeben": "Shield: point beyond the last wire",
  "Schirm zeichnen": "Draw shield",
- "Leitungen": "Wiring"
+ "Leitungen": "Wiring",
+ "Links (Grundlinie)": "Left (baseline)",
+ "Mittig (Grundlinie)": "Centre (baseline)",
+ "Rechts (Grundlinie)": "Right (baseline)",
+ "Links, Mitte": "Left, middle",
+ "Mitte": "Middle",
+ "Rechts, Mitte": "Right, middle",
+ "Bezugspunkt:": "Reference point:",
+ "Bezugspunkt": "Reference point",
+ "Bezugspunkt ändern": "Change reference point",
+ "In Feld zentrieren": "Centre in field",
+ "Kein geschlossenes Feld um den Text gefunden": "No closed field found around the text",
+ "Wo der Punkt des Textes sitzt, an dem er gefangen und verschoben wird": "Where the point of the text sits by which it is snapped and moved",
+ "Wo der Punkt des Textes sitzt; der Text bleibt dabei stehen": "Where the point of the text sits; the text itself stays put"
 }

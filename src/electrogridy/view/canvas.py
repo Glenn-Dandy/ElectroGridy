@@ -191,6 +191,7 @@ class Canvas(QGraphicsView):
         self.setAcceptDrops(True)
 
         self._pan_last: QPointF | None = None
+        self.menu_scene_raw: QPointF | None = None
         self._cursor_view: QPointF | None = None  # raw mouse position in view pixels
         self._cursor_scene: QPointF | None = None  # snapped position in scene mm
         self._snap_hit: SnapHit | None = None
@@ -736,6 +737,9 @@ class Canvas(QGraphicsView):
                 self.controller.finish()
             else:
                 self._update_cursor(pos)
+                # The snapped point for the point menu, and where the mouse really is
+                # (to find a text under it).
+                self.menu_scene_raw = self.map_to_scene_f(pos)
                 self.point_menu_requested.emit(self._cursor_scene, global_pos)
         event.accept()
         self.viewport().update()

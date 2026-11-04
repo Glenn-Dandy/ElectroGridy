@@ -250,7 +250,8 @@ class TextTool(_DrawTool):
     def pick(self, p: Point) -> None:
         result = self.ctx.ask_text()
         if result is not None:
-            content, height = result
+            content, height, *anchor = result
+            halign, valign = anchor[0] if anchor else ("left", "baseline")
             if content.strip():
                 text = Text(
                     id=new_id(),
@@ -258,6 +259,8 @@ class TextTool(_DrawTool):
                     position=p,
                     text=content,
                     height=height,
+                    halign=halign,
+                    valign=valign,
                 )
                 self._add(text, tr("Text einfügen"))
         self.done = True
