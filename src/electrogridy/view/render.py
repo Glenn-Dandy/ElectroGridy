@@ -194,20 +194,49 @@ def _text_transform(e: Text) -> QTransform:
     return t
 
 
-def _paint_text(painter: QPainter, e: Text, color: QColor) -> None:
-    painter.save()
-    painter.setTransform(_text_transform(e), combine=True)
+@dataclass(frozen=True)
+class PreparedText:
+    """A text worked out for painting: what repaints would otherwise compute anew."""
+
+    height: float  # mm
+    transform: QTransform  # anchor, rotation and the scale of the layout font
+    lines: tuple[tuple[QPointF, str], ...]  # baseline start of each line, layout pixels
+
+
+def prepare_text(e: Text) -> PreparedText:
     k = _text_scale(e.height)
-    widths = _line_widths(e)
+    transform = _text_transform(e)
+    transform.scale(k, k)
     dy = _y_offset(e)
-    painter.scale(k, k)
+    lines = tuple(
+        (QPointF(_x_offset(e, w) / k, (dy + i * LINE_SPACING * e.height) / k), line)
+        for i, (line, w) in enumerate(zip(_text_lines(e), _line_widths(e), strict=True))
+    )
+    return PreparedText(e.height, transform, lines)
+
+
+@functools.lru_cache(maxsize=256)
+def _text_pen(rgba: int) -> QPen:
+    return QPen(QColor.fromRgba(rgba))
+
+
+def paint_prepared_text(painter: QPainter, text: PreparedText, color: QColor) -> None:
+    painter.save()
+    painter.setTransform(text.transform, combine=True)
     painter.setFont(_layout_font())
-    painter.setPen(QPen(color))
-    for i, (line, w) in enumerate(zip(_text_lines(e), widths, strict=True)):
-        x = _x_offset(e, w) / k
-        y = (dy + i * LINE_SPACING * e.height) / k
-        painter.drawText(QPointF(x, y), line)
+    painter.setPen(_text_pen(color.rgba()))
+    for position, line in text.lines:
+        painter.drawText(position, line)
     painter.restore()
+
+
+def text_shown(height: float, px_per_mm: float) -> bool:
+    """Texts too small to read are left out on the screen (``px_per_mm`` 0: output)."""
+    return px_per_mm <= 0 or height * px_per_mm >= MIN_SCREEN_TEXT_PX
+
+
+def _paint_text(painter: QPainter, e: Text, color: QColor) -> None:
+    paint_prepared_text(painter, prepare_text(e), color)
 
 
 # -- painting -------------------------------------------------------------
@@ -324,7 +353,7 @@ def paint_entity(
         return
     e = displayed(e)
     if isinstance(e, Text):
-        if px_per_mm <= 0 or e.height * px_per_mm >= MIN_SCREEN_TEXT_PX:
+        if text_shown(e.height, px_per_mm):
             _paint_text(painter, e, style.color)
         return
     if isinstance(e, RasterImage):

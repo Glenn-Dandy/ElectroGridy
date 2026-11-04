@@ -104,3 +104,48 @@ def test_click_selects_and_drag_right_to_left_crosses(setup):
     QTest.mouseMove(vp, view_point(canvas, 40, 65))
     QTest.mouseRelease(vp, Qt.MouseButton.LeftButton, pos=view_point(canvas, 40, 65))
     assert [i.entity_id for i in scene.selectedItems()] == ["b"]
+
+
+def test_item_paints_prepared_texts_like_plain_text_painting(qapp):
+    from PyQt6.QtGui import QImage, QPainter
+    from PyQt6.QtWidgets import QStyleOptionGraphicsItem
+
+    from electrogridy.model.entities import Text
+    from electrogridy.view.render import paint_entity
+
+    texts = [
+        Text(id="a", position=Point(10, 20), text="-Q1", height=3.5),
+        Text(
+            id="b",
+            position=Point(40, 30),
+            text="L1\nL2\nL3",
+            height=2.5,
+            rotation=90,
+            halign="center",
+            valign="middle",
+        ),
+        Text(
+            id="c", position=Point(70, 15), text="1,5 mm²", height=2.0, rotation=30, halign="right"
+        ),
+    ]
+    style = Style(QColor("#203040"), 0.25)
+
+    def picture(paint):
+        image = QImage(400, 200, QImage.Format.Format_ARGB32_Premultiplied)
+        image.fill(QColor("white"))
+        p = QPainter(image)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.scale(4, 4)
+        paint(p)
+        p.end()
+        return image
+
+    def by_item(p):
+        for t in texts:
+            EntityItem(t, lambda e: style).paint(p, QStyleOptionGraphicsItem())
+
+    def plain(p):
+        for t in texts:
+            paint_entity(p, t, style, 4.0)
+
+    assert picture(by_item) == picture(plain)

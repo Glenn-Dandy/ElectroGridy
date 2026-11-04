@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem
 
 from electrogridy.model.entities import ConnectionPoint, Entity, JunctionMark, Text
 from electrogridy.view.render import (
+    PreparedText,
     Style,
     connection_marker_path,
     displayed,
@@ -15,9 +16,12 @@ from electrogridy.view.render import (
     entity_path,
     junction_mark_path,
     paint_entity,
+    paint_prepared_text,
+    prepare_text,
     screen_pen,
     stroked,
     text_scene_path,
+    text_shown,
 )
 
 SELECTION_COLOR = QColor("#1e88e5")
@@ -78,10 +82,11 @@ class EntityItem(QGraphicsItem):
         self._styles = [self._resolve_style(part) for part in self._parts]
         bounds = QRectF()
         shape = QPainterPath()
-        # What paint() does: (style, path) draws a path with a pen, (style, part) paints
-        # the part. Neighbouring solid outlines of one style share a path, so a repaint
-        # needs one pen and one drawPath for them instead of one per part.
-        ops: list[tuple[Style, QPainterPath | Entity]] = []
+        # What paint() does: (style, path) draws a path with a pen, (style, text) a
+        # prepared text, (style, part) paints the part. Neighbouring solid outlines of
+        # one style share a path, so a repaint needs one pen and one drawPath for them
+        # instead of one per part.
+        ops: list[tuple[Style, QPainterPath | PreparedText | Entity]] = []
         for part, style in zip(self._parts, self._styles, strict=True):
             bounds = bounds.united(entity_bounds(part, style.lineweight))
             shown = displayed(part)
@@ -96,7 +101,9 @@ class EntityItem(QGraphicsItem):
                 stroker = QPainterPathStroker()
                 stroker.setWidth(max(style.lineweight, 0.01))
                 shape.addPath(stroker.createStroke(path))
-            if not stroked(shown):
+            if isinstance(shown, Text):
+                ops.append((style, prepare_text(shown)))
+            elif not stroked(shown):
                 ops.append((style, part))
             elif (
                 style.linetype == "continuous"
@@ -128,5 +135,8 @@ class EntityItem(QGraphicsItem):
             if isinstance(what, QPainterPath):
                 painter.setPen(screen_pen(style.color, style.lineweight, lod, style.linetype))
                 painter.drawPath(what)
+            elif isinstance(what, PreparedText):
+                if text_shown(what.height, lod):
+                    paint_prepared_text(painter, what, style.color)
             else:
                 paint_entity(painter, what, style, lod)
