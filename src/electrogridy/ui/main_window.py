@@ -624,10 +624,12 @@ class MainWindow(QMainWindow):
             self.act_shield,
             self.act_outlet,
         ]
-        # The draw menu in groups (Florian 2026-11-04: cables on top); hidden actions
-        # leave no empty group, Qt drops the doubled separators.
+        # Cable, shield and outlet share one entry: a submenu on top of the draw menu and
+        # one tool button with a drop-down (Florian 2026-11-04).
+        self.cable_actions = [self.act_cable, self.act_shield, self.act_outlet]
+        # The rest of the draw menu in groups; hidden actions leave no empty group, Qt
+        # drops the doubled separators.
         self.draw_groups = [
-            [self.act_cable, self.act_shield, self.act_outlet],
             [self.act_wire, self.act_busbar, self.act_rails, self.act_interruption],
             [
                 self.act_line,
@@ -871,6 +873,8 @@ class MainWindow(QMainWindow):
         self.settings_menu = m
 
         m = bar.addMenu(self.tr("&Zeichnen"))
+        self.cable_menu = m.addMenu(self.tr("&Kabel"))
+        self.cable_menu.addActions(self.cable_actions)
         for group in self.draw_groups:
             m.addSeparator()
             m.addActions(group)
@@ -915,7 +919,12 @@ class MainWindow(QMainWindow):
                     self.act_rotate_free,
                     self.act_dimension_aligned,
                     self.act_dimension_angle,
+                    self.act_shield,
+                    self.act_outlet,
                 ):
+                    continue
+                if action is self.act_cable:
+                    self.cable_button_action = bar.addWidget(self._cable_button())
                     continue
                 if action is self.act_rotate:
                     bar.addWidget(self._rotate_button())
@@ -938,6 +947,20 @@ class MainWindow(QMainWindow):
         button.clicked.connect(self.act_rotate_free.trigger)
         button.setToolTip(self.tr("Drehen um einen beliebigen Winkel; Pfeil: auch 90°-Schritte"))
         self.btn_rotate = button
+        return button
+
+    def _cable_button(self) -> QToolButton:
+        """ "Kabel" with a drop-down: cable, shield or cable outlet; the click repeats the
+        one chosen last."""
+        menu = QMenu(self)
+        menu.addActions(self.cable_actions)
+        button = QToolButton()
+        button.setMenu(menu)
+        button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        button.setDefaultAction(self.act_cable)
+        menu.triggered.connect(button.setDefaultAction)
+        self.btn_cable = button
         return button
 
     def _dimension_button(self) -> QToolButton:
@@ -2384,6 +2407,9 @@ class MainWindow(QMainWindow):
             action.setVisible(not drawing)
         for action in self.project_actions:
             action.setVisible(project)
+        self.cable_menu.menuAction().setVisible(project)
+        if hasattr(self, "cable_button_action"):
+            self.cable_button_action.setVisible(project)
         self.act_module_field.setVisible(drawing)
         self.project_menu.menuAction().setVisible(project)
         for dock in (self.pages_dock, self.devices_dock):

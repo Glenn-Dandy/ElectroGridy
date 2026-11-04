@@ -24,7 +24,8 @@ def test_shield_around_the_conductors_with_connection_points_in_the_grid():
     sides = [p for p in parts if isinstance(p, Line)]
     assert {(s.p1.y, s.linetype) for s in sides} == {(18.75, "dashdot"), (21.25, "dashdot")}
     assert len([p for p in parts if isinstance(p, Arc)]) == 2
-    ends = [(c.position, c.direction) for c in parts if isinstance(c, ConnectionPoint)]
+    assert not [p for p in parts if isinstance(p, ConnectionPoint)]  # not even helpers
+    ends = [(c.position, c.direction) for c in shield_connections(shield)]
     assert ends == [(Point(7.5, 20), 180.0), (Point(22.5, 20), 0.0)]
 
 
@@ -66,8 +67,12 @@ def window(qapp):
 
 def test_shield_tool_draws_it_in_the_project(window):
     assert window.act_shield.isVisible()
-    menu = [a for a in window.draw_menu.actions() if not a.isSeparator()]
-    assert menu[:3] == [window.act_cable, window.act_shield, window.act_outlet]
+    assert window.draw_menu.actions()[0] is window.cable_menu.menuAction()
+    assert window.cable_menu.actions() == [window.act_cable, window.act_shield, window.act_outlet]
+    assert window.cable_button_action.isVisible()
+    window.btn_cable.menu().actions()[1].trigger()  # the button now repeats the shield
+    assert window.btn_cable.defaultAction() is window.act_shield
+    window.tools.cancel()
     for wire in conductors([100, 105, 110], 60, 140):
         window.container.add(wire)
     window.act_shield.trigger()
@@ -81,3 +86,11 @@ def test_shield_tool_draws_it_in_the_project(window):
     ]
     window.act_undo.trigger()
     assert not [e for e in window.container if isinstance(e, CableShield)]
+
+
+def test_cable_entry_is_hidden_outside_projects(window):
+    from electrogridy.model.document import DOC_SLD
+
+    window.new_document(DOC_SLD)
+    assert not window.cable_menu.menuAction().isVisible()
+    assert not window.cable_button_action.isVisible()

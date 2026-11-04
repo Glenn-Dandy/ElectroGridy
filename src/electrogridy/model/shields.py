@@ -59,7 +59,8 @@ def shield_connections(shield: CableShield) -> list[ConnectionPoint]:
 
 
 def shield_geometry(shield: CableShield) -> list[Entity]:
-    """Long sides, rounded ends and the two connection points."""
+    """Long sides and rounded ends. The connection points are not drawn, not even as
+    helper markers (Florian 2026-11-04); they snap all the same."""
     a, b = _span(shield)
     r = RADIUS
     style = {"layer": shield.layer, "color": shield.color, "lineweight": shield.lineweight}
@@ -82,4 +83,4 @@ def shield_geometry(shield: CableShield) -> list[Entity]:
             Arc(id=f"{i}:end1", center=a, radius=r, start_angle=0, end_angle=180, **style),
             Arc(id=f"{i}:end2", center=b, radius=r, start_angle=180, end_angle=360, **style),
         ]
-    return parts + shield_connections(shield)
+    return parts
