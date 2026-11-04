@@ -173,6 +173,8 @@ APP_NAME = "ElectroGridy"
 # Fast display is on by default since 1.4.1; "view/layer_cache" (off by default before)
 # is no longer read, so it comes on once for everybody (Florian 2026-11-04).
 FAST_DISPLAY_KEY = "view/fast_display"
+# Set once the wiring tool bar (1.4.1.dev5) has been put in front of the draw tool bar.
+WIRING_TOOLBAR_KEY = "main_window/wiring_toolbar"
 
 
 def wait_for_mouse_release() -> None:
@@ -624,13 +626,15 @@ class MainWindow(QMainWindow):
             self.act_shield,
             self.act_outlet,
         ]
-        # Cable, shield and outlet share one entry: a submenu on top of the draw menu and
-        # one tool button with a drop-down (Florian 2026-11-04).
+        # Wiring has a tool bar of its own (Florian 2026-11-04): wire, bus bar and rails
+        # share one entry, cable, shield and outlet another; each is a submenu on top of
+        # the draw menu and a tool button with a drop-down.
+        self.wire_actions = [self.act_wire, self.act_busbar, self.act_rails]
         self.cable_actions = [self.act_cable, self.act_shield, self.act_outlet]
+        self.wiring_actions = [self.act_wire, self.act_interruption, self.act_cable]
         # The rest of the draw menu in groups; hidden actions leave no empty group, Qt
         # drops the doubled separators.
         self.draw_groups = [
-            [self.act_wire, self.act_busbar, self.act_rails, self.act_interruption],
             [
                 self.act_line,
                 self.act_polyline,
@@ -643,13 +647,6 @@ class MainWindow(QMainWindow):
             [self.act_module_field],
         ]
         self.draw_actions = [
-            self.act_wire,
-            self.act_busbar,
-            self.act_rails,
-            self.act_interruption,
-            self.act_cable,
-            self.act_shield,
-            self.act_outlet,
             self.act_line,
             self.act_polyline,
             self.act_rectangle,
@@ -873,6 +870,9 @@ class MainWindow(QMainWindow):
         self.settings_menu = m
 
         m = bar.addMenu(self.tr("&Zeichnen"))
+        self.wire_menu = m.addMenu(self.tr("Lei&tung"))
+        self.wire_menu.addActions(self.wire_actions)
+        m.addAction(self.act_interruption)
         self.cable_menu = m.addMenu(self.tr("&Kabel"))
         self.cable_menu.addActions(self.cable_actions)
         for group in self.draw_groups:
@@ -907,6 +907,7 @@ class MainWindow(QMainWindow):
         # Tools, grid, layers and libraries follow the kind of the open file.
         self.workspace = WORKSPACE_SLD
         for name, title, actions in (
+            ("wiring", self.tr("Leitungen"), self.wiring_actions),
             ("draw", self.tr("Zeichnen"), self.draw_actions),
             ("modify", self.tr("Ändern"), [*self.modify_actions, self.act_delete]),
             ("blocks", self.tr("Blöcke"), self.blocks.toolbar_actions()),
@@ -919,9 +920,10 @@ class MainWindow(QMainWindow):
                     self.act_rotate_free,
                     self.act_dimension_aligned,
                     self.act_dimension_angle,
-                    self.act_shield,
-                    self.act_outlet,
                 ):
+                    continue
+                if action is self.act_wire:
+                    self.wire_button_action = bar.addWidget(self._wire_button())
                     continue
                 if action is self.act_cable:
                     self.cable_button_action = bar.addWidget(self._cable_button())
@@ -934,6 +936,10 @@ class MainWindow(QMainWindow):
                     continue
                 bar.addAction(action)
             self.addToolBar(bar)
+            if name == "wiring":
+                self.wiring_toolbar = bar
+            elif name == "draw":
+                self.draw_toolbar = bar
 
     def _rotate_button(self) -> QToolButton:
         """ "Drehen" with a drop-down: any angle (the click) or 90° steps."""
@@ -947,6 +953,19 @@ class MainWindow(QMainWindow):
         button.clicked.connect(self.act_rotate_free.trigger)
         button.setToolTip(self.tr("Drehen um einen beliebigen Winkel; Pfeil: auch 90°-Schritte"))
         self.btn_rotate = button
+        return button
+
+    def _wire_button(self) -> QToolButton:
+        """ "Leitung" with a drop-down for bus bar and rails; the click is always a wire,
+        the tool needed most."""
+        menu = QMenu(self)
+        menu.addActions(self.wire_actions)
+        button = QToolButton()
+        button.setMenu(menu)
+        button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        button.setDefaultAction(self.act_wire)
+        self.btn_wire = button
         return button
 
     def _cable_button(self) -> QToolButton:
@@ -2308,6 +2327,10 @@ class MainWindow(QMainWindow):
         state = settings.value("main_window/state")
         if state is not None:
             self.restoreState(state)
+            if not settings.value(WIRING_TOOLBAR_KEY, False, type=bool):
+                # A layout saved before the wiring tool bar existed would put it last.
+                self.insertToolBar(self.draw_toolbar, self.wiring_toolbar)
+        settings.setValue(WIRING_TOOLBAR_KEY, True)
         self.act_grid.setChecked(settings.value("view/grid_visible", True, type=bool))
         self.act_snap.setChecked(settings.value("view/snap_enabled", True, type=bool))
         self.act_ortho.setChecked(settings.value("view/ortho_enabled", False, type=bool))
@@ -2408,8 +2431,12 @@ class MainWindow(QMainWindow):
         for action in self.project_actions:
             action.setVisible(project)
         self.cable_menu.menuAction().setVisible(project)
+        self.wire_menu.menuAction().setVisible(not drawing)
         if hasattr(self, "cable_button_action"):
             self.cable_button_action.setVisible(project)
+            self.wire_button_action.setVisible(not drawing)
+            # Nothing of it in drawings (roof layouts).
+            self.wiring_toolbar.setVisible(not drawing)
         self.act_module_field.setVisible(drawing)
         self.project_menu.menuAction().setVisible(project)
         for dock in (self.pages_dock, self.devices_dock):

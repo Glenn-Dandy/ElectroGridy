@@ -67,7 +67,12 @@ def window(qapp):
 
 def test_shield_tool_draws_it_in_the_project(window):
     assert window.act_shield.isVisible()
-    assert window.draw_menu.actions()[0] is window.cable_menu.menuAction()
+    assert window.draw_menu.actions()[:3] == [
+        window.wire_menu.menuAction(),
+        window.act_interruption,
+        window.cable_menu.menuAction(),
+    ]
+    assert window.wire_menu.actions() == [window.act_wire, window.act_busbar, window.act_rails]
     assert window.cable_menu.actions() == [window.act_cable, window.act_shield, window.act_outlet]
     assert window.cable_button_action.isVisible()
     window.btn_cable.menu().actions()[1].trigger()  # the button now repeats the shield
@@ -88,9 +93,18 @@ def test_shield_tool_draws_it_in_the_project(window):
     assert not [e for e in window.container if isinstance(e, CableShield)]
 
 
-def test_cable_entry_is_hidden_outside_projects(window):
-    from electrogridy.model.document import DOC_SLD
+def test_wiring_tool_bar_starts_a_wire_and_follows_the_kind_of_file(window):
+    assert window.wiring_toolbar.isVisible()
+    assert window.btn_wire.defaultAction() is window.act_wire
+    window.btn_wire.menu().actions()[1].trigger()  # bus bar from the drop-down
+    assert window.btn_wire.defaultAction() is window.act_wire  # the click stays a wire
+    window.tools.cancel()
+    from electrogridy.model.document import DOC_DRAWING, DOC_SLD
 
     window.new_document(DOC_SLD)
     assert not window.cable_menu.menuAction().isVisible()
     assert not window.cable_button_action.isVisible()
+    assert window.wire_menu.menuAction().isVisible() and window.wiring_toolbar.isVisible()
+    window.new_document(DOC_DRAWING)
+    assert not window.wire_menu.menuAction().isVisible()
+    assert not window.wiring_toolbar.isVisible()
