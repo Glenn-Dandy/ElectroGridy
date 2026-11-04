@@ -2,7 +2,7 @@
 
 import math
 from collections.abc import Iterable, Mapping
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 from electrogridy.model.blocks import BlockDefinition, world_connections
 from electrogridy.model.entities import (
@@ -134,6 +134,95 @@ def junctions(entities: Iterable[Entity]) -> list[tuple[Point, Entity]]:
         if mark.connected:
             dots[key] = (mark.position, mark)
     return list(dots.values())
+
+
+TEE_STYLE_KEY = "JUNCTION_STYLE"  # document property: "tee" draws T branches
+TEE_SIZE = 1.25  # mm: the branch stops this short of the through conductor
+
+
+@dataclass(frozen=True)
+class Tee:
+    """A T branch drawn with a diagonal instead of a dot: the branch wire stops
+    ``TEE_SIZE`` before the through conductor and a short diagonal joins it there."""
+
+    position: Point
+    wire: Entity  # gives the style
+    branch: tuple[float, float]  # unit vector from the junction into the branch
+    side: tuple[float, float]  # unit vector along the through conductor to the diagonal
+
+
+def _axis(a: Point, b: Point) -> tuple[float, float] | None:
+    """Unit vector from ``a`` to ``b`` if they lie on a horizontal or vertical line."""
+    if abs(a.y - b.y) <= EPS and abs(a.x - b.x) > EPS:
+        return (1.0 if b.x > a.x else -1.0, 0.0)
+    if abs(a.x - b.x) <= EPS and abs(a.y - b.y) > EPS:
+        return (0.0, 1.0 if b.y > a.y else -1.0)
+    return None
+
+
+def tees(entities: Iterable[Entity]) -> tuple[list[tuple[Point, Entity]], list[Tee]]:
+    """The junction dots split into those that stay dots and the T branches: one wire
+    end on the inside of a straight conductor across it, or three ends of which two
+    run on in a line. Crossings and other points stay dots."""
+    entities = list(entities)
+    wires = [e for e in entities if isinstance(e, Wire) and len(e.points) >= 2]
+    bars = [e for e in entities if isinstance(e, Busbar)]
+    marks = {
+        (round(m.position.x, 6), round(m.position.y, 6)): m
+        for m in entities
+        if isinstance(m, JunctionMark)
+    }
+    # Looked up per junction: wire ends by position, straight runs by their line.
+    ends_at: dict[tuple[float, float], list[tuple[Entity, tuple[float, float]]]] = {}
+    rows: dict[float, list[tuple[float, float]]] = {}  # y: horizontal runs (x from, to)
+    columns: dict[float, list[tuple[float, float]]] = {}  # x: vertical runs
+    for w in wires:
+        for i, j in ((0, 1), (-1, -2)):
+            direction = _axis(w.points[i], w.points[j])
+            if direction is not None:
+                key = (round(w.points[i].x, 6), round(w.points[i].y, 6))
+                ends_at.setdefault(key, []).append((w, direction))
+    for a, b in [s for w in wires for s in segments(w.points)] + [(e.p1, e.p2) for e in bars]:
+        if abs(a.y - b.y) <= EPS:
+            rows.setdefault(round(a.y, 6), []).append((min(a.x, b.x), max(a.x, b.x)))
+        elif abs(a.x - b.x) <= EPS:
+            columns.setdefault(round(a.x, 6), []).append((min(a.y, b.y), max(a.y, b.y)))
+
+    def inside(runs, v: float) -> bool:
+        return any(lo + EPS < v < hi - EPS for lo, hi in runs)
+
+    dots: list[tuple[Point, Entity]] = []
+    found: list[Tee] = []
+    for p, owner in junctions(entities):
+        x, y = round(p.x, 6), round(p.y, 6)
+        ends = ends_at.get((x, y), [])
+        through = None
+        if inside(rows.get(y, ()), p.x):
+            through = (1.0, 0.0)
+        elif inside(columns.get(x, ()), p.y):
+            through = (0.0, 1.0)
+        tee = None
+        if len(ends) == 1 and through is not None:
+            wire, branch = ends[0]
+            if branch[0] * through[0] + branch[1] * through[1] == 0:
+                tee = (wire, branch, through)
+        elif len(ends) == 3 and through is None:
+            for k in range(3):
+                (wire, branch), others = ends[k], [d for n, (_w, d) in enumerate(ends) if n != k]
+                opposite = others[0] == (-others[1][0], -others[1][1])
+                if opposite and branch[0] * others[0][0] + branch[1] * others[0][1] == 0:
+                    tee = (wire, branch, others[0])
+                    break
+        if tee is None:
+            dots.append((p, owner))
+            continue
+        wire, branch, axis = tee
+        axis = (abs(axis[0]), abs(axis[1]))  # right or down
+        mark = marks.get((round(p.x, 6), round(p.y, 6)))
+        if mark is not None and mark.side < 0:
+            axis = (-axis[0], -axis[1])
+        found.append(Tee(p, wire, branch, axis))
+    return dots, found
 
 
 def on_segment(p: Point, a: Point, b: Point) -> bool:

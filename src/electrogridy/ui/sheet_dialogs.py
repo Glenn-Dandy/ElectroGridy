@@ -34,6 +34,7 @@ from electrogridy.model.title_block import (
     MULTILINE_FIELDS,
     SHEET_FIELDS,
 )
+from electrogridy.model.wires import TEE_STYLE_KEY
 from electrogridy.view.thumbnails import block_icon
 
 # What the logo choosers need: the logos on offer (name: block) and a way to import one.
@@ -325,12 +326,31 @@ class ProjectDialog(QDialog):
                 edit.setPlaceholderText(self.tr("Straße, PLZ Ort (Komma trennt die Zeilen)"))
             form.addRow(f"{_label(tag)}:", _field_row(edit, self.logos.get(tag)))
             self._edits[tag] = edit
+        # How wire junctions are drawn in this project (Florian 2026-11-04: imported
+        # plans show T branches with a diagonal).
+        self.junctions = QComboBox()
+        self.junctions.addItem(self.tr("Punkte"), "")
+        self.junctions.addItem(self.tr("T-Abzweige (Schrägstrich)"), "tee")
+        self.junctions.setCurrentIndex(
+            max(self.junctions.findData(properties.get(TEE_STYLE_KEY, "")), 0)
+        )
+        self.junctions.setToolTip(
+            self.tr(
+                "Wie Abzweige von Leitungen gezeichnet werden: mit Punkt oder als T mit "
+                "kurzem Schrägstrich, wie in vielen importierten Plänen"
+            )
+        )
+        form.addRow(self.tr("Verbindungen:"), self.junctions)
         form.addRow(_buttons(self))
         self.resize(480, self.sizeHint().height())
 
     def properties(self) -> dict[str, str]:
         typed = {t: e.text() for t, e in self._edits.items() if e.text()}
-        return _with_logos(self._original, typed, self.logos)
+        result = _with_logos(self._original, typed, self.logos)
+        result.pop(TEE_STYLE_KEY, None)
+        if self.junctions.currentData():
+            result[TEE_STYLE_KEY] = self.junctions.currentData()
+        return result
 
 
 class TemplateChooserDialog(QDialog):

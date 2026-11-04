@@ -45,6 +45,7 @@ from electrogridy.model.wires import (
     remove_vertex,
     same,
     segments,
+    tees,
 )
 from electrogridy.tools.draw import ExtendTool, LineTool
 from electrogridy.ui.anchor_picker import AnchorPicker, shown_anchor
@@ -98,6 +99,7 @@ def point_actions(w: "MainWindow", p: Point, raw: Point | None = None) -> list[t
             )
         )
 
+    actions += _tee_actions(w, p, entities, push)
     actions += _text_actions(w, raw or p, entities, push)
     actions += _dock_actions(w, p, entities, push)
     actions += _wire_actions(w, p, entities, push)
@@ -144,6 +146,25 @@ def point_actions(w: "MainWindow", p: Point, raw: Point | None = None) -> list[t
         elif isinstance(e, Line) and (same(e.p1, p) or same(e.p2, p)):
             actions.append((tr("Verlängern (Linie)"), lambda: w.start_tool(_line_from(p))))
     return actions
+
+
+def _tee_actions(w, p: Point, entities, push) -> list[tuple]:
+    """In projects with T branches: turn the diagonal of the branch at ``p`` round."""
+    if not w.tee_style():
+        return []
+    _dots, branched = tees(entities)
+    tee = next((t for t in branched if same(t.position, p)), None)
+    if tee is None:
+        return []
+    container = w.container
+    mark = next((e for e in entities if isinstance(e, JunctionMark) and same(e.position, p)), None)
+    side = -1 if tee.side[0] + tee.side[1] > 0 else 1
+    if mark is not None:
+        new = [replace(mark, side=side)]
+    else:
+        new = [JunctionMark(id=new_id(), layer=tee.wire.layer, position=p, side=side)]
+    label = tr("T-Abzweig andersherum")
+    return [(label, lambda: push(ReplaceEntitiesCommand(container, new, label)))]
 
 
 def _text_actions(w, raw: Point, entities, push) -> list[tuple]:

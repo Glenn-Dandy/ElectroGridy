@@ -56,9 +56,23 @@ from electrogridy.model.title_block import (
     logo_references,
     schematic_text_boxes,
 )
-from electrogridy.model.wires import junction_diameter, junctions, label_text
+from electrogridy.model.wires import (
+    TEE_SIZE,
+    TEE_STYLE_KEY,
+    junction_diameter,
+    junctions,
+    label_text,
+    tees,
+)
 from electrogridy.view import theme
-from electrogridy.view.render import Style, entity_bounds, make_pen, paint_entity, text_width
+from electrogridy.view.render import (
+    Style,
+    entity_bounds,
+    make_pen,
+    paint_entity,
+    paint_tee,
+    text_width,
+)
 
 BLACK = QColor("black")
 VIEWPORT_HELPER_COLOR = QColor("#8a8a8a")
@@ -299,8 +313,18 @@ def paint_entities(
             if weight_factor != 1.0:
                 style = Style(style.color, style.lineweight * weight_factor, style.linetype)
             paint_entity(painter, part, style, px_per_mm, options.helpers)
+    found, branched = (
+        tees(shown) if doc.properties.get(TEE_STYLE_KEY) == "tee" else (junctions(shown), [])
+    )
+    paper = theme.current.paper if options.helpers else QColor("white")
+    for tee in branched:
+        style = resolve_style(doc, tee.wire, options)
+        weight = style.lineweight * weight_factor
+        if px_per_mm > 0:
+            weight = max(weight, 1.0 / px_per_mm)
+        paint_tee(painter, tee, weight, style.color, paper, TEE_SIZE * weight_factor)
     painter.setPen(Qt.PenStyle.NoPen)
-    for p, wire in junctions(shown):
+    for p, wire in found:
         style = resolve_style(doc, wire, options)
         d = junction_diameter(style.lineweight) * weight_factor
         painter.setBrush(QBrush(style.color))

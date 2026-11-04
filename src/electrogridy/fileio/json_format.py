@@ -200,6 +200,8 @@ def entity_to_dict(e: Entity) -> dict[str, Any]:
             d["name"], d["position"], d["direction"] = e.name, _pt(e.position), e.direction
         case JunctionMark():
             d["position"], d["connected"] = _pt(e.position), e.connected
+            if e.side:
+                d["side"] = e.side
         case InterruptionPoint():
             d["name"], d["position"] = e.name, _pt(e.position)
             d["direction"], d["height"] = _angle(e.direction), e.height
@@ -290,7 +292,10 @@ def entity_from_dict(d: dict[str, Any]) -> Entity:
             return CableShield(p1=_to_pt(d["p1"]), p2=_to_pt(d["p2"]), **common)
         case "junction":
             return JunctionMark(
-                position=_to_pt(d["position"]), connected=bool(d.get("connected", True)), **common
+                position=_to_pt(d["position"]),
+                connected=bool(d.get("connected", True)),
+                side=int(d.get("side", 0)),
+                **common,
             )
         case "viewport":
             scale = float(d.get("scale", 1.0))

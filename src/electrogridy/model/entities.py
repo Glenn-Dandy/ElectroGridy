@@ -489,11 +489,14 @@ class InterruptionPoint(Entity):
 class JunctionMark(Entity):
     """Manual override of the automatic connection dot at ``position``.
 
-    ``connected`` True forces a dot, False suppresses an automatic one.
+    ``connected`` True forces a dot, False suppresses an automatic one. ``side`` turns
+    a T branch drawn with a diagonal (project setting): 1 or 0 the diagonal towards
+    the right (down), -1 towards the left (up).
     """
 
     position: Point
     connected: bool = True
+    side: int = 0
 
     def _mapped(self, fn, quarters):
         return replace(self, position=fn(self.position))

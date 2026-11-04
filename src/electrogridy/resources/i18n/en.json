@@ -1042,5 +1042,10 @@
  "unten mittig": "bottom centre",
  "unten rechts": "bottom right",
  "links": "left",
- "rechts": "right"
+ "rechts": "right",
+ "Punkte": "Dots",
+ "T-Abzweige (Schrägstrich)": "T branches (diagonal)",
+ "Wie Abzweige von Leitungen gezeichnet werden: mit Punkt oder als T mit kurzem Schrägstrich, wie in vielen importierten Plänen": "How wire branches are drawn: with a dot or as a T with a short diagonal, as in many imported plans",
+ "Verbindungen:": "Junctions:",
+ "T-Abzweig andersherum": "Turn T branch round"
 }

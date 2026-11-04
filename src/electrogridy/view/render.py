@@ -302,6 +302,27 @@ def stroked(e: Entity) -> bool:
     return not isinstance(e, Text | ConnectionPoint | JunctionMark | RasterImage)
 
 
+def paint_tee(
+    painter: QPainter, tee, lineweight: float, color: QColor, background: QColor, size: float
+) -> None:
+    """A T branch with a diagonal: the last ``size`` mm of the branch are covered in the
+    background colour, a diagonal joins its new end to the through conductor."""
+    p, (bx, by), (sx, sy) = tee.position, tee.branch, tee.side
+    half = lineweight / 2
+    cover = QPen(background, lineweight * 1.6)
+    cover.setCapStyle(Qt.PenCapStyle.FlatCap)
+    painter.setPen(cover)
+    painter.drawLine(
+        QPointF(p.x + bx * half, p.y + by * half), QPointF(p.x + bx * size, p.y + by * size)
+    )
+    pen = QPen(color, lineweight)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    painter.setPen(pen)
+    painter.drawLine(
+        QPointF(p.x + bx * size, p.y + by * size), QPointF(p.x + sx * size, p.y + sy * size)
+    )
+
+
 def displayed(e: Entity) -> Entity:
     """Attribute definitions show their tag outside of block references."""
     if isinstance(e, AttributeDefinition):

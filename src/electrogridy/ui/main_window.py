@@ -102,7 +102,7 @@ from electrogridy.model.sheet import schematic_inner
 from electrogridy.model.shields import shield_connections, shield_geometry
 from electrogridy.model.snap import ALL_MODES, SnapHit, SnapMode
 from electrogridy.model.title_block import schematic_title_block_definition
-from electrogridy.model.wires import label_anchor, label_text, project_on_path
+from electrogridy.model.wires import TEE_STYLE_KEY, label_anchor, label_text, project_on_path
 from electrogridy.printing.output import export_pdf, export_png, export_svg
 from electrogridy.tools.controller import ToolController, ToolFactory
 from electrogridy.tools.coord_input import CoordinateError, parse_coordinate
@@ -349,7 +349,13 @@ class MainWindow(QMainWindow):
         )
         scene.selectionChanged.connect(self._on_selection_changed)
         junction_item = JunctionItem(
-            container, self._resolve_style, lambda e: self._layer_state(e)[0]
+            container,
+            self._resolve_style,
+            lambda e: self._layer_state(e)[0],
+            self.tee_style,
+            (lambda: theme.current.paper)
+            if kind == SHEET
+            else (lambda: theme.surface(self.canvas.background_color)),
         )
         scene.addItem(junction_item)
         space = Space(kind, container, scene, sync, stack)
@@ -1309,7 +1315,18 @@ class MainWindow(QMainWindow):
         self.document.unsubscribe_sheets(self._on_sheets_changed)
         self.document.model_space.unsubscribe(self._on_model_changed)
 
+    def tee_style(self) -> bool:
+        """The project draws T branches with a diagonal instead of dots."""
+        return self.document.properties.get(TEE_STYLE_KEY) == "tee"
+
+    def _refresh_junctions(self) -> None:
+        for space in self.spaces():
+            space.extra["junctions"].recompute()
+
     def _on_sheets_changed(self) -> None:
+        if self.tee_style() != getattr(self, "_shown_tee_style", False):
+            self._shown_tee_style = self.tee_style()
+            self._refresh_junctions()
         self.sheets.on_sheets_changed()
         if hasattr(self, "pages_dock"):
             self.pages_dock.rebuild()
