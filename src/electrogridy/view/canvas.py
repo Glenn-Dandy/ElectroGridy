@@ -121,8 +121,9 @@ class Canvas(QGraphicsView):
     empty_double_clicked = pyqtSignal(QPointF)
     # Right click without a running command: snapped scene point and global position.
     point_menu_requested = pyqtSignal(QPointF, QPoint)
-    # Shift and an arrow key outside a command: move the selection (steps right, down).
-    nudge_requested = pyqtSignal(int, int)
+    # Shift and an arrow key outside a command: move the selection by (dx, dy) steps;
+    # the third value is True with Ctrl as well (fine steps).
+    nudge_requested = pyqtSignal(int, int, bool)
     # Shift + right click: object snap mode menu at the global position.
     osnap_menu_requested = pyqtSignal(QPoint)
 
@@ -1039,7 +1040,8 @@ class Canvas(QGraphicsView):
             and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
             and not self._tool_active()
         ):
-            self.nudge_requested.emit(*step)
+            fine = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
+            self.nudge_requested.emit(*step, fine)
             event.accept()
             return
         if key == Qt.Key.Key_Escape:

@@ -143,6 +143,10 @@ def test_shift_and_arrow_keys_move_the_selection_in_one_undo_step(window):
     assert window.container.get("w").points[0] == Point(22, 11)  # the wire follows
     QTest.keyClick(window.canvas, Qt.Key.Key_Right)  # without Shift: nothing moves
     assert window.container.get("l").p1 == Point(12, 11)
+    fine = Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier
+    for _ in range(3):
+        QTest.keyClick(window.canvas, Qt.Key.Key_Left, fine)
+    assert window.container.get("l").p1 == Point(11.7, 11)  # 0.1 mm each, rounded
     window.act_undo.trigger()  # all presses at once
     assert window.container.get("l").p1 == Point(10, 10)
     assert window.container.get("w").points[0] == Point(20, 10)

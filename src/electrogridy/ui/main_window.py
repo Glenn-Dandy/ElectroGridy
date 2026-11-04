@@ -186,6 +186,7 @@ FAST_DISPLAY_KEY = "view/fast_display"
 # Set once the wiring tool bar (1.4.1.dev5) has been put in front of the draw tool bar.
 WIRING_TOOLBAR_KEY = "main_window/wiring_toolbar"
 NUDGE_STEP = 1.0  # mm per Shift + arrow key (Florian 2026-11-04)
+FINE_NUDGE_STEP = 0.1  # mm per Ctrl + Shift + arrow key
 TEXT_ANCHOR_KEY = "text/anchor"  # reference point of the text drawn last, "left|bottom"
 
 
@@ -1992,13 +1993,15 @@ class MainWindow(QMainWindow):
         _fill_menu(menu, actions)
         menu.exec(global_pos)
 
-    def nudge_selection(self, dx: int, dy: int) -> None:
-        """Move the selection ``NUDGE_STEP`` mm per step; attached wires follow."""
+    def nudge_selection(self, dx: int, dy: int, fine: bool = False) -> None:
+        """Move the selection ``NUDGE_STEP`` mm per step (``FINE_NUDGE_STEP`` with Ctrl);
+        attached wires follow."""
+        step = FINE_NUDGE_STEP if fine else NUDGE_STEP
         ids = [i for i in self.selected_ids() if i in self.container]
         if not ids:
             return
         old = [self.container.get(i) for i in ids]
-        new = [e.translated(dx * NUDGE_STEP, dy * NUDGE_STEP) for e in old]
+        new = [e.nudged(dx * step, dy * step) for e in old]
         moved = with_followers(self, old, new, separate=True)
         self.push(
             NudgeCommand(self.container, moved, self.tr("Verschieben (Pfeiltaste)"), frozenset(ids))

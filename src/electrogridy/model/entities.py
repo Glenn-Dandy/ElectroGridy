@@ -31,6 +31,11 @@ class Entity:
     def translated(self, dx: float, dy: float) -> Self:
         return self._mapped(lambda p: p.translated(dx, dy), 0)
 
+    def nudged(self, dx: float, dy: float) -> Self:
+        """Moved by a small step, the points rounded to a thousandth of a millimetre so
+        that many steps of 0.1 mm do not leave 12.300000000000001."""
+        return self._mapped(lambda p: Point(round(p.x + dx, 3), round(p.y + dy, 3)), 0)
+
     def rotated(self, center: Point, quarters: int) -> Self:
         return self._mapped(lambda p: rotate_quarter(p, center, quarters), quarters % 4)
 
