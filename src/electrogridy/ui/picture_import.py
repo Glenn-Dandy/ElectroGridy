@@ -11,7 +11,19 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
-from PyQt6.QtCore import QBuffer, QIODevice, QPointF, QRectF, QSize, Qt, pyqtSignal
+from PyQt6.QtCore import (
+    QBuffer,
+    QCoreApplication,
+    QEventLoop,
+    QIODevice,
+    QPointF,
+    QRectF,
+    QSettings,
+    QSize,
+    Qt,
+    QThread,
+    pyqtSignal,
+)
 from PyQt6.QtGui import (
     QBrush,
     QColor,
@@ -42,15 +54,16 @@ from PyQt6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QProgressDialog,
     QVBoxLayout,
     QWidget,
 )
 
 from electrogridy.fileio import ocr, pdf_import
-from electrogridy.model.entities import Circle, Entity, Line, RasterImage, Text, new_id
+from electrogridy.model.entities import Entity, RasterImage, new_id
 from electrogridy.model.geometry import Point
 from electrogridy.model.paper import Orientation, paper_of
-from electrogridy.model.vectorize import Ring, Stroke, vectorize
+from electrogridy.model.vectorize import Ring, Stroke
 
 PICTURE_SUFFIXES = (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".gif", ".webp")
 PREVIEW_DPI = 100
@@ -63,6 +76,11 @@ TEXT_SIDES = (1600, 6000)
 MAX_PICTURE_SIDE = 2400  # pixels kept of a picture
 PICTURE_WIDTH = 250.0  # mm, first suggestion for pictures without a size
 VECTORS, PICTURE, TRACE = "vectors", "picture", "trace"
+QUALITY_KEY = "import/quality"  # reading texts with the fast or the exact models
+
+
+def tr(text: str) -> str:
+    return QCoreApplication.translate("ImportDialog", text)
 
 
 def pdf_available() -> bool:
@@ -215,88 +233,12 @@ def ink(image: QImage) -> tuple[int, int, bytes]:
     return w, h, values.translate(table)
 
 
-def skew_angle(image: QImage) -> float:
-    """Small turn (degrees, counter-clockwise) that makes the strokes horizontal:
-    the turn whose rows of ink are the most uneven."""
-    small = limited(image, 800)
-    w, h, data = ink(small)
-    picture = QImage(data, w, h, w, QImage.Format.Format_Grayscale8).copy()
-    best, best_angle = -1.0, 0.0
-    for step in range(-20, 21):
-        angle = step * 0.25
-        turned = picture.transformed(QTransform().rotate(-angle))
-        tw, th, rows = _gray_bytes(turned)
-        score = sum(rows.count(1, y * tw, (y + 1) * tw) ** 2 for y in range(th))
-        if score > best:
-            best, best_angle = score, angle
-    return best_angle
+def traced(image: QImage, width_mm: float, quality: str = ocr.FAST) -> list[Entity]:
+    """Lines, circles and texts from a picture, ``width_mm`` wide, top left at (0, 0)
+    (see ``picture_trace``)."""
+    from electrogridy.ui.picture_trace import trace_picture
 
-
-def straightened(image: QImage, angle: float) -> QImage:
-    if abs(angle) < 1e-6:
-        return image
-    turned = QImage(image.convertToFormat(QImage.Format.Format_RGB32))
-    turned = turned.transformed(
-        QTransform().rotate(-angle), Qt.TransformationMode.SmoothTransformation
-    )
-    # The corners the turn uncovers become paper, not black.
-    filled = QImage(turned.size(), QImage.Format.Format_RGB32)
-    filled.fill(QColor("white"))
-    painter = QPainter(filled)
-    painter.drawImage(0, 0, turned)
-    painter.end()
-    return filled
-
-
-def traced(image: QImage, width_mm: float) -> list[Entity]:
-    """Lines, circles and texts from a picture, ``width_mm`` wide, top left at (0, 0)."""
-    work = limited(image, TRACE_SIDE)
-    if max(work.width(), work.height()) < TRACE_MIN_SIDE:
-        # Small pictures: lines a pixel thin break apart; enlarge first.
-        work = work.scaled(
-            TRACE_MIN_SIDE,
-            TRACE_MIN_SIDE,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-    w, h, data = ink(work)
-    k = width_mm / w
-    shapes = vectorize(w, h, data)
-    labels = read_texts(image, w, shapes) if ocr.available() else []
-    out: list[Entity] = []
-    for shape in shapes:
-        if any(_covers(label, shape) for label in labels):
-            continue  # a letter
-        if isinstance(shape, Stroke):
-            p1 = Point(round(shape.x1 * k, 2), round(shape.y1 * k, 2))
-            p2 = Point(round(shape.x2 * k, 2), round(shape.y2 * k, 2))
-            if p1 != p2:
-                linetype = "dashed" if shape.dashed else None
-                out.append(Line(id=new_id(), p1=p1, p2=p2, linetype=linetype))
-        elif isinstance(shape, Ring):
-            out.append(
-                Circle(
-                    id=new_id(),
-                    center=Point(round(shape.cx * k, 2), round(shape.cy * k, 2)),
-                    radius=round(shape.r * k, 2),
-                )
-            )
-    for label in labels:
-        x, y = {
-            0: (label.left, label.baseline),
-            90: (label.baseline, label.bottom),
-            270: (label.baseline, label.top),
-        }[label.rotation]
-        out.append(
-            Text(
-                id=new_id(),
-                position=Point(round(x * k, 2), round(y * k, 2)),
-                text=label.text,
-                height=round(label.cap_height * k, 2),
-                rotation=label.rotation,
-            )
-        )
-    return out
+    return trace_picture(image, width_mm, quality).entities
 
 
 @dataclass(frozen=True)
@@ -313,20 +255,6 @@ class Label:
     cap_height: float
     confidence: float
     rotation: int = 0  # 90: reads upwards, 270: downwards
-
-
-def _covers(label: Label, shape: Stroke | Ring) -> bool:
-    m = 2
-    if isinstance(shape, Ring):
-        xs, ys = (shape.cx - shape.r, shape.cx + shape.r), (shape.cy - shape.r, shape.cy + shape.r)
-    else:
-        xs, ys = (shape.x1, shape.x2), (shape.y1, shape.y2)
-    return (
-        label.left - m <= min(xs)
-        and max(xs) <= label.right + m
-        and label.top - m <= min(ys)
-        and max(ys) <= label.bottom + m
-    )
 
 
 def _png(image: QImage) -> bytes:
@@ -368,9 +296,21 @@ def text_picture(
     return picture
 
 
-def read_texts(image: QImage, traced_width: int, shapes: list[Stroke | Ring]) -> list[Label]:
+def read_texts(
+    image: QImage,
+    traced_width: int,
+    shapes: list[Stroke | Ring],
+    quality: str = ocr.FAST,
+    done=None,
+) -> list[Label]:
     """Texts in the picture, across and upright, in the pixels of the traced picture
-    (``traced_width`` wide)."""
+    (``traced_width`` wide), as tesseract lays out the page; ``done(share)`` after each
+    of its four runs."""
+
+    def tick(share: float) -> None:
+        if done is not None:
+            done(share)
+
     side = max(image.width(), image.height())
 
     def scaled(longer: float) -> QImage:
@@ -388,7 +328,8 @@ def read_texts(image: QImage, traced_width: int, shapes: list[Stroke | Ring]) ->
     # A first look tells how high the letters are; then read them at the size tesseract
     # likes, with only the lines painted over that are longer than letters are high.
     picture, f = prepared(scaled(TEXT_SIDE), traced_width / 64)
-    first = ocr.text_lines(ocr.read_words(_png(picture)))
+    first = ocr.text_lines(ocr.read_words(_png(picture), quality))
+    tick(0.25)
     # Measuring needs no sure reading, only one of a few letters.
     sure = sorted(x.cap_height for x in first if x.confidence >= 60 and len(x.text) >= 3)
     if sure:
@@ -405,12 +346,13 @@ def read_texts(image: QImage, traced_width: int, shapes: list[Stroke | Ring]) ->
         (-90, lambda u, v: (w - v, u)),
     )
     found = []
-    for turn, back in passes:
+    for k, (turn, back) in enumerate(passes):
         if turn == 0 and first is not None:
             lines = first
         else:
             turned = picture.transformed(QTransform().rotate(turn)) if turn else picture
-            lines = ocr.text_lines(ocr.read_words(_png(turned)))
+            lines = ocr.text_lines(ocr.read_words(_png(turned), quality))
+        tick(0.25 + 0.25 * (k + 1))
         for line in lines:
             corners = [back(line.left, line.top), back(line.right, line.bottom)]
             xs, ys = [c[0] / f for c in corners], [c[1] / f for c in corners]
@@ -634,9 +576,22 @@ class ImportDialog(QDialog):
         self.mode = QComboBox()
         self.mode.addItem(self.tr("Linien und Texte (PDF aus einem CAD-Programm)"), VECTORS)
         self.mode.addItem(self.tr("Bild"), PICTURE)
-        self.mode.addItem(self.tr("Bild in Linien umwandeln (Versuch)"), TRACE)
+        self.mode.addItem(self.tr("Bild in Linien und Texte umwandeln"), TRACE)
         self.keep = QCheckBox(self.tr("Bild darunter behalten"))
         self.keep.setChecked(True)
+        # Texts read with the models of the system (fast) or the more exact ones
+        # shipped with the program (tessdata_best: about twice as long).
+        self.quality = QComboBox()
+        self.quality.addItem(self.tr("Genau (dauert länger)"), ocr.EXACT)
+        self.quality.addItem(self.tr("Schnell"), ocr.FAST)
+        exact = ocr.exact_available()
+        self.quality.model().item(0).setEnabled(exact)
+        chosen = QSettings().value(QUALITY_KEY, ocr.EXACT, type=str)
+        index = self.quality.findData(chosen if exact or chosen == ocr.FAST else ocr.FAST)
+        self.quality.setCurrentIndex(max(0, index if exact or index == 1 else 1))
+        self.quality.currentIndexChanged.connect(
+            lambda _i: QSettings().setValue(QUALITY_KEY, self.quality.currentData())
+        )
         self.width_mm = QDoubleSpinBox()
         self.width_mm.setRange(10.0, 5000.0)
         self.width_mm.setDecimals(1)
@@ -658,6 +613,8 @@ class ImportDialog(QDialog):
             form.addRow(self.tr("Format der Seite:"), self.paper)
         form.addRow(self.tr("Übernehmen als:"), self.mode)
         form.addRow("", self.keep)
+        form.addRow(self.tr("Texterkennung:"), self.quality)
+        self.form = form
         form.addRow(self.tr("Breite des Bereichs:"), self.width_mm)
         right = QVBoxLayout()
         how = self.tr("Bereich mit der Maus aufziehen; ein Klick wählt wieder alles.")
@@ -794,6 +751,7 @@ class ImportDialog(QDialog):
     def _mode_changed(self, *_args) -> None:
         mode = self.mode.currentData()
         self.keep.setVisible(mode == TRACE)
+        self.form.setRowVisible(self.quality, mode == TRACE)
         hints = {
             VECTORS: self.tr(
                 "Linien, Kreise und Texte werden einzelne Objekte. Symbole kommen als "
@@ -801,8 +759,9 @@ class ImportDialog(QDialog):
             ),
             PICTURE: self.tr("Der Bereich kommt als Bild, zum Nachzeichnen oder so lassen."),
             TRACE: self.tr(
-                "Versuch: Linien, gestrichelte Linien, Kreise und Texte werden erkannt. "
-                "Texte bitte prüfen, kleine Schrift wird oft falsch gelesen."
+                "Linien, gestrichelte Linien, Kreise und Texte werden erkannt; ein "
+                "gewölbtes oder schräg fotografiertes Blatt wird dabei gerade gerichtet. "
+                "Texte bitte prüfen, kleine Schrift wird manchmal falsch gelesen."
             ),
         }
         self.hint.setText(hints[mode])
@@ -826,10 +785,20 @@ class ImportDialog(QDialog):
         rect = QRectF(f.left() * w, f.top() * h, f.width() * w, f.height() * h).toRect()
         return image.copy(rect), photo
 
-    def entities(self) -> list[Entity]:
-        """What to place, top left at (0, 0), in mm."""
+    def entities(self) -> list[Entity] | None:
+        """What to place, top left at (0, 0), in mm; None if the user stopped it."""
         mode = self.mode.currentData()
         width = self.width_mm.value()
+        if mode == TRACE:
+            image, photo = self._region_image(IMAGE_DPI)
+            result = traced_with_progress(
+                self.parentWidget(), image, width, self.quality.currentData()
+            )
+            if result is None:
+                return None
+            if self.keep.isChecked() and result.picture is not None:
+                return [picture_entity(result.picture, width, photo), *result.entities]
+            return result.entities
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             if mode == VECTORS:
@@ -844,16 +813,65 @@ class ImportDialog(QDialog):
                 scale = width / max(1e-9, region_width_mm(region))
                 return pdf_import.page_entities(self.source.path, self.page, region, scale)
             image, photo = self._region_image(IMAGE_DPI)
-            if mode == PICTURE:
-                return [picture_entity(image, width, photo)]
-            angle = skew_angle(image)
-            image = straightened(image, angle)
-            lines = traced(image, width)
-            if self.keep.isChecked():
-                return [picture_entity(image, width, photo), *lines]
-            return lines
+            return [picture_entity(image, width, photo)]
         finally:
             QApplication.restoreOverrideCursor()
+
+
+class _TraceThread(QThread):
+    """The tracing away from the window, so that it stays drawn and can stop it."""
+
+    progressed = pyqtSignal(float, str)
+
+    def __init__(self, image: QImage, width_mm: float, quality: str) -> None:
+        super().__init__()
+        self.image, self.width_mm, self.quality = image, width_mm, quality
+        self.result = None
+        self.error: BaseException | None = None
+        self.stopped = False
+
+    def run(self) -> None:  # noqa: D102 - Qt API
+        from electrogridy.ui.picture_trace import Cancelled, trace_picture
+
+        try:
+            self.result = trace_picture(self.image, self.width_mm, self.quality, self._progress)
+        except Cancelled:
+            self.result = None
+        except Exception as error:  # noqa: BLE001 - shown in the window's thread
+            self.error = error
+
+    def _progress(self, fraction: float, text: str) -> bool:
+        self.progressed.emit(fraction, text)
+        return not self.stopped
+
+
+def traced_with_progress(parent, image: QImage, width_mm: float, quality: str):
+    """``trace_picture`` with a progress bar that can stop it; None when stopped."""
+    thread = _TraceThread(image, width_mm, quality)
+    dialog = QProgressDialog(tr("Das Bild wird umgewandelt …"), tr("Abbrechen"), 0, 1000, parent)
+    dialog.setWindowTitle(tr("Schaltplan importieren"))
+    dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
+    dialog.setMinimumDuration(300)
+    dialog.setAutoClose(False)
+    dialog.setAutoReset(False)
+
+    def show(fraction: float, text: str) -> None:
+        dialog.setValue(round(1000 * fraction))
+        dialog.setLabelText(text)
+
+    thread.progressed.connect(show)
+    dialog.canceled.connect(lambda: setattr(thread, "stopped", True))
+    loop = QEventLoop()
+    thread.finished.connect(loop.quit)
+    thread.start()
+    loop.exec()
+    thread.wait()
+    stopped = thread.stopped
+    dialog.canceled.disconnect()
+    dialog.close()
+    if thread.error is not None:
+        raise thread.error
+    return None if stopped else thread.result
 
 
 def region_width_mm(region: pdf_import.Region) -> float:

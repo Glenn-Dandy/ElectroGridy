@@ -18,6 +18,9 @@ from functools import cache
 from pathlib import Path
 
 TIMEOUT = 120  # seconds
+FAST, EXACT = "fast", "exact"  # the models of the system, or the more exact ones shipped
+EXACT_LANGUAGES = ("deu", "eng")
+BATCH = 24  # pictures per run of tesseract when many lines are read one by one
 MIN_CONFIDENCE = 65.0
 MIN_CONFIDENCE_LONG = 40.0  # for words of five letters or more and device tags
 # Device tags (-Y04, -K1, -X12) as read, letters for digits included: rarely chance.
@@ -104,6 +107,99 @@ def available() -> bool:
     return bool(languages())
 
 
+def models_dir() -> Path | None:
+    """The more exact models (tessdata_best, Apache-2.0) shipped in the resources; None
+    if they are missing (a build without them, or a checkout before fetching them)."""
+    folder = Path(__file__).resolve().parent.parent / "resources" / "tessdata"
+    return folder if (folder / f"{EXACT_LANGUAGES[0]}.traineddata").exists() else None
+
+
+def exact_available() -> bool:
+    return available() and models_dir() is not None
+
+
+def _model_args(quality: str) -> list[str]:
+    folder = models_dir() if quality == EXACT else None
+    if folder is None:
+        return ["-l", languages()]
+    langs = "+".join(lang for lang in EXACT_LANGUAGES if (folder / f"{lang}.traineddata").exists())
+    return ["--tessdata-dir", str(folder), "-l", langs]
+
+
+def _tsv(args: list[str]) -> list[Word]:
+    env = _environment()
+    env["OMP_THREAD_LIMIT"] = "1"  # the pictures run side by side instead
+    try:
+        done = subprocess.run(
+            [*args, "-c", "tessedit_create_tsv=1"],
+            capture_output=True,
+            timeout=TIMEOUT * 5,
+            env=env,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return parse_tsv(done.stdout.decode("utf-8", errors="replace"))
+
+
+def read_many(
+    pictures: list[tuple[bytes, int, str]],
+    quality: str = FAST,
+    workers: int | None = None,
+    done=None,
+) -> list[list[Word]]:
+    """Words of many small pictures (PNG, page segmentation mode, allowed characters
+    or ""), each read on its own; several runs of tesseract side by side. ``done``
+    (number read, total) is called as runs finish, from the calling thread, and may
+    return False to stop."""
+    from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+
+    command = _command()
+    out: list[list[Word]] = [[] for _ in pictures]
+    if command is None or not languages() or not pictures:
+        return out
+    workers = workers or max(1, min(8, os.cpu_count() or 2))
+    with tempfile.TemporaryDirectory() as folder:
+        groups: dict[tuple[int, str], list[int]] = {}
+        for n, (png, psm, allowed) in enumerate(pictures):
+            Path(folder, f"{n}.png").write_bytes(png)
+            groups.setdefault((psm, allowed), []).append(n)
+        batches = [
+            (psm, allowed, items[i : i + BATCH])
+            for (psm, allowed), items in groups.items()
+            for i in range(0, len(items), BATCH)
+        ]
+
+        def run(batch):
+            psm, allowed, items = batch
+            listing = Path(folder, f"list{items[0]}.txt")
+            listing.write_text("\n".join(str(Path(folder, f"{n}.png")) for n in items) + "\n")
+            extra = ["-c", f"tessedit_char_whitelist={allowed}"] if allowed else []
+            words = _tsv(
+                [command, str(listing), "stdout", *_model_args(quality), "--psm", str(psm), *extra]
+            )
+            return items, words
+
+        finished = 0
+        with ThreadPoolExecutor(workers) as pool:
+            pending = {pool.submit(run, b) for b in batches}
+            while pending:
+                complete, pending = wait(pending, timeout=0.1, return_when=FIRST_COMPLETED)
+                for future in complete:
+                    items, words = future.result()
+                    for word in words:
+                        page = word.line[0] - 1
+                        if 0 <= page < len(items):
+                            out[items[page]].append(word)
+                    finished += len(items)
+                if done is not None and done(finished, len(pictures)) is False:
+                    for future in pending:
+                        future.cancel()
+                    raise InterruptedError
+    return out
+
+
 def parse_tsv(text: str) -> list[Word]:
     out = []
     for row in csv.DictReader(io.StringIO(text), delimiter="\t", quoting=csv.QUOTE_NONE):
@@ -119,7 +215,7 @@ def parse_tsv(text: str) -> list[Word]:
     return out
 
 
-def read_words(png: bytes) -> list[Word]:
+def read_words(png: bytes, quality: str = FAST) -> list[Word]:
     """Words tesseract finds scattered over the picture (sparse text)."""
     command, langs = _command(), languages()
     if command is None or not langs:
@@ -127,11 +223,7 @@ def read_words(png: bytes) -> list[Word]:
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder, "text.png")
         path.write_bytes(png)
-        try:
-            done = _run([command, str(path), "stdout", "-l", langs, "--psm", "11", "tsv"])
-        except (OSError, subprocess.SubprocessError):
-            return []
-    return parse_tsv(done.stdout.decode("utf-8", errors="replace"))
+        return _tsv([command, str(path), "stdout", *_model_args(quality), "--psm", "11"])
 
 
 def _plausible(word: Word) -> bool:
@@ -157,9 +249,20 @@ def _digits(part: str) -> str:
     return part.replace("O", "0").replace("l", "1").replace("I", "1")
 
 
+def _tag_digits(word: str) -> str:
+    """In device tags and cross references an O among digits or between a letter and
+    a digit is a zero, an l or I there a one (+RO1 is +R01, =NSO1/40 is =NS01/40)."""
+    if not word or (word[0] not in "+-=" and not re.match(r"^\d+\.\d", word)):
+        return word
+    word = re.sub(r"(?<=[A-Z0-9])O(?=\d)|(?<=\d)O(?=\b|[^a-z])", "0", word)
+    return re.sub(r"(?<=\d)[lI](?=\d)|(?<=[A-Z])[lI](?=\d)", "1", word)
+
+
 def corrected(text: str) -> str:
     """Letters read for digits in device tags and terminals (-YO4 is -Y04, -Kl is -K1,
-    Al is A1), DC read as OC; quotes the letters picked up from lines nearby."""
+    Al is A1, +RO1 is +R01), DC read as OC, the bracket of a cross reference read as a
+    one (56.21+R01 is 56.2(+R01), square millimetres read as mm2; quotes the letters
+    picked up from lines nearby."""
     words = []
     for word in text.translate(LOOKALIKES).split():
         word = word.strip(QUOTES) or word
@@ -169,8 +272,13 @@ def corrected(text: str) -> str:
             word,
         )
         word = re.sub(r"^([A-Z])([lI])$", r"\g<1>1", word)
-        words.append(word)
+        word = re.sub(r"^(\d+\.\d)[1l\[I|{]([+\-=])", r"\1(\2", word)
+        word = re.sub(r"(?<=\d)mm[2?]$", "mm²", word)
+        words.append(_tag_digits(word))
     out = " ".join(words)
+    # a bracket opened and closed as ] or }: closed as it was opened
+    if out.count("(") > out.count(")"):
+        out = re.sub(r"[\]}](?=\s|$)", ")", out, count=out.count("(") - out.count(")"))
     return re.sub(r"(?<![\w])[O0]C(?= ?\d+ ?V\b)", "DC", out)
 
 

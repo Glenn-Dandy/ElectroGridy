@@ -60,7 +60,7 @@ def test_vectorize_finds_lines_slopes_and_rings():
         ink |= {(round(x), round(y))}
     for dx in range(3):  # a speck of lettering: ignored
         ink.add((180 + dx, 100))
-    shapes = vectorize(w, h, _grid(w, h, ink), min_length=10, max_thickness=4)
+    shapes = vectorize(w, h, _grid(w, h, ink), cap=10, stroke=2)
     strokes = [s for s in shapes if isinstance(s, Stroke)]
     rings = [s for s in shapes if isinstance(s, Ring)]
     horizontal = [s for s in strokes if abs(s.y1 - s.y2) < 1 and abs(s.x2 - s.x1) > 100]
@@ -87,7 +87,7 @@ def test_vectorize_joins_pieces_finds_dashes_and_drops_lettering():
         ink.add((150, y))
     for x in range(150, 162):
         ink |= {(x, 90), (x, 96), (x, 102)}
-    shapes = vectorize(w, h, _grid(w, h, ink), min_length=10, max_thickness=4)
+    shapes = vectorize(w, h, _grid(w, h, ink), cap=10, stroke=2)
     wire = [s for s in shapes if abs(s.y1 - 21) < 2]
     assert len(wire) == 1 and wire[0].x1 == 20 and wire[0].x2 >= 278 and not wire[0].dashed
     (dashes,) = [s for s in shapes if abs(s.y1 - 60.5) < 2]

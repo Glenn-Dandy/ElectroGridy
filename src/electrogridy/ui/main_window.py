@@ -1935,6 +1935,9 @@ class MainWindow(QMainWindow):
         if dialog.exec() != ImportDialog.DialogCode.Accepted:
             return
         entities = dialog.entities()
+        if entities is None:
+            self.message(self.tr("Import abgebrochen"))
+            return
         if not entities:
             self.message(self.tr("Im markierten Bereich wurde nichts gefunden"))
             return

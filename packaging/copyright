@@ -7,6 +7,11 @@ Files: *
 Copyright: 2026 Glenn-Dandy
 License: GPL-3.0+
 
+Files: usr/share/electrogridy/electrogridy/resources/tessdata/*
+Copyright: Google Inc. and the Tesseract OCR contributors
+Comment: tessdata_best 4.1.0 (deu, eng), https://github.com/tesseract-ocr/tessdata_best
+License: Apache-2.0
+
 License: GPL-3.0+
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -20,3 +25,10 @@ License: GPL-3.0+
  .
  On Debian systems, the complete text of the GNU General Public
  License version 3 can be found in "/usr/share/common-licenses/GPL-3".
+
+License: Apache-2.0
+ Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ use these files except in compliance with the License.
+ .
+ On Debian systems, the complete text of the Apache License 2.0 can be found
+ in "/usr/share/common-licenses/Apache-2.0".

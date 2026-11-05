@@ -27,6 +27,9 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq python3-pyqt6 python3-pyqt6.qtsvg python3-pyqt6.qtpdf python3-pdfminer tesseract-ocr tesseract-ocr-deu python3-pytest fonts-dejavu-core
+      - name: Exact text recognition models
+        # tessdata_best (Apache-2.0), pinned and checked; shipped in the package
+        run: python3 packaging/fetch-tessdata.py
       - name: Tests
         env:
           QT_QPA_PLATFORM: offscreen
@@ -48,6 +51,8 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.release.tag_name }}
+      - name: Exact text recognition models
+        run: python3 packaging/fetch-tessdata.py
       - uses: snapcore/action-build@v1
         id: build
       - uses: snapcore/action-publish@v1
@@ -88,6 +93,8 @@ jobs:
           Copy-Item "$src\ttf\DejaVuSans.ttf", "$src\ttf\DejaVuSans-Bold.ttf" $fonts
           Copy-Item "$src\LICENSE" "$fonts\LICENSE-DejaVu.txt"
           Copy-Item README.md src\electrogridy\resources\README.md
+      - name: Exact text recognition models
+        run: python packaging\fetch-tessdata.py
       - name: Tesseract for texts in pictures
         # Shipped in the program folder with German and English language data; on the
         # PATH for the tests.
@@ -121,7 +128,7 @@ jobs:
         # Catches missing modules or files: the program must come up with its own
         # window, not with an error message, and keep running.
         run: |
-          foreach ($dir in "library", "templates", "symbols", "i18n", "fonts") {
+          foreach ($dir in "library", "templates", "symbols", "i18n", "fonts", "tessdata") {
             if (-not (Test-Path "dist\ElectroGridy\_internal\electrogridy\resources\$dir")) { throw "missing resources\$dir" }
           }
           if (-not (Test-Path "dist\ElectroGridy\_internal\tesseract\tessdata\deu.traineddata")) { throw "missing tesseract" }

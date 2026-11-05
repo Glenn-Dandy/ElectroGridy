@@ -16,3 +16,5 @@ prime/
 # Windows build (fonts and README are copied in by the release workflow)
 src/electrogridy/resources/fonts/
 src/electrogridy/resources/README.md
+# Exact text recognition models (packaging/fetch-tessdata.py, fetched when building)
+src/electrogridy/resources/tessdata/
