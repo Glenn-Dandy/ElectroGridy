@@ -41,12 +41,23 @@ def test_wire_end_on_the_corner_of_another_wire_is_a_tee():
     right = wire("right", (30, 20), (80, 20))
     dots, (tee,) = tees([q1, right])
     assert dots == []
+    # Q1 runs through, the docked wire has the diagonal towards the leg going down.
     assert (tee.position, tee.wire.id, tee.branch, tee.side) == (
         Point(30, 20),
-        "q1",
-        (0.0, 1.0),
+        "right",
         (1.0, 0.0),
+        (0.0, 1.0),
     )
+    # Wired: Q1 to the device on the leg going down, from there the docked wire.
+    assert tee.wiring() == ((0.0, 1.0), (1.0, 0.0))
+    turned = JunctionMark(id="m", position=Point(30, 20), side=-1)
+    (tee,) = tees([q1, right, turned])[1]
+    assert (tee.wire.id, tee.branch, tee.side) == ("q1", (0.0, 1.0), (1.0, 0.0))
+    assert tee.wiring() == ((0.0, 1.0), (1.0, 0.0))
+    # Docked going up, in a line with the leg going down: the diagonal goes left.
+    up = wire("up", (30, 20), (30, 0))
+    (tee,) = tees([q1, up])[1]
+    assert (tee.wire.id, tee.branch, tee.side) == ("up", (0.0, -1.0), (-1.0, 0.0))
 
 
 def test_set_connection_point_on_plain_lines_gives_a_tee():
@@ -134,6 +145,7 @@ def test_sheet_menu_switches_the_junction_style(window):
     junctions = window.space.extra["junctions"]
     window.container.add(wire("rail", (50, 40), (150, 40)))
     window.container.add(wire("down", (80, 40), (80, 80)))
+    assert window.sheets.junction_menu.menuAction() in window.project_menu.actions()
     window.sheets.sync_junction_actions()
     assert window.sheets.act_dots.isChecked() and not window.sheets.act_tees.isChecked()
     window.sheets.act_tees.trigger()

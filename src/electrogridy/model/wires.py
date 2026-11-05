@@ -155,6 +155,12 @@ class Tee:
     wire: Entity  # gives the style
     branch: tuple[float, float]  # unit vector from the junction into the branch
     side: tuple[float, float]  # unit vector along the through conductor to the diagonal
+    # Wiring direction (branch, side) when it differs from the drawing: at a corner
+    # the docked wire has the diagonal, wired it is the corner's leg across.
+    wired: tuple[tuple[float, float], tuple[float, float]] | None = None
+
+    def wiring(self) -> tuple[tuple[float, float], tuple[float, float]]:
+        return self.wired or (self.branch, self.side)
 
 
 def _axis(a: Point, b: Point) -> tuple[float, float] | None:
@@ -181,7 +187,7 @@ def tees(entities: Iterable[Entity]) -> tuple[list[tuple[Point, Entity]], list[T
         for m in entities
         if isinstance(m, JunctionMark)
     }
-    Arm = tuple[Entity, tuple[float, float]]
+    Arm = tuple[Entity, tuple[float, float], bool]  # owner, direction, at its end
     # Looked up per junction: conductor points (ends and corners) by position,
     # straight runs by their line.
     Runs = dict[float, list[tuple[float, float, Entity]]]  # line: (from, to, owner)
@@ -189,11 +195,12 @@ def tees(entities: Iterable[Entity]) -> tuple[list[tuple[Point, Entity]], list[T
     def index(owner: Entity, points, into: dict, rows: Runs, columns: Runs) -> None:
         for k, q in enumerate(points):
             key = (round(q.x, 6), round(q.y, 6))
+            end = k in (0, len(points) - 1)
             for n in (k - 1, k + 1):
                 if 0 <= n < len(points):
                     direction = _axis(q, points[n])
                     if direction is not None:
-                        into.setdefault(key, []).append((owner, direction))
+                        into.setdefault(key, []).append((owner, direction, end))
         for a, b in segments(points):
             if abs(a.y - b.y) <= EPS and abs(a.x - b.x) > EPS:
                 rows.setdefault(round(a.y, 6), []).append((min(a.x, b.x), max(a.x, b.x), owner))
@@ -220,10 +227,10 @@ def tees(entities: Iterable[Entity]) -> tuple[list[tuple[Point, Entity]], list[T
         found = list(at.get((x, y), []))
         for lo, hi, owner in by_y.get(y, ()):
             if lo + EPS < p.x < hi - EPS:
-                found += [(owner, (1.0, 0.0)), (owner, (-1.0, 0.0))]
+                found += [(owner, (1.0, 0.0), False), (owner, (-1.0, 0.0), False)]
         for lo, hi, owner in by_x.get(x, ()):
             if lo + EPS < p.y < hi - EPS:
-                found += [(owner, (0.0, 1.0)), (owner, (0.0, -1.0))]
+                found += [(owner, (0.0, 1.0), False), (owner, (0.0, -1.0), False)]
         return found
 
     dots: list[tuple[Point, Entity]] = []
@@ -234,27 +241,52 @@ def tees(entities: Iterable[Entity]) -> tuple[list[tuple[Point, Entity]], list[T
         if isinstance(owner, JunctionMark):
             leaving += arms(p, x, y, line_columns, line_rows, line_arms)
         # The same direction twice (two wires lying on each other) counts once.
-        unique: dict[tuple[float, float], Entity] = {}
-        for e, d in leaving:
-            unique.setdefault(d, e)
+        unique: dict[tuple[float, float], tuple[Entity, bool]] = {}
+        for e, d, end in leaving:
+            unique.setdefault(d, (e, end))
         tee = None
         if len(unique) == 3:
-            for branch, wire in unique.items():
+            for branch, (wire, _end) in unique.items():
                 others = [d for d in unique if d != branch]
                 opposite = others[0] == (-others[1][0], -others[1][1])
                 if opposite and branch[0] * others[0][0] + branch[1] * others[0][1] == 0:
-                    tee = (wire, branch, others[0])
+                    tee = (wire, branch, others)
                     break
         if tee is None:
             dots.append((p, owner))
             continue
-        wire, branch, axis = tee
-        axis = (abs(axis[0]), abs(axis[1]))  # right or down
+        wire, branch, others = tee
         mark = marks.get((x, y))
-        if mark is not None and mark.side < 0:
+        turned = mark is not None and mark.side < 0
+        corner = _docked_on_corner(unique, branch, others)
+        if corner is not None:
+            # Florian 2026-11-05: the wire with the corner runs through, the wire
+            # docked on it has the diagonal towards the corner's leg across.
+            # Turned round, the leg across has it as in a plain T.
+            docked, towards = corner
+            wired = (branch, towards)
+            if turned:
+                found.append(Tee(p, wire, branch, towards, wired))
+            else:
+                found.append(Tee(p, unique[towards][0], towards, branch, wired))
+            continue
+        axis = (abs(others[0][0]), abs(others[0][1]))  # right or down
+        if turned:
             axis = (-axis[0], -axis[1])
         found.append(Tee(p, wire, branch, axis))
     return dots, found
+
+
+def _docked_on_corner(unique, branch, others) -> tuple[Entity, tuple[float, float]] | None:
+    """At a T whose ``branch`` is one leg of a corner: the wire docked there and the
+    direction it leaves in (in a line with the corner's other leg)."""
+    corner, branch_end = unique[branch]
+    for leg, docked in (others, others[::-1]):
+        owner, end = unique[leg]
+        other, docked_end = unique[docked]
+        if owner is corner and not end and not branch_end and docked_end and other is not corner:
+            return other, docked
+    return None
 
 
 def on_segment(p: Point, a: Point, b: Point) -> bool:

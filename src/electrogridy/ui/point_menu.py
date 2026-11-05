@@ -165,7 +165,7 @@ def _tee_actions(w, p: Point, entities, push) -> list[tuple]:
         return []
     container = w.container
     mark = next((e for e in entities if isinstance(e, JunctionMark) and same(e.position, p)), None)
-    side = -1 if tee.side[0] + tee.side[1] > 0 else 1
+    side = 0 if mark is not None and mark.side < 0 else -1
     if mark is not None:
         new = [replace(mark, side=side)]
     else:
@@ -279,7 +279,7 @@ def _convert_actions(w, raw: Point, entities, push) -> list[tuple[str, Callable[
         if conversion.tees:
             text += tr(", {tees} T-Abzweig(e) verbunden").format(tees=conversion.tees)
             if not w.tee_style():
-                text += tr("; Darstellung als T: Seite > Verbindungen")
+                text += tr("; Darstellung als T: Projekt > Verbindungen")
         w.message(text)
 
     label = (

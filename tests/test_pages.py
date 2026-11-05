@@ -893,3 +893,33 @@ def test_t_branches_lead_the_wire_through_the_branch_device():
     assert nearest_to_c1() == ["-A1"]  # dots: just the shortest way along the rail
     doc.properties[TEE_STYLE_KEY] = "tee"
     assert nearest_to_c1() == ["-B1"]  # wired in order: through -B1
+
+
+def test_wire_docked_on_a_corner_is_wired_after_the_device_on_the_leg():
+    """Florian 2026-11-05: -Q1 goes up, right and down to -X1:3; a wire docked on
+    the corner goes right to -C1. -Q1 runs through to -X1:3, the docked wire
+    branches off at -X1:3: -C1 is wired to -X1:3, not to -Q1."""
+    from electrogridy.model.entities import Wire
+    from electrogridy.model.netlist import netlist
+    from electrogridy.model.terminal_plan import _Graph
+    from electrogridy.model.wires import TEE_STYLE_KEY
+
+    doc = Document.new("Blatt 1", kind=DOC_PROJECT)
+    doc.sheets.append(new_page(CIRCUIT, "Verteilung", paper="A3"))
+    page = doc.sheets[1]
+    doc.blocks["Gerät"] = block("Gerät", "main", terminals=("1",))
+    page.entities.add(ref("q", "Gerät", "-Q1", 20, 60))
+    page.entities.add(
+        Wire(id="q1", points=(Point(20, 60), Point(20, 20), Point(50, 20), Point(50, 110)))
+    )
+    page.entities.add(ref("x", "Gerät", "-X1", 50, 110))
+    page.entities.add(Wire(id="w", points=(Point(50, 20), Point(80, 20))))
+    page.entities.add(ref("c1", "Gerät", "-C1", 80, 20))
+
+    def nearest_to_c1():
+        graph = _Graph(doc, netlist(doc))
+        return [p.bmk for p in graph.nearest((page.id, 80.0, 20.0), {"c1"})]
+
+    assert nearest_to_c1() == ["-Q1"]  # dots: the shortest way
+    doc.properties[TEE_STYLE_KEY] = "tee"
+    assert nearest_to_c1() == ["-X1"]

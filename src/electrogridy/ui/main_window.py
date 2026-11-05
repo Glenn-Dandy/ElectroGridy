@@ -1106,6 +1106,7 @@ class MainWindow(QMainWindow):
         self.project_menu.addAction(devices)
         self.project_menu.addSeparator()
         self.project_menu.addAction(self.tr("&Projektdaten …"), self.edit_project_data)
+        self.project_menu.addMenu(self.sheets.junction_menu)
         self.act_reports = self.project_menu.addAction(
             self.tr("&Listenseiten ergänzen"), self.reports.complete_pages
         )

@@ -141,7 +141,8 @@ class _Graph:
                     return nxt, length
             return None
 
-        side, branch = towards(tee.side), towards(tee.branch)
+        wired_branch, wired_side = tee.wiring()
+        side, branch = towards(wired_side), towards(wired_branch)
         if side is None or branch is None:
             return
         (far, length), (down, branch_length) = side, branch

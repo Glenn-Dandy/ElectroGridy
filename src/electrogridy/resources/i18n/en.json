@@ -1048,9 +1048,6 @@
  "Wie Abzweige von Leitungen gezeichnet werden: mit Punkt oder als T mit kurzem Schrägstrich, wie in vielen importierten Plänen": "How wire branches are drawn: with a dot or as a T with a short diagonal, as in many imported plans",
  "Verbindungen:": "Junctions:",
  "T-Abzweig andersherum": "Turn T branch round",
- "&Verbindungen": "&Junctions",
- "Verbindungen als &Punkte": "Junctions as &dots",
- "Verbindungen als &T-Abzweige": "Junctions as &T branches",
  "T-Abzweige": "T branches",
  "Verbindungspunkte": "Junction dots",
  "Verbinden (T-Abzweig setzen)": "Connect (set T branch)",
@@ -1058,5 +1055,8 @@
  "{count} Linien in Leitungen umwandeln": "Convert {count} lines to wires",
  "{wires} Leitung(en) aus Linien": "{wires} wire(s) from lines",
  ", {tees} T-Abzweig(e) verbunden": ", {tees} T branch(es) connected",
- "; Darstellung als T: Seite > Verbindungen": "; T style: Page > Junctions"
+ "&Punkte": "&Dots",
+ "&T-Abzweige (Schrägstrich)": "&T branches (diagonal)",
+ "&Verbindungen (ganzes Projekt)": "&Junctions (whole project)",
+ "; Darstellung als T: Projekt > Verbindungen": "; T style: Project > Junctions"
 }

@@ -225,14 +225,17 @@ class SheetController(QObject):
         self.act_save_template = a(self.tr("Als Vorlage s&peichern …"), self.save_template)
         self.act_viewport = a(self.tr("&Ansichtsfenster zeichnen"), self.viewport_tool)
         # Project setting, near Format so it is found (Florian 2026-11-05).
-        self.act_dots = a(self.tr("Verbindungen als &Punkte"), lambda: self.w.set_tee_style(False))
-        self.act_tees = a(
-            self.tr("Verbindungen als &T-Abzweige"), lambda: self.w.set_tee_style(True)
-        )
+        self.act_dots = a(self.tr("&Punkte"), lambda: self.w.set_tee_style(False))
+        self.act_tees = a(self.tr("&T-Abzweige (Schrägstrich)"), lambda: self.w.set_tee_style(True))
         junction_group = QActionGroup(self)
         for action in (self.act_dots, self.act_tees):
             action.setCheckable(True)
             junction_group.addAction(action)
+        # One submenu, in the project menu and on the page tabs; the title says that
+        # it is not a setting of the page (Florian 2026-11-05).
+        self.junction_menu = QMenu(self.tr("&Verbindungen (ganzes Projekt)"), self.w)
+        self.junction_menu.addActions([self.act_dots, self.act_tees])
+        self.junction_menu.aboutToShow.connect(self.sync_junction_actions)
         self.act_outlines = a(self.tr("Blattumrisse im &Modell"), self._toggle_outlines)
         self.act_outlines.setCheckable(True)
         self.act_outlines.setChecked(True)
@@ -253,14 +256,11 @@ class SheetController(QObject):
         m.addActions([self.act_rename, self.act_duplicate, self.act_delete])
         m.addSeparator()
         m.addActions([self.act_format, self.act_fields, self.act_viewport])
-        self.junction_menu = m.addMenu(self.tr("&Verbindungen"))
-        self.junction_menu.addActions([self.act_dots, self.act_tees])
         m.addSeparator()
         m.addActions([self.act_save_template, self.act_outlines])
         self.align_menu = m.addMenu(self.tr("Modell auf Seite &ausrichten"))
         self.align_menu.aboutToShow.connect(lambda: self._fill_align_menu(self.align_menu))
         self.menu = m
-        m.aboutToShow.connect(self.sync_junction_actions)
         self._update_actions()
 
     def apply_document_kind(self) -> None:
@@ -280,7 +280,6 @@ class SheetController(QObject):
         ):
             action.setVisible(not project)
         self.align_menu.menuAction().setVisible(not project)
-        self.junction_menu.menuAction().setVisible(project)
         self.rebuild_tabs()
 
     def sync_junction_actions(self) -> None:
@@ -331,9 +330,8 @@ class SheetController(QObject):
             if not self.doc.is_project:
                 menu.addAction(self.act_save_template)
         if self.doc.is_project:
-            self.sync_junction_actions()
             menu.addSeparator()
-            menu.addActions([self.act_dots, self.act_tees])
+            menu.addMenu(self.junction_menu)
         menu.exec(self.tabs.mapToGlobal(pos))
 
     # -- aligning the model view on a sheet ----------------------------------
