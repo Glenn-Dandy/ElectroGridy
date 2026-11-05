@@ -1,5 +1,6 @@
 """Right-click menu on a point: connect, separate, remove point, extend."""
 
+import math
 from collections.abc import Callable
 from dataclasses import replace
 from typing import TYPE_CHECKING
@@ -28,6 +29,7 @@ from electrogridy.model.entities import (
     new_id,
 )
 from electrogridy.model.geometry import Point
+from electrogridy.model.line_wires import convertible, lines_to_wires
 from electrogridy.model.routing import split_wire
 from electrogridy.model.terminals import (
     TERMINAL_PE,
@@ -52,6 +54,7 @@ from electrogridy.tools.draw import ExtendTool, LineTool
 from electrogridy.ui.anchor_picker import AnchorPicker, shown_anchor
 from electrogridy.ui.space import BLOCK
 from electrogridy.ui.terminal_dialog import TerminalDialog
+from electrogridy.view.canvas import SNAP_APERTURE_PX
 from electrogridy.view.render import realigned, text_scene_center, text_scene_path
 
 if TYPE_CHECKING:
@@ -95,7 +98,9 @@ def point_actions(w: "MainWindow", p: Point, raw: Point | None = None) -> list[t
         connect = JunctionMark(id=new_id(), layer=through[0].layer, position=p, connected=True)
         actions.append(
             (
-                tr("Verbinden (Verbindungspunkt setzen)"),
+                tr("Verbinden (T-Abzweig setzen)")
+                if w.tee_style()
+                else tr("Verbinden (Verbindungspunkt setzen)"),
                 lambda: push(AddEntitiesCommand(container, [connect], tr("Verbinden"))),
             )
         )
@@ -104,6 +109,7 @@ def point_actions(w: "MainWindow", p: Point, raw: Point | None = None) -> list[t
     actions += _text_actions(w, raw or p, entities, push)
     actions += _dock_actions(w, p, entities, push)
     actions += _wire_actions(w, p, entities, push)
+    actions += _convert_actions(w, raw or p, entities, push)
 
     for e in entities:
         if isinstance(e, Wire | Polyline):
@@ -229,6 +235,59 @@ def _wire_actions(w, p: Point, entities, push) -> list[tuple[str, Callable[[], N
             actions.append((tr("Leitung hier auftrennen"), cut))
             break
     return actions
+
+
+def _near_segment(p: Point, a: Point, b: Point, tolerance: float) -> bool:
+    dx, dy = b.x - a.x, b.y - a.y
+    length2 = dx * dx + dy * dy
+    t = 0.0 if length2 == 0 else max(0.0, min(1.0, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length2))
+    return math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)) <= tolerance
+
+
+def _convert_actions(w, raw: Point, entities, push) -> list[tuple[str, Callable[[], None]]]:
+    """Plain lines of an imported plan into wires (Florian 2026-11-05): the selected
+    lines, or the line under the mouse."""
+    if w.document.kind == DOC_DRAWING:
+        return []
+    selected = set(w.selected_ids())
+    targets = [e for e in entities if e.id in selected and convertible(e)]
+    if not targets:
+        tolerance = SNAP_APERTURE_PX / 2 / max(w.canvas.transform().m11(), 1e-9)
+        for e in entities:
+            if not convertible(e):
+                continue
+            points = (e.p1, e.p2) if isinstance(e, Line) else e.points
+            if any(_near_segment(raw, a, b, tolerance) for a, b in segments(points)):
+                targets = [e]
+                break
+    if not targets:
+        return []
+    ids = {e.id for e in targets}
+    others = [e for e in entities if e.id not in ids]
+    conversion = lines_to_wires(targets, others)
+    if not conversion.wires:
+        return []
+    container = w.container
+
+    def convert() -> None:
+        label = tr("In Leitung umwandeln")
+        w.begin_macro(label)
+        push(RemoveEntitiesCommand(container, conversion.removed, ""))
+        push(AddEntitiesCommand(container, conversion.added, ""))
+        w.end_macro()
+        text = tr("{wires} Leitung(en) aus Linien").format(wires=conversion.wires)
+        if conversion.tees:
+            text += tr(", {tees} T-Abzweig(e) verbunden").format(tees=conversion.tees)
+            if not w.tee_style():
+                text += tr("; Darstellung als T: Seite > Verbindungen")
+        w.message(text)
+
+    label = (
+        tr("In Leitung umwandeln")
+        if len(targets) == 1
+        else tr("{count} Linien in Leitungen umwandeln").format(count=len(targets))
+    )
+    return [(label, convert)]
 
 
 def set_terminal(w: "MainWindow", p: Point, wires: list[Wire]) -> None:

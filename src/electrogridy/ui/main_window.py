@@ -1155,14 +1155,19 @@ class MainWindow(QMainWindow):
         self.resizeDocks([self.library_dock], [260], Qt.Orientation.Horizontal)
 
     def _create_status_bar(self) -> None:
-        self.grid_menu = GridMenu(
-            self,
-            [self.act_grid, self.act_snap],
-            lambda: (self.canvas.grid_spacing(), self.canvas.snap_spacing),
-            self._set_grid_spacing,
-            self._set_snap_spacing,
-            lambda: self.canvas.polar_increment,
-            self._set_polar_increment,
+        # One menu per button, each with only its own switch: RASTER shows the grid
+        # switch, FANG the snap switch; the spacings are typed in both.
+        self.grid_menu, self.snap_menu = (
+            GridMenu(
+                self,
+                [action],
+                lambda: (self.canvas.grid_spacing(), self.canvas.snap_spacing),
+                self._set_grid_spacing,
+                self._set_snap_spacing,
+                lambda: self.canvas.polar_increment,
+                self._set_polar_increment,
+            )
+            for action in (self.act_grid, self.act_snap)
         )
         self.lbl_position = QLabel()
         width = self.lbl_position.fontMetrics().horizontalAdvance(
@@ -1201,7 +1206,7 @@ class MainWindow(QMainWindow):
             button.setAutoRaise(True)
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             if action in (self.act_grid, self.act_snap):
-                button.setMenu(self.grid_menu)
+                button.setMenu(self.grid_menu if action is self.act_grid else self.snap_menu)
                 button.setToolTip(
                     self.tr("{name}; verweilen oder Pfeil: Raster und Fang eintragen").format(
                         name=action.text().replace("&", "")
@@ -1318,6 +1323,17 @@ class MainWindow(QMainWindow):
     def tee_style(self) -> bool:
         """The project draws T branches with a diagonal instead of dots."""
         return self.document.properties.get(TEE_STYLE_KEY) == "tee"
+
+    def set_tee_style(self, on: bool) -> None:
+        """Project setting: T branches with a diagonal (True) or dots, undoable."""
+        if on == self.tee_style():
+            return
+        properties = dict(self.document.properties)
+        properties.pop(TEE_STYLE_KEY, None)
+        if on:
+            properties[TEE_STYLE_KEY] = "tee"
+        label = self.tr("T-Abzweige") if on else self.tr("Verbindungspunkte")
+        self.push(ChangeDocumentPropertiesCommand(self.document, properties, label))
 
     def _refresh_junctions(self) -> None:
         for space in self.spaces():

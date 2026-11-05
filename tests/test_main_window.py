@@ -348,6 +348,10 @@ def test_grid_and_snap_typed_in_the_status_bar_menu(window):
     window.canvas.set_snap_spacing(2.5)
     menu.sync()
     assert menu.snap_spin.value() == 2.5
+    # Each button's menu carries only its own switch.
+    assert window.act_grid in menu.actions() and window.act_snap not in menu.actions()
+    snap = window.snap_menu
+    assert window.act_snap in snap.actions() and window.act_grid not in snap.actions()
 
 
 def test_layers_are_separate_per_workspace(window):

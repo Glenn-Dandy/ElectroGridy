@@ -3,7 +3,7 @@ from PyQt6.QtCore import QSettings
 
 from electrogridy.fileio.json_format import entity_from_dict, entity_to_dict
 from electrogridy.model.document import DOC_PROJECT
-from electrogridy.model.entities import Busbar, JunctionMark, Wire
+from electrogridy.model.entities import Busbar, JunctionMark, Line, Wire
 from electrogridy.model.geometry import Point
 from electrogridy.model.wires import TEE_STYLE_KEY, tees
 from electrogridy.ui.main_window import MainWindow
@@ -32,6 +32,33 @@ def test_branch_on_a_rail_and_three_ends_are_tees_crossings_stay_dots():
         (Point(60, 50), "up", (0.0, -1.0), (1.0, 0.0)),
     ]
     assert [p for p, _e in dots] == [Point(90, 70)]
+
+
+def test_wire_end_on_the_corner_of_another_wire_is_a_tee():
+    """Florian 2026-11-05: Q1 goes up, right and down again; the next wire starts at
+    the corner and runs on to the right. That is a T, the branch goes down."""
+    q1 = wire("q1", (0, 50), (0, 20), (30, 20), (30, 60))
+    right = wire("right", (30, 20), (80, 20))
+    dots, (tee,) = tees([q1, right])
+    assert dots == []
+    assert (tee.position, tee.wire.id, tee.branch, tee.side) == (
+        Point(30, 20),
+        "q1",
+        (0.0, 1.0),
+        (1.0, 0.0),
+    )
+
+
+def test_set_connection_point_on_plain_lines_gives_a_tee():
+    lines = [
+        Line(id="a", p1=Point(0, 20), p2=Point(30, 20)),
+        Line(id="b", p1=Point(30, 20), p2=Point(80, 20)),
+        Line(id="c", p1=Point(30, 20), p2=Point(30, 60)),
+    ]
+    assert tees(lines) == ([], [])  # lines alone are no conductors
+    mark = JunctionMark(id="m", position=Point(30, 20))
+    (tee,) = tees([*lines, mark])[1]
+    assert tee.branch == (0.0, 1.0)
 
 
 def test_branch_on_a_bus_bar_and_turned_round_by_a_mark():
@@ -101,3 +128,40 @@ def test_project_setting_draws_tees_and_the_menu_turns_them(window, monkeypatch)
     window.act_undo.trigger()  # the turn
     window.act_undo.trigger()  # the setting
     assert not window.tee_style() and len(junctions._dots) == 1
+
+
+def test_sheet_menu_switches_the_junction_style(window):
+    junctions = window.space.extra["junctions"]
+    window.container.add(wire("rail", (50, 40), (150, 40)))
+    window.container.add(wire("down", (80, 40), (80, 80)))
+    window.sheets.sync_junction_actions()
+    assert window.sheets.act_dots.isChecked() and not window.sheets.act_tees.isChecked()
+    window.sheets.act_tees.trigger()
+    assert window.tee_style()
+    junctions.recompute()
+    assert len(junctions._tees) == 1
+    window.sheets.sync_junction_actions()
+    assert window.sheets.act_tees.isChecked()
+    window.act_undo.trigger()
+    assert not window.tee_style()
+
+
+def test_lines_under_the_mouse_or_selected_become_wires(window):
+    from electrogridy.model.entities import Line
+
+    window.container.add(Line(id="rail", p1=Point(50, 40), p2=Point(150, 40)))
+    window.container.add(Line(id="down", p1=Point(80, 41.25), p2=Point(80, 80)))
+    window.container.add(Line(id="diag", p1=Point(80, 41.25), p2=Point(81.25, 40)))
+    actions = dict(point_actions(window, Point(120, 40)))
+    assert "In Leitung umwandeln" in actions  # only the line under the mouse
+    window._sync.item("rail").setSelected(True)
+    window._sync.item("down").setSelected(True)
+    window._sync.item("diag").setSelected(True)
+    actions = dict(point_actions(window, Point(120, 40)))
+    actions["3 Linien in Leitungen umwandeln"]()
+    wires = [e for e in window.container if isinstance(e, Wire)]
+    assert len(wires) == 2
+    assert not [e for e in window.container if isinstance(e, Line)]
+    assert "T-Abzweig" in window.statusBar().currentMessage()
+    window.act_undo.trigger()
+    assert not [e for e in window.container if isinstance(e, Wire)]

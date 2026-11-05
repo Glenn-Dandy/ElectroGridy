@@ -12,6 +12,8 @@ from electrogridy.model.entities import (
     ConnectionPoint,
     Entity,
     JunctionMark,
+    Line,
+    Polyline,
     Text,
     Wire,
 )
@@ -84,8 +86,8 @@ JUNCTION_WEIGHT_FACTOR = 4.0  # diameter as a multiple of the wire's line width
 def junctions(entities: Iterable[Entity]) -> list[tuple[Point, Entity]]:
     """Connection dots with the entity that gives their style.
 
-    Automatic dots: a wire end on the inside of another wire, a wire end on a
-    bus bar, or three or more wire ends at one point. Junction marks then
+    Automatic dots: a wire end on the inside or on a corner of another wire, a wire
+    end on a bus bar, or three or more wire ends at one point. Junction marks then
     force (``connected``) or suppress dots at their position.
     """
     entities = list(entities)
@@ -98,7 +100,10 @@ def junctions(entities: Iterable[Entity]) -> list[tuple[Point, Entity]]:
     horizontal: dict[float, list[tuple[float, float, str]]] = {}
     other: list[tuple[str, Point, Point]] = []
     ends: dict[tuple[float, float], list[Wire]] = {}
+    corners: dict[tuple[float, float], set[str]] = {}  # inner points: ids of their wires
     for w in wires:
+        for q in w.points[1:-1]:
+            corners.setdefault((round(q.x, 6), round(q.y, 6)), set()).add(w.id)
         for a, b in segments(w.points):
             if abs(a.x - b.x) <= EPS:
                 vertical.setdefault(round(a.x, 6), []).append((min(a.y, b.y), max(a.y, b.y), w.id))
@@ -122,7 +127,8 @@ def junctions(entities: Iterable[Entity]) -> list[tuple[Point, Entity]]:
             continue
         owner_ids = {w.id for w in owners}
         if (
-            inside(vertical.get(x, ()), y, owner_ids)
+            corners.get((x, y), set()) - owner_ids
+            or inside(vertical.get(x, ()), y, owner_ids)
             or inside(horizontal.get(y, ()), x, owner_ids)
             or any(wid not in owner_ids and _on_segment_interior(p, a, b) for wid, a, b in other)
             or any(on_segment(p, bar.p1, bar.p2) for bar in bars)
@@ -161,54 +167,80 @@ def _axis(a: Point, b: Point) -> tuple[float, float] | None:
 
 
 def tees(entities: Iterable[Entity]) -> tuple[list[tuple[Point, Entity]], list[Tee]]:
-    """The junction dots split into those that stay dots and the T branches: one wire
-    end on the inside of a straight conductor across it, or three ends of which two
-    run on in a line. Crossings and other points stay dots."""
+    """The junction dots split into those that stay dots and the T branches: exactly
+    three conductors leave the point, two of them in a line and the third across.
+    A conductor leaves a point at a wire end, twice at a corner and twice where it
+    runs through. Crossings and other points stay dots. At a manually set connection
+    point plain lines and polylines count as well (imported plans)."""
     entities = list(entities)
     wires = [e for e in entities if isinstance(e, Wire) and len(e.points) >= 2]
     bars = [e for e in entities if isinstance(e, Busbar)]
+    lines = [e for e in entities if isinstance(e, Line | Polyline)]
     marks = {
         (round(m.position.x, 6), round(m.position.y, 6)): m
         for m in entities
         if isinstance(m, JunctionMark)
     }
-    # Looked up per junction: wire ends by position, straight runs by their line.
-    ends_at: dict[tuple[float, float], list[tuple[Entity, tuple[float, float]]]] = {}
-    rows: dict[float, list[tuple[float, float]]] = {}  # y: horizontal runs (x from, to)
-    columns: dict[float, list[tuple[float, float]]] = {}  # x: vertical runs
-    for w in wires:
-        for i, j in ((0, 1), (-1, -2)):
-            direction = _axis(w.points[i], w.points[j])
-            if direction is not None:
-                key = (round(w.points[i].x, 6), round(w.points[i].y, 6))
-                ends_at.setdefault(key, []).append((w, direction))
-    for a, b in [s for w in wires for s in segments(w.points)] + [(e.p1, e.p2) for e in bars]:
-        if abs(a.y - b.y) <= EPS:
-            rows.setdefault(round(a.y, 6), []).append((min(a.x, b.x), max(a.x, b.x)))
-        elif abs(a.x - b.x) <= EPS:
-            columns.setdefault(round(a.x, 6), []).append((min(a.y, b.y), max(a.y, b.y)))
+    Arm = tuple[Entity, tuple[float, float]]
+    # Looked up per junction: conductor points (ends and corners) by position,
+    # straight runs by their line.
+    Runs = dict[float, list[tuple[float, float, Entity]]]  # line: (from, to, owner)
 
-    def inside(runs, v: float) -> bool:
-        return any(lo + EPS < v < hi - EPS for lo, hi in runs)
+    def index(owner: Entity, points, into: dict, rows: Runs, columns: Runs) -> None:
+        for k, q in enumerate(points):
+            key = (round(q.x, 6), round(q.y, 6))
+            for n in (k - 1, k + 1):
+                if 0 <= n < len(points):
+                    direction = _axis(q, points[n])
+                    if direction is not None:
+                        into.setdefault(key, []).append((owner, direction))
+        for a, b in segments(points):
+            if abs(a.y - b.y) <= EPS and abs(a.x - b.x) > EPS:
+                rows.setdefault(round(a.y, 6), []).append((min(a.x, b.x), max(a.x, b.x), owner))
+            elif abs(a.x - b.x) <= EPS and abs(a.y - b.y) > EPS:
+                columns.setdefault(round(a.x, 6), []).append((min(a.y, b.y), max(a.y, b.y), owner))
+
+    arms_at: dict[tuple[float, float], list[Arm]] = {}
+    conductor_rows: Runs = {}  # y: horizontal runs
+    conductor_columns: Runs = {}  # x: vertical runs
+    for w in wires:
+        index(w, w.points, arms_at, conductor_rows, conductor_columns)
+    for bar in bars:
+        index(bar, (bar.p1, bar.p2), arms_at, conductor_rows, conductor_columns)
+    line_arms: dict[tuple[float, float], list[Arm]] = {}
+    line_rows: Runs = {}
+    line_columns: Runs = {}
+    for line in lines:
+        if isinstance(line, Polyline) and line.closed:
+            continue
+        points = (line.p1, line.p2) if isinstance(line, Line) else line.points
+        index(line, points, line_arms, line_rows, line_columns)
+
+    def arms(p: Point, x: float, y: float, by_x, by_y, at) -> list[Arm]:
+        found = list(at.get((x, y), []))
+        for lo, hi, owner in by_y.get(y, ()):
+            if lo + EPS < p.x < hi - EPS:
+                found += [(owner, (1.0, 0.0)), (owner, (-1.0, 0.0))]
+        for lo, hi, owner in by_x.get(x, ()):
+            if lo + EPS < p.y < hi - EPS:
+                found += [(owner, (0.0, 1.0)), (owner, (0.0, -1.0))]
+        return found
 
     dots: list[tuple[Point, Entity]] = []
     found: list[Tee] = []
     for p, owner in junctions(entities):
         x, y = round(p.x, 6), round(p.y, 6)
-        ends = ends_at.get((x, y), [])
-        through = None
-        if inside(rows.get(y, ()), p.x):
-            through = (1.0, 0.0)
-        elif inside(columns.get(x, ()), p.y):
-            through = (0.0, 1.0)
+        leaving = arms(p, x, y, conductor_columns, conductor_rows, arms_at)
+        if isinstance(owner, JunctionMark):
+            leaving += arms(p, x, y, line_columns, line_rows, line_arms)
+        # The same direction twice (two wires lying on each other) counts once.
+        unique: dict[tuple[float, float], Entity] = {}
+        for e, d in leaving:
+            unique.setdefault(d, e)
         tee = None
-        if len(ends) == 1 and through is not None:
-            wire, branch = ends[0]
-            if branch[0] * through[0] + branch[1] * through[1] == 0:
-                tee = (wire, branch, through)
-        elif len(ends) == 3 and through is None:
-            for k in range(3):
-                (wire, branch), others = ends[k], [d for n, (_w, d) in enumerate(ends) if n != k]
+        if len(unique) == 3:
+            for branch, wire in unique.items():
+                others = [d for d in unique if d != branch]
                 opposite = others[0] == (-others[1][0], -others[1][1])
                 if opposite and branch[0] * others[0][0] + branch[1] * others[0][1] == 0:
                     tee = (wire, branch, others[0])
@@ -218,7 +250,7 @@ def tees(entities: Iterable[Entity]) -> tuple[list[tuple[Point, Entity]], list[T
             continue
         wire, branch, axis = tee
         axis = (abs(axis[0]), abs(axis[1]))  # right or down
-        mark = marks.get((round(p.x, 6), round(p.y, 6)))
+        mark = marks.get((x, y))
         if mark is not None and mark.side < 0:
             axis = (-axis[0], -axis[1])
         found.append(Tee(p, wire, branch, axis))
