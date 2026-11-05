@@ -81,6 +81,7 @@ def rotate_entity(e: Entity, center: Point, degrees: float) -> Entity | None:
                 linetype=e.linetype,
                 points=tuple(rot(p) for p in corners),
                 closed=True,
+                filled=e.filled,
             )
         case Circle():
             return replace(e, center=rot(e.center))

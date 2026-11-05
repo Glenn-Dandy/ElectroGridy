@@ -26,6 +26,23 @@ def test_entity_roundtrip(entity):
     assert entity_from_dict(json.loads(json.dumps(d))) == entity
 
 
+def test_filled_shapes_roundtrip_and_older_files_stay_unfilled():
+    from electrogridy.model.entities import Circle, Point, Polyline, Rectangle
+
+    shapes = [
+        Polyline(id="p", points=(Point(0, 0), Point(2, 1), Point(0, 2)), closed=True, filled=True),
+        Rectangle(id="r", p1=Point(0, 0), p2=Point(4, 1), filled=True),
+        Circle(id="c", center=Point(5, 5), radius=0.5, filled=True),
+    ]
+    for e in shapes:
+        d = entity_to_dict(e)
+        assert d["filled"] is True
+        assert entity_from_dict(json.loads(json.dumps(d))) == e
+        del d["filled"]
+        assert not entity_from_dict(d).filled
+    assert "filled" not in entity_to_dict(Circle(id="c", center=Point(0, 0), radius=1))
+
+
 def make_document() -> Document:
     doc = Document.new("Blatt 1")
     doc.layers.append(Layer("Leitungen", color="#0000ff", lineweight=0.5, locked=True))

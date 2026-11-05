@@ -32,6 +32,7 @@ from electrogridy.model.entities import (
     Rectangle,
     Text,
     Wire,
+    is_filled,
 )
 from electrogridy.model.geometry import Point
 
@@ -404,6 +405,11 @@ def paint_entity(
         _paint_image(painter, e)
         return
     painter.setPen(make_pen(style.color, style.lineweight, px_per_mm, style.linetype))
+    if is_filled(e):
+        painter.setBrush(style.color)
+        painter.drawPath(entity_path(e))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        return
     painter.setBrush(Qt.BrushStyle.NoBrush)
     painter.drawPath(entity_path(e))
 

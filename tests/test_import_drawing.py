@@ -212,6 +212,98 @@ def test_lines_and_texts_from_a_cad_pdf(qapp, tmp_path):
     assert xs and abs(xs[0]) < 1e-6 and abs(xs[1] - 100 * k * 2) < 0.1
 
 
+def _printed_pdf(path):
+    """A PDF as some programs print plans: dashes, dots, arrow heads and bars as areas
+    without an outline, a pale background, dashed pens, a dot as a stepped polygon."""
+    import math
+
+    from PyQt6.QtCore import QMarginsF, QPointF, QRectF, Qt
+    from PyQt6.QtGui import QColor, QPageLayout, QPageSize, QPainter, QPdfWriter, QPen, QPolygonF
+
+    writer = QPdfWriter(str(path))
+    writer.setResolution(72)
+    writer.setPageLayout(
+        QPageLayout(
+            QPageSize(QPageSize.PageSizeId.A4),
+            QPageLayout.Orientation.Landscape,
+            QMarginsF(0, 0, 0, 0),
+        )
+    )
+    mm = 72 / 25.4
+    painter = QPainter(writer)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor("black"))
+    for i in range(10):  # dashes 1.35 mm long, 0.17 mm wide, 1.35 mm apart
+        painter.drawRect(QRectF((20 + 2.7 * i) * mm, 50 * mm, 1.35 * mm, 0.17 * mm))
+    x = 20.0
+    for _ in range(8):  # dash, dot, dash, dot …
+        painter.drawRect(QRectF(x * mm, 70 * mm, 1.0 * mm, 0.24 * mm))
+        painter.drawRect(QRectF((x + 1.2) * mm, 70 * mm, 0.2 * mm, 0.24 * mm))
+        x += 1.6
+    arrow = [QPointF(100 * mm, 50 * mm), QPointF(102 * mm, 50.7 * mm), QPointF(100 * mm, 51.4 * mm)]
+    painter.drawPolygon(QPolygonF(arrow))
+    painter.drawEllipse(QPointF(120 * mm, 50 * mm), 0.5 * mm, 0.5 * mm)
+    painter.drawRect(QRectF(20 * mm, 90 * mm, 30 * mm, 1.0 * mm))  # a bar stays an area
+    painter.drawRect(QRectF(20 * mm, 100 * mm, 30 * mm, 0.3 * mm))  # a thick line
+    painter.setBrush(QColor(230, 230, 230))
+    painter.drawRect(QRectF(150 * mm, 40 * mm, 60 * mm, 30 * mm))  # pale background
+    painter.setBrush(QColor("black"))
+    painter.setPen(QPen(QColor("black"), 0.25 * mm))
+    dot = [
+        QPointF(
+            (140 + round(math.cos(a / 24 * math.pi) * 10) / 10) * mm,
+            (50 + round(math.sin(a / 24 * math.pi) * 10) / 10) * mm,
+        )
+        for a in range(48)
+    ]
+    painter.drawPolygon(QPolygonF(dot))  # a dot as steps on a raster
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    for y, style in ((120, Qt.PenStyle.DashLine), (130, Qt.PenStyle.DashDotLine)):
+        pen = QPen(QColor("black"), 0.25 * mm)
+        pen.setStyle(style)
+        painter.setPen(pen)
+        painter.drawLine(QPointF(20 * mm, y * mm), QPointF(80 * mm, y * mm))
+    painter.end()
+
+
+@pytest.mark.skipif(not pdf_import.available(), reason="pdfminer missing")
+def test_areas_and_dash_patterns_from_a_printed_pdf(qapp, tmp_path):
+    path = tmp_path / "printed.pdf"
+    _printed_pdf(path)
+    found = pdf_import.page_entities(path, 0, pdf_import.Region(0, 0, 842, 595))
+
+    def line_at(y):
+        (line,) = [e for e in found if isinstance(e, Line) and abs(e.p1.y - y) < 0.3]
+        return line
+
+    dashed = line_at(50.085)  # the ten dashes are one dashed line
+    assert dashed.linetype == "dashed" and dashed.lineweight == 0.18
+    assert sorted([dashed.p1.x, dashed.p2.x]) == pytest.approx([20, 20 + 9 * 2.7 + 1.35], abs=0.01)
+    dash_dot = line_at(70.12)
+    assert dash_dot.linetype == "dashdot" and dash_dot.lineweight == 0.25
+    thick = line_at(100.15)
+    assert thick.linetype is None and thick.lineweight == 0.25
+    assert sorted([thick.p1.x, thick.p2.x]) == pytest.approx([20, 50], abs=0.01)
+    assert line_at(120).linetype == "dashed" and line_at(130).linetype == "dashdot"
+    (arrow,) = [e for e in found if isinstance(e, Polyline)]
+    assert arrow.filled and arrow.closed and len(arrow.points) == 3
+    assert arrow.lineweight == pdf_import.AREA_OUTLINE  # a hair outline, no growth
+    dots = sorted((e for e in found if isinstance(e, Circle)), key=lambda c: c.center.x)
+    assert [d.filled for d in dots] == [True, True]
+    assert dots[0].center.x == pytest.approx(120, abs=0.01)
+    assert dots[0].radius == pytest.approx(0.5, abs=0.01)
+    assert dots[1].center.x == pytest.approx(140, abs=0.05) and dots[1].lineweight == 0.25
+    (bar,) = [e for e in found if isinstance(e, Rectangle)]  # the pale one is left out
+    assert bar.filled and abs(bar.p2.y - bar.p1.y) == pytest.approx(1.0, abs=0.01)
+    # Only a region: the bar is cut at its edge and stays filled.
+    part = pdf_import.page_entities(path, 0, pdf_import.Region(30 * 72 / 25.4, 0, 842, 595))
+    (cut,) = [e for e in part if isinstance(e, Rectangle)]
+    assert cut.filled and sorted([cut.p1.x, cut.p2.x]) == pytest.approx([0, 20], abs=0.01)
+    arrow_part = pdf_import.page_entities(path, 0, pdf_import.Region(101 * 72 / 25.4, 0, 842, 595))
+    (tip,) = [e for e in arrow_part if isinstance(e, Polyline)]
+    assert tip.filled and tip.closed and max(p.x for p in tip.points) == pytest.approx(1)
+
+
 def test_import_dialog_with_a_picture(qapp, tmp_path):
     from PyQt6.QtGui import QColor, QImage, QPainter, QPen
 

@@ -169,6 +169,29 @@ def test_properties_dock_changes_selection(window):
     assert all(e.color is None for e in window.document.model_space)
 
 
+def test_properties_dock_fills_closed_shapes(window):
+    from electrogridy.model.entities import Circle, Polyline
+
+    window.document.model_space.add(Circle(id="c", center=Point(10, 10), radius=3))
+    window.document.model_space.add(
+        Polyline(id="p", points=(Point(0, 0), Point(5, 0), Point(5, 5)), closed=True)
+    )
+    window.document.model_space.add(Line(id="l", p1=Point(0, 0), p2=Point(9, 0)))
+    dock = window.properties_dock
+    window._sync.item("l").setSelected(True)
+    assert not dock.form.isRowVisible(dock.cmb_fill)  # a line has no inside
+    window._sync.item("l").setSelected(False)
+    window._sync.item("c").setSelected(True)
+    window._sync.item("p").setSelected(True)
+    assert dock.form.isRowVisible(dock.cmb_fill) and dock.cmb_fill.currentData() is False
+    dock.cmb_fill.setCurrentIndex(dock.cmb_fill.findData(True))
+    dock.cmb_fill.activated.emit(dock.cmb_fill.currentIndex())
+    space = window.document.model_space
+    assert space.get("c").filled and space.get("p").filled
+    window.act_undo.trigger()
+    assert not space.get("c").filled and not space.get("p").filled
+
+
 def test_properties_dock_edits_text(window):
     window.document.model_space.add(Text(id="t", position=Point(10, 10), text="alt"))
     window._sync.item("t").setSelected(True)

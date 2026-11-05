@@ -106,6 +106,38 @@ def test_click_selects_and_drag_right_to_left_crosses(setup):
     assert [i.entity_id for i in scene.selectedItems()] == ["b"]
 
 
+def test_filled_shape_is_painted_and_hit_inside(qapp):
+    from PyQt6.QtGui import QImage, QPainter
+    from PyQt6.QtWidgets import QStyleOptionGraphicsItem
+
+    from electrogridy.model.entities import Circle, Polyline, is_filled
+
+    tri = Polyline(
+        id="t", points=(Point(0, 0), Point(20, 10), Point(0, 20)), closed=True, filled=True
+    )
+    disc = Circle(id="c", center=Point(40, 10), radius=8, filled=True)
+    ring = Circle(id="r", center=Point(70, 10), radius=8)
+    assert is_filled(tri) and is_filled(disc) and not is_filled(ring)
+    assert not is_filled(Polyline(id="o", points=tri.points, filled=True))  # open: no fill
+    image = QImage(400, 100, QImage.Format.Format_ARGB32_Premultiplied)
+    image.fill(QColor("white"))
+    painter = QPainter(image)
+    painter.scale(4, 4)
+    items = [EntityItem(e, style) for e in (tri, disc, ring)]
+    for item in items:
+        item.paint(painter, QStyleOptionGraphicsItem())
+    painter.end()
+    inside = [
+        QColor(image.pixel(int(x * 4), int(y * 4))).lightness()
+        for x, y in ((6, 10), (40, 10), (70, 10))
+    ]
+    assert inside[0] < 50 and inside[1] < 50 and inside[2] > 200  # the ring stays open
+    assert items[0].shape().contains(QPointF(6, 10)) and items[1].shape().contains(QPointF(40, 10))
+    assert not items[2].shape().contains(QPointF(70, 10))
+    # The outline band counts as well (not cancelled by the area under it).
+    assert items[1].shape().contains(QPointF(48, 10))
+
+
 def test_item_paints_prepared_texts_like_plain_text_painting(qapp):
     from PyQt6.QtGui import QImage, QPainter
     from PyQt6.QtWidgets import QStyleOptionGraphicsItem

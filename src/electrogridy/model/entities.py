@@ -63,6 +63,8 @@ class Line(Entity):
 class Polyline(Entity):
     points: tuple[Point, ...]
     closed: bool = False
+    # Painted inside in the entity colour (closed polylines only); the outline stays.
+    filled: bool = False
 
     def _mapped(self, fn, quarters):
         return replace(self, points=tuple(fn(p) for p in self.points))
@@ -74,6 +76,7 @@ class Rectangle(Entity):
 
     p1: Point
     p2: Point
+    filled: bool = False
 
     def _mapped(self, fn, quarters):
         return replace(self, p1=fn(self.p1), p2=fn(self.p2))
@@ -83,9 +86,19 @@ class Rectangle(Entity):
 class Circle(Entity):
     center: Point
     radius: float
+    filled: bool = False
 
     def _mapped(self, fn, quarters):
         return replace(self, center=fn(self.center))
+
+
+def fillable(e: Entity) -> bool:
+    """Can be filled: circles, rectangles and closed polylines."""
+    return isinstance(e, Circle | Rectangle) or (isinstance(e, Polyline) and e.closed)
+
+
+def is_filled(e: Entity) -> bool:
+    return fillable(e) and e.filled
 
 
 @dataclass(frozen=True, kw_only=True)

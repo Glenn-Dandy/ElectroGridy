@@ -23,7 +23,9 @@ def test_free_angles_per_entity_kind():
     rect = Rectangle(id="r", p1=Point(0, 0), p2=Point(20, 10), lineweight=0.5)
     poly = rotate_entity(rect, Point(0, 0), 30)
     assert isinstance(poly, Polyline) and poly.closed and len(poly.points) == 4
-    assert poly.id == "r" and poly.lineweight == 0.5
+    assert poly.id == "r" and poly.lineweight == 0.5 and not poly.filled
+    filled = Rectangle(id="f", p1=Point(0, 0), p2=Point(2, 1), filled=True)
+    assert rotate_entity(filled, Point(0, 0), 30).filled
     text = rotate_entity(Text(id="t", position=Point(0, 0), text="A"), Point(0, 0), 12.5)
     assert text.rotation == pytest.approx(12.5)
     ref = BlockReference(id="b", name="X", insert=Point(0, 0))

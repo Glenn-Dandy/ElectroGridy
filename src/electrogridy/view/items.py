@@ -6,7 +6,7 @@ from PyQt6.QtCore import QRectF, Qt
 from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPainterPathStroker
 from PyQt6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem
 
-from electrogridy.model.entities import ConnectionPoint, Entity, JunctionMark, Text
+from electrogridy.model.entities import ConnectionPoint, Entity, JunctionMark, Text, is_filled
 from electrogridy.view.render import (
     PreparedText,
     Style,
@@ -100,10 +100,13 @@ class EntityItem(QGraphicsItem):
                 path = entity_path(shown)
                 stroker = QPainterPathStroker()
                 stroker.setWidth(max(style.lineweight, 0.01))
-                shape.addPath(stroker.createStroke(path))
+                outline = stroker.createStroke(path)
+                # A filled shape is hit inside too (united: added on its own, the
+                # outline band inside would cancel the area under the odd-even rule).
+                shape.addPath(outline.united(path) if is_filled(shown) else outline)
             if isinstance(shown, Text):
                 ops.append((style, prepare_text(shown)))
-            elif not stroked(shown):
+            elif not stroked(shown) or is_filled(shown):
                 ops.append((style, part))
             elif (
                 style.linetype == "continuous"

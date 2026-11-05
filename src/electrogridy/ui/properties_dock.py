@@ -32,6 +32,7 @@ from electrogridy.model.entities import (
     RasterImage,
     Rectangle,
     Text,
+    fillable,
 )
 from electrogridy.ui.anchor_picker import AnchorPicker, shown_anchor
 from electrogridy.ui.styles import (
@@ -96,6 +97,7 @@ class PropertiesDock(QDockWidget):
         self.cmb_color = QComboBox()
         self.cmb_weight = QComboBox()
         self.cmb_type = QComboBox()
+        self.cmb_fill = QComboBox()
         self.txt_text = QPlainTextEdit()
         self.txt_text.setMaximumHeight(90)
         self.btn_apply_text = QPushButton(self.tr("Text übernehmen"))
@@ -111,6 +113,7 @@ class PropertiesDock(QDockWidget):
             lambda _i: self._apply_combo(self.cmb_weight, "lineweight")
         )
         self.cmb_type.activated.connect(lambda _i: self._apply_combo(self.cmb_type, "linetype"))
+        self.cmb_fill.activated.connect(lambda _i: self._apply_fill())
         self.cmb_height.value_chosen.connect(self._apply_height)
         self.cmb_anchor.chosen.connect(self._apply_anchor)
         self.btn_apply_text.clicked.connect(self._apply_text)
@@ -120,6 +123,7 @@ class PropertiesDock(QDockWidget):
         self.form.addRow(self.tr("Farbe:"), self.cmb_color)
         self.form.addRow(self.tr("Linienbreite:"), self.cmb_weight)
         self.form.addRow(self.tr("Linienart:"), self.cmb_type)
+        self.form.addRow(self.tr("Füllung:"), self.cmb_fill)
         self.form.addRow(self.tr("Text:"), self.txt_text)
         self.form.addRow("", self.btn_apply_text)
         self.form.addRow(self.tr("Texthöhe:"), self.cmb_height)
@@ -167,6 +171,10 @@ class PropertiesDock(QDockWidget):
         has = bool(entities)
         for w in (self.cmb_layer, self.cmb_color, self.cmb_weight, self.cmb_type):
             self._set_row_visible(w, has)
+        fill = has and all(fillable(e) for e in entities)
+        self._set_row_visible(self.cmb_fill, fill)
+        if fill:
+            self._show_fill(_common([e.filled for e in entities]))
         texts = [e for e in entities if isinstance(e, Text)]
         all_text = has and len(texts) == len(entities)
         self._set_row_visible(self.txt_text, all_text and len(texts) == 1)
@@ -244,6 +252,13 @@ class PropertiesDock(QDockWidget):
             c.addItem(label, key)
         self._select(c, value)
 
+    def _show_fill(self, value: object) -> None:
+        c = self.cmb_fill
+        c.clear()
+        c.addItem(self.tr("Ohne"), False)
+        c.addItem(self.tr("Gefüllt"), True)
+        self._select(c, value)
+
     # -- apply --------------------------------------------------------------
 
     def _push(self, changed: list[Entity], text: str) -> None:
@@ -263,6 +278,15 @@ class PropertiesDock(QDockWidget):
             new = [replace(e, height=value) if isinstance(e, Text) else e for e in self._entities]
         else:
             new = [replace(e, **{field: value}) for e in self._entities]
+        self._push(new, self.tr("Eigenschaften ändern"))
+
+    def _apply_fill(self) -> None:
+        if self._updating:
+            return
+        value = self.cmb_fill.currentData()
+        if value == MIXED:
+            return
+        new = [replace(e, filled=bool(value)) if fillable(e) else e for e in self._entities]
         self._push(new, self.tr("Eigenschaften ändern"))
 
     def _apply_height(self, value: float) -> None:

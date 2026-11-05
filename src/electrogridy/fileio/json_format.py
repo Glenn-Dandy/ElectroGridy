@@ -138,6 +138,8 @@ def entity_to_dict(e: Entity) -> dict[str, Any]:
         value = getattr(e, key)
         if value is not None:
             d[key] = value
+    if isinstance(e, Polyline | Rectangle | Circle) and e.filled:
+        d["filled"] = True  # older versions ignore it and draw the outline
     match e:
         case Line() | Rectangle() | Busbar():
             d["p1"], d["p2"] = _pt(e.p1), _pt(e.p2)
@@ -257,7 +259,9 @@ def entity_from_dict(d: dict[str, Any]) -> Entity:
         case "line":
             return Line(p1=_to_pt(d["p1"]), p2=_to_pt(d["p2"]), **common)
         case "rectangle":
-            return Rectangle(p1=_to_pt(d["p1"]), p2=_to_pt(d["p2"]), **common)
+            return Rectangle(
+                p1=_to_pt(d["p1"]), p2=_to_pt(d["p2"]), filled=bool(d.get("filled")), **common
+            )
         case "image":
             try:
                 data = base64.b64decode(str(d["data"]), validate=True)
@@ -349,10 +353,16 @@ def entity_from_dict(d: dict[str, Any]) -> Entity:
             return Polyline(
                 points=tuple(_to_pt(p) for p in d["points"]),
                 closed=bool(d.get("closed", False)),
+                filled=bool(d.get("filled")),
                 **common,
             )
         case "circle":
-            return Circle(center=_to_pt(d["center"]), radius=float(d["radius"]), **common)
+            return Circle(
+                center=_to_pt(d["center"]),
+                radius=float(d["radius"]),
+                filled=bool(d.get("filled")),
+                **common,
+            )
         case "arc":
             return Arc(
                 center=_to_pt(d["center"]),
