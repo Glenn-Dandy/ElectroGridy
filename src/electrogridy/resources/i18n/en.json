@@ -1075,5 +1075,9 @@
  "Texte werden einzeln gelesen …": "Reading the texts one by one …",
  "Texte werden gelesen …": "Reading the texts …",
  "Texterkennung:": "Text recognition:",
- "Bild in Linien und Texte umwandeln": "Convert the picture into lines and texts"
+ "Bild in Linien und Texte umwandeln": "Convert the picture into lines and texts",
+ "90° links": "90° left",
+ "90° rechts": "90° right",
+ "Bild um 90° gegen den Uhrzeigersinn drehen": "Turn the picture 90° anticlockwise",
+ "Bild um 90° im Uhrzeigersinn drehen": "Turn the picture 90° clockwise"
 }

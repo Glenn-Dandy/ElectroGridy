@@ -55,6 +55,7 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QProgressDialog,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -565,6 +566,17 @@ class ImportDialog(QDialog):
             pages = pdf.pageCount()
         self.source = _Source(path, pdf, pages)
         self._picture = None if pdf is not None else load_picture(path)
+        # Quarter turns clockwise of the picture or page; a page read as lines and
+        # texts is never turned (its lines come from the PDF as they are).
+        self._turns = 0
+        self.btn_left = QPushButton(self.tr("90° links"))
+        self.btn_left.setToolTip(self.tr("Bild um 90° gegen den Uhrzeigersinn drehen"))
+        self.btn_right = QPushButton(self.tr("90° rechts"))
+        self.btn_right.setToolTip(self.tr("Bild um 90° im Uhrzeigersinn drehen"))
+        for button in (self.btn_left, self.btn_right):
+            button.setAutoDefault(False)  # Enter stays OK
+        self.btn_left.clicked.connect(lambda _checked=False: self.turn(-1))
+        self.btn_right.clicked.connect(lambda _checked=False: self.turn(1))
 
         self.pages = QListWidget()
         self.pages.setViewMode(QListWidget.ViewMode.IconMode)
@@ -622,7 +634,13 @@ class ImportDialog(QDialog):
             how += " " + self.tr(
                 "Schräg fotografiert: die Ecken einzeln auf die Ecken des Blatts ziehen."
             )
-        right.addWidget(QLabel(how))
+        top = QHBoxLayout()
+        label = QLabel(how)
+        label.setWordWrap(True)
+        top.addWidget(label, 1)
+        top.addWidget(self.btn_left)
+        top.addWidget(self.btn_right)
+        right.addLayout(top)
         right.addWidget(self.view, 1)
         right.addLayout(form)
         right.addWidget(self.hint)
@@ -678,19 +696,39 @@ class ImportDialog(QDialog):
         if page < 0:
             return
         if self.source.pdf is not None:
-            self.view.set_image(self._render(page, PREVIEW_DPI))
             has_vectors = self._vectors(page) >= pdf_import.MIN_VECTOR_OBJECTS
             self.paper.setText(self._paper_text(page))
         else:
-            self.view.set_image(limited(self._picture, 1600))
             has_vectors = False
+        self._show_image(page)
         self.mode.model().item(0).setEnabled(has_vectors)
         if has_vectors:
             self.mode.setCurrentIndex(0)
         elif self.mode.currentIndex() == 0:
             self.mode.setCurrentIndex(2)  # a photo or scan: try the lines
-        self._region_changed()
         self._mode_changed()
+
+    def _show_image(self, page: int) -> None:
+        """The page or picture as it is turned, all of it marked."""
+        if self.source.pdf is not None:
+            image = self._render(page, PREVIEW_DPI)
+        else:
+            image = limited(self._picture, 1600)
+        self.view.set_image(self._turned(image))
+        self._region_changed()
+
+    def _turned(self, image: QImage) -> QImage:
+        if not self._turns:
+            return image
+        return image.transformed(QTransform().rotate(90 * self._turns))
+
+    def turn(self, quarters: int) -> None:
+        """Turn the picture (or the page brought in as a picture) by quarter turns
+        clockwise; the whole of it is marked again."""
+        if self.mode.currentData() == VECTORS:
+            return
+        self._turns = (self._turns + quarters) % 4
+        self._show_image(self.page)
 
     def _paper_text(self, page: int) -> str:
         """ "A3 quer (420 × 297 mm)", or only the size for other formats."""
@@ -731,9 +769,11 @@ class ImportDialog(QDialog):
         )
 
     def _page_width(self) -> float:
-        """Width of the whole page or picture in mm at scale 1."""
+        """Width of the whole page or picture as shown (turned) in mm at scale 1."""
         if self.source.pdf is not None:
-            return self.source.pdf.pagePointSize(self.page).width() * pdf_import.MM_PER_PT
+            size = self.source.pdf.pagePointSize(self.page)
+            side = size.height() if self._turns % 2 else size.width()
+            return side * pdf_import.MM_PER_PT
         return PICTURE_WIDTH
 
     def _region_changed(self) -> None:
@@ -750,6 +790,11 @@ class ImportDialog(QDialog):
 
     def _mode_changed(self, *_args) -> None:
         mode = self.mode.currentData()
+        for button in (self.btn_left, self.btn_right):
+            button.setEnabled(mode != VECTORS)
+        if mode == VECTORS and self._turns:
+            self._turns = 0
+            self._show_image(self.page)
         self.keep.setVisible(mode == TRACE)
         self.form.setRowVisible(self.quality, mode == TRACE)
         hints = {
@@ -775,6 +820,7 @@ class ImportDialog(QDialog):
             image, photo = self._render(self.page, dpi), False
         else:
             image, photo = self._picture, True
+        image = self._turned(image)
         w, h = image.width(), image.height()
         if self.view.slanted():
             scene = self.view.scene().sceneRect()

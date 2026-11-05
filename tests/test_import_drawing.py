@@ -329,6 +329,45 @@ def test_import_dialog_with_a_picture(qapp, tmp_path):
     assert abs(picture.p2.x - dialog.width_mm.value()) < 1e-6
 
 
+def test_import_dialog_turns_the_picture(qapp, tmp_path):
+    """A plan photographed with the phone held upright: turned in the window before the
+    region is marked (Florian 2026-11-05)."""
+    from PyQt6.QtGui import QColor, QImage, QPainter
+
+    from electrogridy.ui.picture_import import PICTURE, PICTURE_WIDTH, ImportDialog
+
+    image = QImage(600, 300, QImage.Format.Format_RGB32)
+    image.fill(QColor("white"))
+    painter = QPainter(image)
+    painter.fillRect(0, 0, 60, 30, QColor("red"))  # marks the top left corner
+    painter.end()
+    path = tmp_path / "hochkant.png"
+    image.save(str(path))
+    dialog = ImportDialog(path)
+    assert not dialog.btn_left.autoDefault() and not dialog.btn_right.autoDefault()
+    dialog.mode.setCurrentIndex(dialog.mode.findData(PICTURE))
+
+    def taken():
+        (picture,) = dialog.entities()
+        return picture, QImage.fromData(picture.data)
+
+    def red(picture, x, y):
+        c = QColor(picture.pixel(x, y))
+        return c.red() > 200 and c.green() < 80
+
+    dialog.btn_right.click()
+    scene = dialog.view.scene().sceneRect()
+    assert scene.height() == pytest.approx(2 * scene.width())
+    assert dialog.width_mm.value() == pytest.approx(PICTURE_WIDTH)
+    entity, picture = taken()
+    assert entity.p2.y - entity.p1.y == pytest.approx(2 * (entity.p2.x - entity.p1.x), rel=0.01)
+    assert red(picture, picture.width() - 5, 5)  # the top left corner went top right
+    dialog.btn_left.click()
+    dialog.btn_left.click()  # now a quarter to the left of the photo
+    _, picture = taken()
+    assert red(picture, 5, picture.height() - 5)
+
+
 def _has_qtpdf() -> bool:
     from electrogridy.ui.picture_import import pdf_available
 
@@ -358,6 +397,27 @@ def test_import_dialog_with_a_cad_pdf(qapp, tmp_path):
     dialog.mode.setCurrentIndex(dialog.mode.findData(PICTURE))
     (picture,) = dialog.entities()
     assert isinstance(picture, RasterImage) and picture.data[:4] == b"\x89PNG"
+
+
+@pytest.mark.skipif(not pdf_import.available() or not _has_qtpdf(), reason="QtPdf or pdfminer")
+def test_import_dialog_turns_a_pdf_page_only_as_a_picture(qapp, tmp_path):
+    from electrogridy.ui.picture_import import PICTURE, VECTORS, ImportDialog
+
+    path = tmp_path / "plan.pdf"
+    _cad_pdf(path)
+    dialog = ImportDialog(path)
+    assert dialog.mode.currentData() == VECTORS and not dialog.btn_right.isEnabled()
+    dialog.mode.setCurrentIndex(dialog.mode.findData(PICTURE))
+    assert dialog.btn_right.isEnabled()
+    dialog.btn_right.click()
+    assert dialog.width_mm.value() == pytest.approx(210, abs=0.2)  # A4 landscape, upright
+    (picture,) = dialog.entities()
+    assert picture.p2.y - picture.p1.y > picture.p2.x - picture.p1.x
+    # Lines and texts come from the PDF as they are: the page is shown unturned again.
+    dialog.mode.setCurrentIndex(dialog.mode.findData(VECTORS))
+    scene = dialog.view.scene().sceneRect()
+    assert scene.width() > scene.height()
+    assert dialog.width_mm.value() == pytest.approx(297, abs=0.2)
 
 
 def test_import_menu_entry_asks_for_a_file(qapp, monkeypatch):
