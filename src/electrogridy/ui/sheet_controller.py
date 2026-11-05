@@ -231,9 +231,9 @@ class SheetController(QObject):
         for action in (self.act_dots, self.act_tees):
             action.setCheckable(True)
             junction_group.addAction(action)
-        # One submenu, in the project menu and on the page tabs; the title says that
-        # it is not a setting of the page (Florian 2026-11-05).
-        self.junction_menu = QMenu(self.tr("&Verbindungen (ganzes Projekt)"), self.w)
+        # Submenu in the project menu, where "whole project" goes without saying
+        # (Florian 2026-11-05); on the page tabs the title says it.
+        self.junction_menu = QMenu(self.tr("&Verbindungen"), self.w)
         self.junction_menu.addActions([self.act_dots, self.act_tees])
         self.junction_menu.aboutToShow.connect(self.sync_junction_actions)
         self.act_outlines = a(self.tr("Blattumrisse im &Modell"), self._toggle_outlines)
@@ -331,7 +331,9 @@ class SheetController(QObject):
                 menu.addAction(self.act_save_template)
         if self.doc.is_project:
             menu.addSeparator()
-            menu.addMenu(self.junction_menu)
+            junctions = menu.addMenu(self.tr("&Verbindungen (ganzes Projekt)"))
+            junctions.addActions([self.act_dots, self.act_tees])
+            junctions.aboutToShow.connect(self.sync_junction_actions)
         menu.exec(self.tabs.mapToGlobal(pos))
 
     # -- aligning the model view on a sheet ----------------------------------

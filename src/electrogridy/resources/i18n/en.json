@@ -1058,5 +1058,6 @@
  "&Punkte": "&Dots",
  "&T-Abzweige (Schrägstrich)": "&T branches (diagonal)",
  "&Verbindungen (ganzes Projekt)": "&Junctions (whole project)",
- "; Darstellung als T: Projekt > Verbindungen": "; T style: Project > Junctions"
+ "; Darstellung als T: Projekt > Verbindungen": "; T style: Project > Junctions",
+ "&Verbindungen": "&Junctions"
 }
