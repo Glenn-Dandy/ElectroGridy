@@ -58,9 +58,28 @@ def available() -> bool:
 
 
 def _layout(path: Path, page: int):
-    from pdfminer.high_level import extract_pages
+    """The layout of one page. Older pdfminer (Ubuntu 24.04, so also the Snap) does not
+    keep the dash pattern of a path; the reader here notes it on each new curve."""
+    from pdfminer.converter import PDFPageAggregator
+    from pdfminer.pdfinterp import PDFPageInterpreter, PDFResourceManager
+    from pdfminer.pdfpage import PDFPage
 
-    return next(iter(extract_pages(str(path), page_numbers=[page], laparams=None)))
+    class Reader(PDFPageAggregator):
+        def paint_path(self, gstate, stroke, fill, evenodd, path):
+            before = len(self.cur_item._objs)
+            super().paint_path(gstate, stroke, fill, evenodd, path)
+            for o in self.cur_item._objs[before:]:
+                if not hasattr(o, "dashing_style"):
+                    o.dashing_style = gstate.dash
+
+    manager = PDFResourceManager()
+    reader = Reader(manager, laparams=None)
+    interpreter = PDFPageInterpreter(manager, reader)
+    with open(path, "rb") as f:
+        for pdf_page in PDFPage.get_pages(f, {page}):
+            interpreter.process_page(pdf_page)
+            return reader.get_result()
+    raise IndexError(f"page {page} not in {path}")
 
 
 def _walk(objects) -> Iterable:
