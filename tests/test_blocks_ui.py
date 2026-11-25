@@ -15,6 +15,7 @@ from electrogridy.ui.block_dialogs import (
     ConnectionPointDialog,
     CreateBlockDialog,
 )
+from electrogridy.ui.device_dialog import DeviceDialog
 from electrogridy.ui.main_window import MainWindow
 from electrogridy.ui.space import BLOCK, MODEL
 
@@ -24,6 +25,7 @@ def window(qapp, monkeypatch):
     QSettings().clear()
     # Dialogs are answered automatically.
     monkeypatch.setattr(AttributeValuesDialog, "exec", lambda self: 1)
+    monkeypatch.setattr(DeviceDialog, "exec", lambda self: 1)
     w = MainWindow()
     w.resize(1200, 800)
     w.show()

@@ -244,6 +244,9 @@ class BlockReference(Entity):
     docks: tuple[Point, ...] = ()
     # Uniform size factor of this instance (1: the definition's real size).
     scale: float = 1.0
+    # Own names of connection points (definition name, shown name), e.g. ("1", "L1");
+    # only those that differ from the definition.
+    terminal_labels: tuple[tuple[str, str], ...] = ()
 
     def _mapped(self, fn, quarters):
         return replace(self, insert=fn(self.insert), rotation=(self.rotation + 90 * quarters) % 360)
@@ -258,6 +261,13 @@ class BlockReference(Entity):
             rotation=rotation,
             mirrored_x=not self.mirrored_x,
         )
+
+    def terminal_label(self, name: str) -> str:
+        """The name shown for the definition's connection point ``name``."""
+        for t, v in self.terminal_labels:
+            if t == name:
+                return v
+        return name
 
     def attribute(self, tag: str, default: str = "") -> str:
         for t, v in self.attributes:

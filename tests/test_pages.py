@@ -320,20 +320,28 @@ def roles_doc() -> Document:
 
 
 def test_device_occurrences_and_cross_references():
-    from electrogridy.model.devices import crossref_texts, crossrefs, devices, problems
+    from electrogridy.model.devices import MirrorLine, crossref_texts, crossrefs, devices, problems
+    from electrogridy.model.entities import Text
 
     doc = roles_doc()
     found = devices(doc)
     assert list(found) == ["-K1", "-K2"]
     assert [o.where for o in found["-K1"]] == ["model", "sheet", "sheet", "sheet"]
     xr = crossrefs(doc)
-    assert xr["coil"] == ["S 13-14  /3.5", "Ö 21-22  /4.9"]
+    assert xr["coil"] == [
+        MirrorLine("13", "no", "14", "/3.5"),
+        MirrorLine("21", "nc", "22", "/4.9"),
+    ]
     assert xr["no"] == ["/2.0"] and xr["nc"] == ["/2.0"]
     assert "sld" not in xr
     assert problems(doc) == {"-K2": ["sld_twice"]}
-    texts = crossref_texts(doc.sheets[1].entities.get("coil"), doc.blocks, xr["coil"])
-    assert [t.text for t in texts] == xr["coil"]
-    assert texts[0].position.y > 70  # under the symbol
+    parts = crossref_texts(doc.sheets[1].entities.get("coil"), doc.blocks, xr["coil"])
+    texts = [t.text for t in parts if isinstance(t, Text)]
+    assert texts == ["13", "14", "/3.5", "21", "22", "/4.9"]
+    assert len([p for p in parts if isinstance(p, Line)]) == 3 + 4  # make and break glyph
+    assert min(p.position.y for p in parts if isinstance(p, Text)) > 70  # under the symbol
+    contact = crossref_texts(doc.sheets[2].entities.get("no"), doc.blocks, xr["no"])
+    assert [t.text for t in contact] == ["/2.0"]
 
 
 def test_block_role_is_saved():
@@ -356,7 +364,7 @@ def test_device_dock_rename_everywhere(window):
     assert dock.tree.topLevelItemCount() == 2
     assert dock.rename("-K1", "-K5")
     assert "-K5" in devices(window.document) and "-K1" not in devices(window.document)
-    assert window.crossref_lines()["coil"][0].startswith("S 13-14")
+    assert window.crossref_lines()["coil"][0].first == "13"
     window.act_undo.trigger()
     assert "-K1" in devices(window.document)
     (occ,) = [o for o in devices(window.document)["-K1"] if o.entity_id == "no"]

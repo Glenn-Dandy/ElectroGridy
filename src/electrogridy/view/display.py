@@ -12,9 +12,16 @@ from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 from electrogridy.model.blocks import ATTRIBUTE_LINE_FACTOR as LINE_FACTOR
 from electrogridy.model.blocks import BlockDefinition, BlockError, bounds, expand
 from electrogridy.model.cables import cable_mark_geometry, mark_cores
-from electrogridy.model.devices import crossref_texts, crossrefs
+from electrogridy.model.devices import (
+    POLE_TEXT_GAP,
+    POLE_TEXT_HEIGHT,
+    crossref_texts,
+    crossrefs,
+    pole_texts,
+)
 from electrogridy.model.dimensions import dimension_geometry
 from electrogridy.model.document import (
+    DOC_PROJECT,
     GENERATED_KINDS,
     NO_FRAME,
     PAGE_KINDS,
@@ -140,15 +147,6 @@ def page_cache(doc: Document) -> dict:
     return cached[1]
 
 
-def contact_letters() -> dict[str, str]:
-    return {
-        "no": QCoreApplication.translate("contact", "S"),
-        "nc": QCoreApplication.translate("contact", "Ö"),
-        "co": QCoreApplication.translate("contact", "W"),
-        "": "",
-    }
-
-
 def interruption_targets_of(doc: Document) -> dict[str, tuple[str, str]]:
     cache = page_cache(doc)
     if "targets" not in cache:
@@ -156,11 +154,62 @@ def interruption_targets_of(doc: Document) -> dict[str, tuple[str, str]]:
     return cache["targets"]
 
 
-def crossrefs_of(doc: Document) -> dict[str, list[str]]:
+def crossrefs_of(doc: Document) -> dict[str, list]:
     cache = page_cache(doc)
     if "xrefs" not in cache:
-        cache["xrefs"] = crossrefs(doc, contact_letters())
+        cache["xrefs"] = crossrefs(doc)
     return cache["xrefs"]
+
+
+def pole_labelled_of(doc: Document) -> frozenset[str]:
+    """Symbols that show their terminal names: main and auxiliary functions (circuit
+    diagram symbols) on the pages of a circuit diagram project."""
+    cache = page_cache(doc)
+    if "poles" not in cache:
+        found = set()
+        if doc.kind == DOC_PROJECT:
+            for sheet in doc.sheets:
+                for e in sheet.entities:
+                    if isinstance(e, BlockReference):
+                        definition = doc.blocks.get(e.name)
+                        if definition is not None and definition.function in ("main", "aux"):
+                            found.add(e.id)
+        cache["poles"] = frozenset(found)
+    return cache["poles"]
+
+
+def raised_attributes(
+    blocks: Mapping[str, BlockDefinition], ref: BlockReference, parts: list
+) -> list:
+    """A lying symbol has its attributes above it, where its terminal names go: they
+    move up by one line of terminal names."""
+    definition = blocks.get(ref.name)
+    if definition is None or ref.rotation % 180 != 90:
+        return parts
+    ids = {a.id for a in definition.attribute_definitions()}
+    lift = POLE_TEXT_HEIGHT + POLE_TEXT_GAP
+    return [
+        replace(p, position=Point(p.position.x, p.position.y - lift))
+        if isinstance(p, Text) and p.id.split("~")[0] in ids
+        else p
+        for p in parts
+    ]
+
+
+def symbol_extras(
+    doc: Document, blocks: Mapping[str, BlockDefinition], ref: BlockReference, parts: list
+) -> list:
+    """``parts`` of a symbol with what the project adds: terminal row labels, terminal
+    names at the poles, the cross references and the contact mirror."""
+    label = terminal_labels_of(doc).get(ref.id)
+    if label is not None:
+        parts = terminal_texts(blocks, ref, parts, label)
+    if ref.id in pole_labelled_of(doc):
+        parts = raised_attributes(blocks, ref, parts) + pole_texts(ref, blocks)
+    lines = crossrefs_of(doc).get(ref.id)
+    if lines:
+        parts = parts + crossref_texts(ref, blocks, lines, parts)
+    return parts
 
 
 def cable_cores_of(doc: Document) -> dict[str, list]:
@@ -266,12 +315,7 @@ def expand_for_display(doc: Document, e: Entity) -> list[Entity]:
             parts = expand(e, doc.blocks)
         except BlockError:
             return []
-        label = terminal_labels_of(doc).get(e.id)
-        if label is not None:
-            parts = terminal_texts(doc.blocks, e, parts, label)
-        lines = crossrefs_of(doc).get(e.id)
-        if lines:
-            parts = parts + crossref_texts(e, doc.blocks, lines)
+        parts = symbol_extras(doc, doc.blocks, e, parts)
         return [
             q
             for p in parts

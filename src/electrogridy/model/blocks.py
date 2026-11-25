@@ -317,6 +317,8 @@ def world_connections(
     if definition is None:
         return []
     points = list(definition.connection_points())
+    if ref.terminal_labels:
+        points = [replace(c, name=ref.terminal_label(c.name)) for c in points]
     if ref.docks:
         box = symbol_bounds(definition)
         points += [

@@ -71,7 +71,7 @@ from electrogridy.i18n import ui_locale
 from electrogridy.model.blocks import BlockDefinition, BlockError, expand, world_connections
 from electrogridy.model.cables import cable_mark_geometry, used_cables
 from electrogridy.model.container import EntityContainer
-from electrogridy.model.devices import _natural, crossref_texts
+from electrogridy.model.devices import _natural
 from electrogridy.model.dimensions import dimension_geometry, format_value, measured_text, scale_at
 from electrogridy.model.document import (
     DOC_DRAWING,
@@ -169,8 +169,7 @@ from electrogridy.view.display import (
     expand_for_display,
     frame_parts,
     interruption_targets_of,
-    terminal_labels_of,
-    terminal_texts,
+    symbol_extras,
     title_block_parts,
     title_labels,
 )
@@ -1263,12 +1262,7 @@ class MainWindow(QMainWindow):
                 parts = expand(entity, definitions)
             except BlockError:
                 return []
-            label = terminal_labels_of(self.document).get(entity.id)
-            if label is not None:
-                parts = terminal_texts(definitions, entity, parts, label)
-            xref = self.crossref_lines().get(entity.id)
-            if xref:
-                parts = parts + crossref_texts(entity, definitions, xref)
+            parts = symbol_extras(self.document, definitions, entity, parts)
             return [
                 q
                 for p in parts

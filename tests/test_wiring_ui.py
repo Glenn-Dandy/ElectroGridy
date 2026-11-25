@@ -9,6 +9,7 @@ from electrogridy.model.document import DOC_PROJECT
 from electrogridy.model.entities import BlockReference, InterruptionPoint, Line, Wire
 from electrogridy.model.geometry import Point
 from electrogridy.ui.block_dialogs import AttributeValuesDialog
+from electrogridy.ui.device_dialog import DeviceDialog
 from electrogridy.ui.main_window import MainWindow
 
 MLD = str(system_library_dir() / "mld_symbole.grdylib")
@@ -21,6 +22,7 @@ def window(qapp, monkeypatch):
     w.show()
     w.new_document(DOC_PROJECT)  # cover, then the circuit diagram page shown
     monkeypatch.setattr(AttributeValuesDialog, "exec", lambda self: 1)
+    monkeypatch.setattr(DeviceDialog, "exec", lambda self: 1)
     qapp.processEvents()
     yield w
     w.undo_stack.setClean()

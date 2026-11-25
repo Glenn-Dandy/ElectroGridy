@@ -67,8 +67,9 @@ from electrogridy.model.blocks import (
     would_create_cycle,
 )
 from electrogridy.model.container import EntityContainer
-from electrogridy.model.devices import BMK, suggest_bmk
-from electrogridy.model.document import DOC_DRAWING
+from electrogridy.model.devices import BMK, devices, suggest_bmk
+from electrogridy.model.devices import SHEET as DEVICE_ON_PAGE
+from electrogridy.model.document import DOC_DRAWING, DOC_PROJECT
 from electrogridy.model.entities import (
     AttributeDefinition,
     BlockReference,
@@ -80,7 +81,7 @@ from electrogridy.model.geometry import Point
 from electrogridy.model.routing import open_wires
 from electrogridy.model.title_block import LOGO_CATEGORY, LOGO_KEYS
 from electrogridy.tools.blocks import InsertBlockTool, PointTool
-from electrogridy.tools.edit import SelectObjectsTool
+from electrogridy.tools.edit import SelectObjectsTool, with_followers
 from electrogridy.ui.block_dialogs import (
     KEEP,
     RENAME,
@@ -94,6 +95,7 @@ from electrogridy.ui.block_dialogs import (
     CreateBlockDialog,
     ask_block_conflict,
 )
+from electrogridy.ui.device_dialog import DeviceDialog, uses_device_dialog
 from electrogridy.ui.library_dock import DOCUMENT_SOURCE
 from electrogridy.ui.library_transfer import (
     NEW,
@@ -103,6 +105,7 @@ from electrogridy.ui.library_transfer import (
 )
 from electrogridy.ui.picture_import import logo_image, picture_entity
 from electrogridy.ui.space import BLOCK, Space
+from electrogridy.ui.space import SHEET as SHEET_SPACE
 
 if TYPE_CHECKING:
     from electrogridy.ui.main_window import MainWindow
@@ -424,10 +427,16 @@ class BlockController(QObject):
                 bmk = next((d for d in attdefs if d.tag == BMK), None)
                 if bmk is not None and values.get(BMK, "") in ("", bmk.default):
                     values[BMK] = suggest_bmk(self.doc, bmk.default, definition.function)
-                dialog = AttributeValuesDialog(ref.name, attdefs, values, self.w)
-                if dialog.exec() != AttributeValuesDialog.DialogCode.Accepted:
-                    return
-                ref = replace(ref, attributes=tuple(sorted(dialog.values().items())))
+                if self._device_window(definition):
+                    device = DeviceDialog(ref, blocks, values, self.main_devices(), self.w)
+                    if device.exec() != DeviceDialog.DialogCode.Accepted:
+                        return
+                    ref = device.reference()
+                else:
+                    dialog = AttributeValuesDialog(ref.name, attdefs, values, self.w)
+                    if dialog.exec() != AttributeValuesDialog.DialogCode.Accepted:
+                        return
+                    ref = replace(ref, attributes=tuple(sorted(dialog.values().items())))
             ref = replace(ref, id=new_id())
             text = self.tr("Block {name} einfügen").format(name=ref.name)
             # Placed into wires (circuit diagrams): each pole opens its conductor.
@@ -537,11 +546,45 @@ class BlockController(QObject):
 
     # -- attributes and connection points -----------------------------------
 
+    def _device_window(self, definition: BlockDefinition | None) -> bool:
+        """Circuit diagram symbols on the pages of a project get the device window."""
+        return (
+            self.doc.kind == DOC_PROJECT
+            and not self.in_editor()
+            and self.w.space.kind == SHEET_SPACE
+            and uses_device_dialog(definition)
+        )
+
+    def main_devices(self) -> list[str]:
+        """BMKs of the main functions on the pages, for a contact to belong to."""
+        return [
+            bmk
+            for bmk, group in devices(self.doc).items()
+            if any(o.function == "main" and o.where == DEVICE_ON_PAGE for o in group)
+        ]
+
+    def edit_device(self, entity: BlockReference) -> None:
+        dialog = DeviceDialog(
+            entity, self.doc.blocks, dict(entity.attributes), self.main_devices(), self.w
+        )
+        if dialog.exec() != DeviceDialog.DialogCode.Accepted:
+            return
+        new = dialog.reference()
+        if new == entity:
+            return
+        changed = [new]
+        if (new.rotation, new.mirrored_x) != (entity.rotation, entity.mirrored_x):
+            changed = with_followers(self.w, [entity], [new], separate=True)  # wires follow
+        self.w.push(ReplaceEntitiesCommand(self.w.container, changed, self.tr("Gerät ändern")))
+
     def edit_entity(self, entity: Entity) -> bool:
         """Double-click handling. True if the entity type was handled here."""
         container = self.w.container
         if isinstance(entity, BlockReference):
             definition = self.doc.blocks.get(entity.name)
+            if self._device_window(definition):
+                self.edit_device(entity)
+                return True
             attdefs = definition.attribute_definitions() if definition else []
             if not attdefs:
                 self.w.message(

@@ -1,29 +1,35 @@
 """Devices: everything carrying the same BMK is one device. Pure Python.
 
 A device can appear in the model (overview diagram, drawings) and on any number of
-pages. On the pages its functions refer to each other: under a main function (coil,
-breaker) a contact mirror lists the auxiliary functions (contacts) with their terminals
-and place ("S 13-14  /3.4": page 3, column 4), each contact shows where the main
-function sits ("/2.5"). The roles come from the block definitions (``function``,
-``contact``).
+pages. On the pages its functions refer to each other: under the attributes of a main
+function (coil, breaker) a contact mirror shows one line per pole of its auxiliary
+functions (contacts): terminal, a small contact symbol, terminal, place ("13 -/- 14
+/3.4": page 3, column 4); each contact shows where the main function sits ("/2.5").
+The roles come from the block definitions (``function``, ``contact``).
 """
 
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
-from electrogridy.model.blocks import BlockDefinition, point_to_world, symbol_bounds
+from electrogridy.model.blocks import (
+    BlockDefinition,
+    point_to_world,
+    symbol_bounds,
+    world_connections,
+)
 from electrogridy.model.document import Document
-from electrogridy.model.entities import BlockReference, Entity, Text
+from electrogridy.model.entities import BlockReference, Entity, Line, Text
 from electrogridy.model.geometry import Point
 from electrogridy.model.sheet import column_at
 
 BMK = "BMK"
 MODEL, SHEET = "model", "sheet"
-# Letters of the contact types in the contact mirror; the UI passes translated ones.
-CONTACT_LETTERS = {"no": "S", "nc": "Ö", "co": "W", "": ""}
 XREF_HEIGHT = 2.0
 XREF_GAP = 1.5
+MIRROR_GAP = 1.2  # mm between the attributes and the first mirror line
+CHAR_WIDTH = 0.75  # rough width of a character as a share of the text height
+MIRROR_WEIGHT = 0.18
 
 
 @dataclass(frozen=True)
@@ -39,6 +45,40 @@ class Occurrence:
     terminals: tuple[str, ...]  # connection point names of the symbol, e.g. ("13", "14")
     manufacturer: str = ""
     type: str = ""
+    poles: tuple[tuple[str, str], ...] = ()  # terminal pairs per pole, e.g. (("1", "2"), …)
+
+
+@dataclass(frozen=True)
+class MirrorLine:
+    """One pole in the contact mirror of a main function."""
+
+    first: str
+    contact: str  # "no", "nc", "co" or ""
+    second: str
+    reference: str  # "/3.4"
+
+
+def poles(definition: BlockDefinition, ref: BlockReference) -> tuple[tuple[str, str], ...]:
+    """Terminal pairs of a symbol, left to right: the upper and the lower end of each
+    pole (as named on this reference). A changeover contact is one pole: the common
+    terminal and its two others ("11", "12/14")."""
+    columns: dict[float, list] = {}
+    for c in definition.connection_points():
+        columns.setdefault(round(c.position.x, 1), []).append(c)
+    pairs = []
+    for x in sorted(columns):
+        ends = sorted(columns[x], key=lambda c: c.position.y)
+        names = [ref.terminal_label(c.name) for c in ends]
+        pairs.append((names[0], names[-1] if len(names) > 1 else ""))
+    if definition.contact == "co":
+        lower = max(definition.connection_points(), key=lambda c: c.position.y)
+        common = ref.terminal_label(lower.name)
+        others = sorted(
+            (ref.terminal_label(c.name) for c in definition.connection_points() if c is not lower),
+            key=_natural,
+        )
+        return ((common, "/".join(others)),)
+    return tuple(pairs)
 
 
 def bmk_of(ref: BlockReference) -> str:
@@ -74,11 +114,14 @@ def occurrences(doc: Document) -> list[Occurrence]:
                     position=e.insert,
                     function=definition.function if definition else "",
                     contact=definition.contact if definition else "",
-                    terminals=tuple(c.name for c in definition.connection_points())
+                    terminals=tuple(
+                        e.terminal_label(c.name) for c in definition.connection_points()
+                    )
                     if definition
                     else (),
                     manufacturer=attributes.get("HERSTELLER", ""),
                     type=attributes.get("TYP", ""),
+                    poles=poles(definition, e) if definition else (),
                 )
             )
     return found
@@ -105,20 +148,21 @@ def page_reference(doc: Document, occ: Occurrence) -> str:
     return f"/{number}.{column}" if column is not None else f"/{number}"
 
 
-def crossrefs(doc: Document, letters: Mapping[str, str] = CONTACT_LETTERS) -> dict[str, list[str]]:
-    """Reference id -> text lines shown under it (functions on pages only)."""
-    lines: dict[str, list[str]] = {}
+def crossrefs(doc: Document) -> dict[str, list]:
+    """Reference id -> what is shown with it (functions on pages only): a main function
+    gets its contact mirror (``MirrorLine`` per pole), a contact the places of its main
+    function ("/2.5")."""
+    lines: dict[str, list] = {}
     for group in devices(doc).values():
         on_pages = [o for o in group if o.where == SHEET]
         mains = [o for o in on_pages if o.function == "main"]
         auxes = [o for o in on_pages if o.function == "aux"]
         for main in mains:
-            mirror = []
-            for aux in auxes:
-                terminals = "-".join(aux.terminals)
-                letter = letters.get(aux.contact, "")
-                head = " ".join(t for t in (letter, terminals) if t)
-                mirror.append(f"{head}  {page_reference(doc, aux)}".strip())
+            mirror = [
+                MirrorLine(first, aux.contact, second, page_reference(doc, aux))
+                for aux in auxes
+                for first, second in aux.poles or (("", ""),)
+            ]
             if mirror:
                 lines[main.entity_id] = mirror
         for aux in auxes:
@@ -129,9 +173,14 @@ def crossrefs(doc: Document, letters: Mapping[str, str] = CONTACT_LETTERS) -> di
 
 
 def crossref_texts(
-    ref: BlockReference, blocks: Mapping[str, BlockDefinition], lines: list[str]
+    ref: BlockReference,
+    blocks: Mapping[str, BlockDefinition],
+    lines: list,
+    parts: list[Entity] | None = None,
 ) -> list[Entity]:
-    """The lines as texts under the symbol (left aligned to it)."""
+    """Places of the main function as texts under a contact; the contact mirror of a
+    main function under its attributes (beside the symbol, out of the way of its
+    wires), or under the symbol when there are none beside it."""
     definition = blocks.get(ref.name)
     if definition is None or not lines:
         return []
@@ -143,17 +192,140 @@ def crossref_texts(
         point_to_world(ref, definition.base_point, Point(x, y)) for x in (x0, x1) for y in (y0, y1)
     ]
     left = min(c.x for c in corners)
+    top = min(c.y for c in corners)
     bottom = max(c.y for c in corners)
-    return [
-        Text(
-            id=f"{ref.id}:xref{i}",
-            layer=ref.layer,
-            position=Point(left, bottom + XREF_GAP + XREF_HEIGHT + i * 1.4 * XREF_HEIGHT),
-            text=line,
-            height=XREF_HEIGHT,
+    style = {"layer": ref.layer, "color": ref.color}
+    mirror = [m for m in lines if isinstance(m, MirrorLine)]
+    if not mirror:
+        return [
+            Text(
+                id=f"{ref.id}:xref{i}",
+                position=Point(left, bottom + XREF_GAP + XREF_HEIGHT + i * 1.4 * XREF_HEIGHT),
+                text=line,
+                height=XREF_HEIGHT,
+                **style,
+            )
+            for i, line in enumerate(lines)
+        ]
+    h = XREF_HEIGHT
+    x, first = left, bottom + XREF_GAP + h / 2
+    beside = _attribute_column(definition, parts or [])
+    if beside is not None and beside[1] > top + h:  # attributes beside, not above
+        x, first = beside[0], beside[1] + MIRROR_GAP + h / 2
+    widest = max(len(m.second) for m in mirror)
+    out: list[Entity] = []
+    for i, m in enumerate(mirror):
+        y = first + i * 1.4 * h
+        glyph_x = x + 3.0 + 0.6
+        second_x = glyph_x + 5.0 + 0.6
+        reference_x = second_x + widest * CHAR_WIDTH * h + 1.5
+        for j, (text, tx, align) in enumerate(
+            (
+                (m.first, x + 3.0, "right"),
+                (m.second, second_x, "left"),
+                (m.reference, reference_x, "left"),
+            )
+        ):
+            if text:
+                out.append(
+                    Text(
+                        id=f"{ref.id}:xref{i}:{j}",
+                        position=Point(tx, y),
+                        text=text,
+                        height=h,
+                        halign=align,
+                        valign="middle",
+                        **style,
+                    )
+                )
+        out += [
+            Line(id=f"{ref.id}:xref{i}:g{k}", p1=a, p2=b, lineweight=MIRROR_WEIGHT, **style)
+            for k, (a, b) in enumerate(contact_glyph(m.contact, glyph_x, y))
+        ]
+    return out
+
+
+POLE_TEXT_HEIGHT = 1.8
+POLE_TEXT_GAP = 0.6  # mm from the conductor and from the end of the pole
+
+
+def pole_texts(ref: BlockReference, blocks: Mapping[str, BlockDefinition]) -> list[Text]:
+    """The terminal names at the ends of the poles, horizontal: left of an upright pole
+    (just inside its end), above a lying one."""
+    definition = blocks.get(ref.name)
+    if definition is None:
+        return []
+    out = []
+    g = POLE_TEXT_GAP
+    for c in world_connections(ref, blocks):
+        if c.id.startswith("dock") or not c.name.strip():
+            continue
+        p = c.position
+        direction = round(c.direction) % 360
+        if direction == 90:  # upper end, y down
+            at, halign, valign = Point(p.x - g, p.y + g), "right", "top"
+        elif direction == 270:
+            at, halign, valign = Point(p.x - g, p.y - g), "right", "bottom"
+        elif direction == 180:  # left end of a lying pole
+            at, halign, valign = Point(p.x + g, p.y - g), "left", "bottom"
+        else:
+            at, halign, valign = Point(p.x - g, p.y - g), "right", "bottom"
+        out.append(
+            Text(
+                id=f"{ref.id}:pole:{c.id}",
+                layer=ref.layer,
+                color=ref.color,
+                position=at,
+                text=c.name,
+                height=POLE_TEXT_HEIGHT,
+                halign=halign,
+                valign=valign,
+            )
         )
-        for i, line in enumerate(lines)
+    return out
+
+
+def contact_glyph(contact: str, x: float, y: float) -> list[tuple[Point, Point]]:
+    """A small lying contact symbol 5 mm long starting at ``x`` on the middle line ``y``:
+    make contact (also for an unknown kind), break contact with its stop, changeover."""
+    a, b, c, d = x, x + 1.8, x + 3.2, x + 5.0
+
+    def seg(x1, y1, x2, y2):
+        return Point(round(x1, 4), round(y1, 4)), Point(round(x2, 4), round(y2, 4))
+
+    if contact == "nc":
+        return [
+            seg(a, y, b, y),
+            seg(c, y, d, y),
+            seg(c, y, c, y + 0.9),
+            seg(b, y, c + 0.3, y + 0.9),
+        ]
+    if contact == "co":
+        return [
+            seg(a, y, b, y),
+            seg(c, y - 0.9, d, y - 0.9),
+            seg(c, y + 0.9, d, y + 0.9),
+            seg(b, y, c + 0.2, y + 0.9),
+        ]
+    return [seg(a, y, b, y), seg(c, y, d, y), seg(b, y, c + 0.2, y - 1.0)]
+
+
+def _attribute_column(
+    definition: BlockDefinition, parts: list[Entity]
+) -> tuple[float, float] | None:
+    """Left edge and lower edge of the attribute texts drawn with a reference."""
+    ids = {a.id for a in definition.attribute_definitions()}
+    texts = [
+        p for p in parts if isinstance(p, Text) and p.text.strip() and p.id.split("~")[0] in ids
     ]
+    if not texts:
+        return None
+    below = {"top": 1.0, "middle": 0.5}
+
+    def lower(t: Text) -> float:
+        return t.position.y + below.get(t.valign, 0.0) * t.height + 0.25 * t.height
+
+    return min(t.position.x for t in texts), max(lower(t) for t in texts)
 
 
 def problems(doc: Document) -> dict[str, list[str]]:

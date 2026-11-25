@@ -53,9 +53,11 @@ def test_page_dialog_offers_the_scale(qapp):
 @pytest.fixture
 def window(qapp, monkeypatch):
     from electrogridy.ui.block_dialogs import AttributeValuesDialog
+    from electrogridy.ui.device_dialog import DeviceDialog
 
     QSettings().clear()
     monkeypatch.setattr(AttributeValuesDialog, "exec", lambda self: 1)
+    monkeypatch.setattr(DeviceDialog, "exec", lambda self: 1)
     w = MainWindow()
     w.resize(1200, 800)
     w.show()

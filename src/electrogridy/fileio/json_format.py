@@ -224,7 +224,15 @@ def entity_to_dict(e: Entity) -> dict[str, Any]:
                 d["docks"] = [_pt(p) for p in e.docks]
             if e.scale != 1.0:
                 d["scale"] = e.scale
+            if e.terminal_labels:
+                d["terminal_labels"] = dict(e.terminal_labels)
     return d
+
+
+def _labels(value: Any) -> tuple[tuple[str, str], ...]:
+    if not isinstance(value, dict):
+        raise FileFormatError("terminal labels must be an object")
+    return tuple(sorted((str(k), str(v)) for k, v in value.items() if str(k) != str(v)))
 
 
 def _choice(value: Any, allowed: tuple[str, ...]) -> str:
@@ -414,6 +422,7 @@ def entity_from_dict(d: dict[str, Any]) -> Entity:
                 attributes=tuple(sorted((str(k), str(v)) for k, v in attributes.items())),
                 docks=tuple(_to_pt(p) for p in d.get("docks", [])),
                 scale=_positive(d.get("scale", 1.0)),
+                terminal_labels=_labels(d.get("terminal_labels", {})),
                 **common,
             )
     raise FileFormatError(f"unknown entity type {kind!r}")
