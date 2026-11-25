@@ -193,3 +193,54 @@ def test_mirrored_contact_keeps_its_device_tag_on_top(qapp):
     assert top(bmk) == pytest.approx(top(unturned))  # as high as on the unturned contact
     assert reference.position.x == pytest.approx(bmk.position.x)  # under -K1
     assert bmk.position.y < reference.position.y < 50 + 15  # beside the pole, not under it
+
+
+def test_motor_protection_switch_releases_can_be_left_out(qapp):
+    from electrogridy.fileio.json_format import block_from_dict, block_to_dict
+    from electrogridy.model.blocks import expand, options_on
+    from electrogridy.ui.device_dialog import DeviceDialog
+
+    blocks = mld_blocks()
+    definition = blocks["Motorschutzschalter 3-polig"]
+    assert [o.key for o in definition.options] == ["thermal", "short"]
+    again = block_from_dict(block_to_dict(definition))
+    assert again.options == definition.options
+    full = symbol("q", "Motorschutzschalter 3-polig", 0, 0, "-Q1")
+
+    def marks(ref):
+        return [p for p in expand(ref, blocks) if isinstance(p, Text) and p.text == "I>"]
+
+    assert len(marks(full)) == 3
+    without = replace(full, option_states=(("short", False),))
+    assert marks(without) == [] and options_on(without, definition) == {
+        "thermal": True,
+        "short": False,
+    }
+    assert entity_from_dict(entity_to_dict(without)).option_states == (("short", False),)
+    assert "options" not in entity_to_dict(full)
+    # No terminal leaves its place: wires stay attached either way.
+    assert [c.position for c in world_connections(without, blocks)] == [
+        c.position for c in world_connections(full, blocks)
+    ]
+    dialog = DeviceDialog(full, blocks, {"BMK": "-Q1"}, [])
+    assert set(dialog._options) == {"thermal", "short"}
+    dialog._options["thermal"].setChecked(False)
+    assert dialog.reference().option_states == (("thermal", False),)
+
+
+def test_rcd_terminal_names_clear_of_the_transformer(qapp):
+    from electrogridy.model.blocks import expand
+    from electrogridy.model.entities import Arc
+
+    blocks = mld_blocks()
+    ref = symbol("f", "Fehlerstromschutzschalter 4-polig", 0, 0, "-F1")
+    lowest = max(a.center.y + a.radius for a in expand(ref, blocks) if isinstance(a, Arc))
+    names = [t for t in pole_texts_of(ref, blocks) if t.text in ("2", "4", "6", "N'")]
+    assert names and all(t.valign == "bottom" for t in names)
+    assert all(t.position.y - t.height > lowest for t in names)  # top of the digits
+
+
+def pole_texts_of(ref, blocks):
+    from electrogridy.model.devices import pole_texts
+
+    return pole_texts(ref, blocks)

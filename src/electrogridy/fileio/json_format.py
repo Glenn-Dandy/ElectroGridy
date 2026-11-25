@@ -7,7 +7,7 @@ from collections.abc import Callable
 from typing import Any
 
 from electrogridy import __version__
-from electrogridy.model.blocks import BlockDefinition
+from electrogridy.model.blocks import BlockDefinition, SymbolOption
 from electrogridy.model.container import EntityContainer
 from electrogridy.model.document import (
     DOC_KINDS,
@@ -226,7 +226,15 @@ def entity_to_dict(e: Entity) -> dict[str, Any]:
                 d["scale"] = e.scale
             if e.terminal_labels:
                 d["terminal_labels"] = dict(e.terminal_labels)
+            if e.option_states:
+                d["options"] = dict(e.option_states)
     return d
+
+
+def _states(value: Any) -> tuple[tuple[str, bool], ...]:
+    if not isinstance(value, dict):
+        raise FileFormatError("symbol options must be an object")
+    return tuple(sorted((str(k), bool(v)) for k, v in value.items()))
 
 
 def _labels(value: Any) -> tuple[tuple[str, str], ...]:
@@ -423,6 +431,7 @@ def entity_from_dict(d: dict[str, Any]) -> Entity:
                 docks=tuple(_to_pt(p) for p in d.get("docks", [])),
                 scale=_positive(d.get("scale", 1.0)),
                 terminal_labels=_labels(d.get("terminal_labels", {})),
+                option_states=_states(d.get("options", {})),
                 **common,
             )
     raise FileFormatError(f"unknown entity type {kind!r}")
@@ -441,6 +450,17 @@ def block_to_dict(b: BlockDefinition) -> dict[str, Any]:
         d["function"] = b.function
     if b.contact:
         d["contact"] = b.contact
+    if b.options:
+        d["options"] = [
+            {
+                "key": o.key,
+                "label": o.label,
+                "shown": list(o.shown),
+                "hidden": list(o.hidden),
+                **({} if o.default else {"default": False}),
+            }
+            for o in b.options
+        ]
     d["entities"] = [entity_to_dict(e) for e in b.entities]
     return d
 
@@ -455,6 +475,16 @@ def block_from_dict(d: dict[str, Any]) -> BlockDefinition:
             description=str(d.get("description", "")),
             function=_choice(d.get("function", ""), ("", "main", "aux", "terminal")),
             contact=_choice(d.get("contact", ""), ("", "no", "nc", "co")),
+            options=tuple(
+                SymbolOption(
+                    key=str(o["key"]),
+                    label=str(o.get("label", o["key"])),
+                    shown=tuple(str(i) for i in o.get("shown", [])),
+                    hidden=tuple(str(i) for i in o.get("hidden", [])),
+                    default=bool(o.get("default", True)),
+                )
+                for o in d.get("options", [])
+            ),
         )
     except (KeyError, TypeError, ValueError) as exc:
         if isinstance(exc, FileFormatError):

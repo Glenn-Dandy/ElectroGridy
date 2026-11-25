@@ -24,6 +24,19 @@ from electrogridy.model.scale import scale_entity
 MAX_NESTING = 32
 
 
+@dataclass(frozen=True)
+class SymbolOption:
+    """A part of a symbol that can be switched on and off per reference, e.g. the
+    thermal release of a motor protection switch. ``shown`` are the ids of the
+    entities drawn while it is on, ``hidden`` those drawn while it is off."""
+
+    key: str
+    label: str
+    shown: tuple[str, ...] = ()
+    hidden: tuple[str, ...] = ()
+    default: bool = True
+
+
 @dataclass
 class BlockDefinition:
     name: str
@@ -36,6 +49,7 @@ class BlockDefinition:
     # ``contact`` of an aux function: "no" (normally open), "nc" (closed), "co" (change-over).
     function: str = ""
     contact: str = ""
+    options: tuple[SymbolOption, ...] = ()
 
     def attribute_definitions(self) -> list[AttributeDefinition]:
         return [e for e in self.entities if isinstance(e, AttributeDefinition)]
@@ -52,7 +66,25 @@ class BlockDefinition:
             description=self.description,
             function=self.function,
             contact=self.contact,
+            options=self.options,
         )
+
+
+def options_on(ref: BlockReference, definition: BlockDefinition) -> dict[str, bool]:
+    """Which options of the definition are on for this reference."""
+    states = dict(ref.option_states)
+    return {o.key: states.get(o.key, o.default) for o in definition.options}
+
+
+def left_out(ref: BlockReference, definition: BlockDefinition) -> set[str]:
+    """Ids of the entities the reference does not draw because of its options."""
+    if not definition.options:
+        return set()
+    on = options_on(ref, definition)
+    out: set[str] = set()
+    for o in definition.options:
+        out.update(o.hidden if on[o.key] else o.shown)
+    return out
 
 
 class BlockError(ValueError):
@@ -291,8 +323,9 @@ def explode(
     if definition is None:
         return []
     geometry: list[Entity] = []
+    skipped = left_out(ref, definition)
     for e in definition.entities:
-        if isinstance(e, ConnectionPoint | AttributeDefinition):
+        if isinstance(e, ConnectionPoint | AttributeDefinition) or e.id in skipped:
             continue
         geometry.append(to_world(ref, definition.base_point, e))
     texts = _attribute_texts(ref, definition, geometry)

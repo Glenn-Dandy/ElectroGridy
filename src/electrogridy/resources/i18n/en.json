@@ -1085,5 +1085,8 @@
  "90° gegen den Uhrzeigersinn drehen": "Turn 90° anticlockwise",
  "90° im Uhrzeigersinn drehen": "Turn 90° clockwise",
  "An der senkrechten Achse spiegeln": "Mirror at the vertical axis",
- "Gerät ändern": "Change device"
+ "Gerät ändern": "Change device",
+ "Ausführung": "Variant",
+ "Thermischer Auslöser": "Thermal release",
+ "Kurzschlussauslöser": "Short-circuit release"
 }

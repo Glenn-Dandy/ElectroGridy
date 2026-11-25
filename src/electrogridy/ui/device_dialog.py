@@ -11,6 +11,7 @@ from dataclasses import replace
 from PyQt6.QtCore import QRectF, Qt
 from PyQt6.QtGui import QColor, QGuiApplication, QImage, QPainter, QPalette, QPixmap
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -27,7 +28,7 @@ from PyQt6.QtWidgets import (
 )
 
 from electrogridy.i18n import library_text
-from electrogridy.model.blocks import BlockDefinition, BlockError, expand
+from electrogridy.model.blocks import BlockDefinition, BlockError, expand, options_on
 from electrogridy.model.devices import BMK, pole_texts
 from electrogridy.model.entities import AttributeDefinition, BlockReference
 from electrogridy.ui.block_dialogs import AttributeValueEdit
@@ -139,6 +140,18 @@ class DeviceDialog(QDialog):
                 bar.setFrameShape(QFrame.Shape.VLine)
                 bar.setFixedHeight(14)
                 grid.addWidget(bar, 2 * row + 1, col, Qt.AlignmentFlag.AlignHCenter)
+        # Parts of the symbol that can be left out (releases of a motor protection switch).
+        self._options: dict[str, QCheckBox] = {}
+        options = QGroupBox(self.tr("Ausführung"))
+        option_box = QVBoxLayout(options)
+        states = options_on(ref, self._definition)
+        for o in self._definition.options:
+            check = QCheckBox(library_text(o.label))
+            check.setChecked(states[o.key])
+            check.toggled.connect(self._update_preview)
+            option_box.addWidget(check)
+            self._options[o.key] = check
+
         hint = QLabel(self.tr("Leer lassen: Name aus dem Symbol"))
         hint.setEnabled(False)
         grid.addWidget(hint, 2 * len(ys), 0, 1, max(1, len(xs)))
@@ -170,6 +183,8 @@ class DeviceDialog(QDialog):
         left.addStretch(1)
         right = QVBoxLayout()
         right.addLayout(form)
+        if self._options:
+            right.addWidget(options)
         if points:
             right.addWidget(group)
         right.addStretch(1)
@@ -227,12 +242,24 @@ class DeviceDialog(QDialog):
             )
         )
 
+    def option_states(self) -> tuple[tuple[str, bool], ...]:
+        """Options switched away from their default."""
+        defaults = {o.key: o.default for o in self._definition.options}
+        return tuple(
+            sorted(
+                (key, check.isChecked())
+                for key, check in self._options.items()
+                if check.isChecked() != defaults[key]
+            )
+        )
+
     def reference(self) -> BlockReference:
         """The reference with everything chosen in the window."""
         return replace(
             self._ref,
             attributes=tuple(sorted(self.values().items())),
             terminal_labels=self.labels(),
+            option_states=self.option_states(),
             rotation=self._rotation,
             mirrored_x=self._mirrored,
         )

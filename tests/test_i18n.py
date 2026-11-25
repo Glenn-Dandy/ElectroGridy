@@ -80,6 +80,7 @@ def library_texts() -> set[str]:
         for d in defs:
             texts |= {d.name, d.category, d.description}
             texts |= {a.prompt for a in d.attribute_definitions()}
+            texts |= {o.label for o in d.options}
     for path in system_template_dir().glob("*.grdyframe"):
         texts.add(load_frame(path)[0])
     texts.discard("")

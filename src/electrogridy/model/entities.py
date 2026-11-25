@@ -247,6 +247,8 @@ class BlockReference(Entity):
     # Own names of connection points (definition name, shown name), e.g. ("1", "L1");
     # only those that differ from the definition.
     terminal_labels: tuple[tuple[str, str], ...] = ()
+    # Options of the definition switched away from their default, e.g. ("thermal", False).
+    option_states: tuple[tuple[str, bool], ...] = ()
 
     def _mapped(self, fn, quarters):
         return replace(self, insert=fn(self.insert), rotation=(self.rotation + 90 * quarters) % 360)
