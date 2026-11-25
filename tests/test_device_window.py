@@ -166,3 +166,30 @@ def test_double_click_turns_the_device_and_wires_follow(window, monkeypatch):
     assert a2.position in (moved.points[0], moved.points[-1])  # the wire followed
     window.act_undo.trigger()
     assert window.container.get("coil").rotation == 0
+
+
+def test_mirrored_contact_keeps_its_device_tag_on_top(qapp):
+    from electrogridy.view.display import expand_for_display
+
+    doc = project()
+    doc.sheets[0].entities.add(symbol("coil", "Schützspule", 50, 50, "-K1"))
+    plain = symbol("plain", "Schließer", 100, 50, "-K1")
+    contact = symbol("no", "Schließer", 150, 50, "-K1", mirrored_x=True)
+    doc.sheets[0].entities.add(plain)
+    doc.sheets[0].entities.add(contact)
+
+    def tag(ref):
+        parts = expand_for_display(doc, ref)
+        return next(t for t in parts if isinstance(t, Text) and t.text == "-K1")
+
+    parts = expand_for_display(doc, contact)
+    texts = {t.text: t for t in parts if isinstance(t, Text)}
+    bmk, reference = texts["-K1"], next(t for t in texts.values() if t.text.startswith("/"))
+    unturned = tag(plain)
+
+    def top(t):
+        return t.position.y - {"top": 0.0, "middle": 0.5}.get(t.valign, 1.0) * t.height
+
+    assert top(bmk) == pytest.approx(top(unturned))  # as high as on the unturned contact
+    assert reference.position.x == pytest.approx(bmk.position.x)  # under -K1
+    assert bmk.position.y < reference.position.y < 50 + 15  # beside the pole, not under it

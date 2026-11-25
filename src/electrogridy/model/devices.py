@@ -178,9 +178,9 @@ def crossref_texts(
     lines: list,
     parts: list[Entity] | None = None,
 ) -> list[Entity]:
-    """Places of the main function as texts under a contact; the contact mirror of a
-    main function under its attributes (beside the symbol, out of the way of its
-    wires), or under the symbol when there are none beside it."""
+    """Places of the main function under the attributes of a contact, the contact
+    mirror under the attributes of a main function (beside the symbol, out of the way
+    of its wires); under the symbol when there are no attributes beside it."""
     definition = blocks.get(ref.name)
     if definition is None or not lines:
         return []
@@ -195,23 +195,24 @@ def crossref_texts(
     top = min(c.y for c in corners)
     bottom = max(c.y for c in corners)
     style = {"layer": ref.layer, "color": ref.color}
-    mirror = [m for m in lines if isinstance(m, MirrorLine)]
-    if not mirror:
-        return [
-            Text(
-                id=f"{ref.id}:xref{i}",
-                position=Point(left, bottom + XREF_GAP + XREF_HEIGHT + i * 1.4 * XREF_HEIGHT),
-                text=line,
-                height=XREF_HEIGHT,
-                **style,
-            )
-            for i, line in enumerate(lines)
-        ]
     h = XREF_HEIGHT
     x, first = left, bottom + XREF_GAP + h / 2
     beside = _attribute_column(definition, parts or [])
     if beside is not None and beside[1] > top + h:  # attributes beside, not above
         x, first = beside[0], beside[1] + MIRROR_GAP + h / 2
+    mirror = [m for m in lines if isinstance(m, MirrorLine)]
+    if not mirror:
+        return [
+            Text(
+                id=f"{ref.id}:xref{i}",
+                position=Point(x, first + i * 1.4 * h),
+                text=line,
+                height=h,
+                valign="middle",
+                **style,
+            )
+            for i, line in enumerate(lines)
+        ]
     widest = max(len(m.second) for m in mirror)
     out: list[Entity] = []
     for i, m in enumerate(mirror):

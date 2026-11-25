@@ -198,7 +198,9 @@ def _attribute_texts(
 
     Unrotated references keep the positions of the definition. Rotated or
     mirrored ones place the non-empty values as a left-aligned block: above
-    the symbol when it lies (90/270 degrees), right of it otherwise.
+    the symbol when it lies (90/270 degrees), otherwise right of it, centred
+    on the symbol; circuit diagram symbols (with a role) keep the first line at
+    the top of the symbol, as when unturned.
 
     A value may contain line breaks: every line becomes its own text one line
     pitch lower, and the attributes below it in the same column move down.
@@ -250,7 +252,14 @@ def _attribute_texts(
         first_center = last_center - pitch * (len(lines) - 1)
     else:
         x = max_x + gap_right
-        first_center = (min_y + max_y) / 2 - pitch * (len(lines) - 1) / 2
+        if definition.function in ("main", "aux") and local_bounds is not None:
+            # As far below the top of the symbol as on the unturned one.
+            first = lines[0][0]
+            raised = {"top": 0.0, "middle": 0.5}.get(first.valign, 1.0) * first.height
+            below_top = max(0.0, first.position.y - raised - local_bounds[1])
+            first_center = min_y + below_top + first.height / 2
+        else:
+            first_center = (min_y + max_y) / 2 - pitch * (len(lines) - 1) / 2
     return [
         Text(
             id=a.id,
