@@ -374,6 +374,71 @@ def _has_qtpdf() -> bool:
     return pdf_available()
 
 
+def _colored_pdf(path):
+    """Coloured strokes, a blue area with a black outline, red dashes printed as areas
+    beside black ones on the same line, a green text and a black one."""
+    from PyQt6.QtCore import QMarginsF, QPointF, QRectF, Qt
+    from PyQt6.QtGui import QColor, QFont, QPageLayout, QPageSize, QPainter, QPdfWriter, QPen
+
+    writer = QPdfWriter(str(path))
+    writer.setResolution(72)
+    writer.setPageLayout(
+        QPageLayout(
+            QPageSize(QPageSize.PageSizeId.A4),
+            QPageLayout.Orientation.Landscape,
+            QMarginsF(0, 0, 0, 0),
+        )
+    )
+    mm = 72 / 25.4
+    painter = QPainter(writer)
+    painter.setPen(QPen(QColor(0, 0, 255), 0.5 * mm))
+    painter.drawLine(QPointF(20 * mm, 20 * mm), QPointF(80 * mm, 20 * mm))
+    painter.setPen(QPen(QColor("black"), 0.25 * mm))
+    painter.drawLine(QPointF(20 * mm, 30 * mm), QPointF(80 * mm, 30 * mm))
+    painter.setBrush(QColor(0, 0, 255))
+    painter.drawRect(QRectF(100 * mm, 20 * mm, 20 * mm, 10 * mm))
+    painter.setPen(Qt.PenStyle.NoPen)
+    for i in range(10):  # red dashes, then black ones further on the same line
+        painter.setBrush(QColor(255, 0, 0) if i < 5 else QColor("black"))
+        painter.drawRect(QRectF((20 + 2.7 * i) * mm, 50 * mm, 1.35 * mm, 0.17 * mm))
+    font = QFont("DejaVu Sans")
+    font.setPixelSize(10)
+    painter.setFont(font)
+    painter.setPen(QColor(124, 165, 82))
+    painter.drawText(QPointF(20 * mm, 80 * mm), "-F1")
+    painter.setPen(QColor("black"))
+    painter.drawText(QPointF(60 * mm, 80 * mm), "-F2")
+    painter.end()
+
+
+@pytest.mark.skipif(not pdf_import.available(), reason="pdfminer missing")
+def test_colours_from_a_pdf(qapp, tmp_path):
+    path = tmp_path / "colours.pdf"
+    _colored_pdf(path)
+    page = pdf_import.Region(0, 0, 842, 595)
+    found = pdf_import.page_entities(path, 0, page)
+
+    def lines_at(y):
+        return [e for e in found if isinstance(e, Line) and abs(e.p1.y - y) < 0.3]
+
+    (blue,) = lines_at(20)
+    assert blue.color == "#0000ff" and blue.lineweight == 0.5
+    (black,) = lines_at(30)
+    assert black.color is None  # black stays by layer
+    area, outline = [e for e in found if isinstance(e, Rectangle)]
+    assert area.filled and area.color == "#0000ff" and area.lineweight == pdf_import.AREA_OUTLINE
+    assert not outline.filled and outline.color is None and outline.lineweight == 0.25
+    dashes = sorted(lines_at(50.085), key=lambda e: min(e.p1.x, e.p2.x))
+    assert [(d.color, d.linetype) for d in dashes] == [("#ff0000", "dashed"), (None, "dashed")]
+    texts = {e.text: e.color for e in found if isinstance(e, Text)}
+    assert texts == {"-F1": "#7ca552", "-F2": None}
+    plain = pdf_import.page_entities(path, 0, page, colors=False)
+    assert all(e.color is None for e in plain)
+    (one,) = [e for e in plain if isinstance(e, Rectangle)]  # one colour: one rectangle
+    assert one.filled and one.lineweight == 0.25
+    assert len([e for e in plain if isinstance(e, Line) and abs(e.p1.y - 50.085) < 0.3]) == 1
+
+
 @pytest.mark.skipif(not pdf_import.available() or not _has_qtpdf(), reason="QtPdf or pdfminer")
 def test_import_dialog_with_a_cad_pdf(qapp, tmp_path):
     from PyQt6.QtCore import QRectF
@@ -388,6 +453,7 @@ def test_import_dialog_with_a_cad_pdf(qapp, tmp_path):
     assert dialog.paper.text() == "A4 quer (297 × 210 mm)"
     texts = {e.text for e in dialog.entities() if isinstance(e, Text)}
     assert texts == {"-Q1 B16", "-W1"}
+    assert dialog.colors.isVisibleTo(dialog) and dialog.colors.isChecked()
     # Mark the right half: the width follows, the box on the left stays out.
     scene = dialog.view.scene().sceneRect()
     dialog.view.region = QRectF(scene.width() / 2, 0, scene.width() / 2, scene.height())
@@ -395,6 +461,7 @@ def test_import_dialog_with_a_cad_pdf(qapp, tmp_path):
     assert abs(dialog.width_mm.value() - 148.5) < 0.2
     assert not [e for e in dialog.entities() if isinstance(e, Rectangle)]
     dialog.mode.setCurrentIndex(dialog.mode.findData(PICTURE))
+    assert not dialog.colors.isVisibleTo(dialog)
     (picture,) = dialog.entities()
     assert isinstance(picture, RasterImage) and picture.data[:4] == b"\x89PNG"
 

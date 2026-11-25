@@ -1079,5 +1079,6 @@
  "90° links": "90° left",
  "90° rechts": "90° right",
  "Bild um 90° gegen den Uhrzeigersinn drehen": "Turn the picture 90° anticlockwise",
- "Bild um 90° im Uhrzeigersinn drehen": "Turn the picture 90° clockwise"
+ "Bild um 90° im Uhrzeigersinn drehen": "Turn the picture 90° clockwise",
+ "Farben übernehmen (Schwarz bleibt VonEbene)": "Keep colours (black stays ByLayer)"
 }

@@ -78,6 +78,7 @@ MAX_PICTURE_SIDE = 2400  # pixels kept of a picture
 PICTURE_WIDTH = 250.0  # mm, first suggestion for pictures without a size
 VECTORS, PICTURE, TRACE = "vectors", "picture", "trace"
 QUALITY_KEY = "import/quality"  # reading texts with the fast or the exact models
+COLORS_KEY = "import/colors"  # lines and texts of a PDF keep their colours
 
 
 def tr(text: str) -> str:
@@ -591,6 +592,9 @@ class ImportDialog(QDialog):
         self.mode.addItem(self.tr("Bild in Linien und Texte umwandeln"), TRACE)
         self.keep = QCheckBox(self.tr("Bild darunter behalten"))
         self.keep.setChecked(True)
+        self.colors = QCheckBox(self.tr("Farben übernehmen (Schwarz bleibt VonEbene)"))
+        self.colors.setChecked(QSettings().value(COLORS_KEY, True, type=bool))
+        self.colors.toggled.connect(lambda on: QSettings().setValue(COLORS_KEY, on))
         # Texts read with the models of the system (fast) or the more exact ones
         # shipped with the program (tessdata_best: about twice as long).
         self.quality = QComboBox()
@@ -625,6 +629,7 @@ class ImportDialog(QDialog):
             form.addRow(self.tr("Format der Seite:"), self.paper)
         form.addRow(self.tr("Übernehmen als:"), self.mode)
         form.addRow("", self.keep)
+        form.addRow("", self.colors)
         form.addRow(self.tr("Texterkennung:"), self.quality)
         self.form = form
         form.addRow(self.tr("Breite des Bereichs:"), self.width_mm)
@@ -796,6 +801,7 @@ class ImportDialog(QDialog):
             self._turns = 0
             self._show_image(self.page)
         self.keep.setVisible(mode == TRACE)
+        self.colors.setVisible(mode == VECTORS)
         self.form.setRowVisible(self.quality, mode == TRACE)
         hints = {
             VECTORS: self.tr(
@@ -857,7 +863,9 @@ class ImportDialog(QDialog):
                     f.bottom() * size.height(),
                 )
                 scale = width / max(1e-9, region_width_mm(region))
-                return pdf_import.page_entities(self.source.path, self.page, region, scale)
+                return pdf_import.page_entities(
+                    self.source.path, self.page, region, scale, self.colors.isChecked()
+                )
             image, photo = self._region_image(IMAGE_DPI)
             return [picture_entity(image, width, photo)]
         finally:

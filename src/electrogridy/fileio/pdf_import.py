@@ -13,6 +13,10 @@ as filled areas without an outline. A thin straight filled strip becomes the lin
 draws, a row of them with gaps one dashed (or, with dots between the dashes,
 dash-dotted) line; any other filled area a filled shape with a hair outline. Pale
 fills (backgrounds, highlights) are left out, like white strokes.
+
+Colours of strokes, fills and texts come along (``colors``); black and near black stay
+by layer, so that the layer colour and the dark canvas still apply. A filled and
+stroked path with two colours gives a filled area and its outline.
 """
 
 import math
@@ -37,6 +41,7 @@ MAX_DASH_GAP = 4.0 / MM_PER_PT  # pt
 TOUCH = 0.1  # pt: strips closer than this along their line are one piece
 SAME_LINE = 0.2  # pt: strips this close across their direction lie on one line
 SAME_ANGLE = 0.01  # rad
+BLACK = 0.1  # colours with every channel up to this stay by layer
 
 
 @dataclass(frozen=True)
@@ -107,9 +112,12 @@ def vector_count(path: Path, page: int) -> int:
     return sum(1 for o in _walk(_layout(path, page)) if isinstance(o, LTCurve))
 
 
-def page_entities(path: Path, page: int, region: Region, scale: float = 1.0) -> list[Entity]:
+def page_entities(
+    path: Path, page: int, region: Region, scale: float = 1.0, colors: bool = True
+) -> list[Entity]:
     """Lines, polylines, rectangles, circles and texts of ``page`` (0-based) inside
-    ``region``, in mm (``scale`` times the size on paper)."""
+    ``region``, in mm (``scale`` times the size on paper); ``colors``: with the colours
+    of the PDF, otherwise all by layer."""
     from pdfminer.layout import LTChar, LTCurve
 
     layout = _layout(path, page)
@@ -133,24 +141,47 @@ def page_entities(path: Path, page: int, region: Region, scale: float = 1.0) -> 
         stroke = bool(o.stroke) and not _white(o.stroking_color)
         if stroke and fill and o.linewidth < HAIR_STROKE:
             stroke = False  # an area with a hair outline: the area alone
+        stroke_color = _hex(o.stroking_color) if colors else None
+        fill_color = _hex(o.non_stroking_color) if colors else None
+        area = {"lineweight": AREA_OUTLINE, **_colored(fill_color)}
         if stroke:
-            style = {"lineweight": _lineweight(o.linewidth * k)}
+            style = {"lineweight": _lineweight(o.linewidth * k), **_colored(stroke_color)}
             linetype = _linetype(getattr(o, "dashing_style", None))
             if linetype:
                 style["linetype"] = linetype
             for shape in _shapes(o):
-                out += _clipped(shape, box, to_mm, style, fill)
+                if fill and fill_color != stroke_color:  # the area, then its outline
+                    out += _clipped(shape, box, to_mm, area, True)
+                    out += _clipped(shape, box, to_mm, style)
+                else:
+                    out += _clipped(shape, box, to_mm, style, fill)
         elif fill:
             for shape in _shapes(o):
                 strip = _strip(shape)
                 if strip is None:
-                    out += _clipped(shape, box, to_mm, {"lineweight": AREA_OUTLINE}, True)
+                    out += _clipped(shape, box, to_mm, area, True)
                 else:
                     strip.order = len(out)
+                    strip.color = fill_color
                     strips.append(strip)
     out = _inserted(out, _strip_lines(strips, box, to_mm, k))
-    out += _texts(chars, box, to_mm, k)
+    out += _texts(chars, box, to_mm, k, colors)
     return out
+
+
+def _hex(color) -> str | None:
+    """``#rrggbb`` of a PDF colour; None (by layer) for black, near black and what is
+    no plain colour (a pattern)."""
+    if color is None:
+        return None
+    rgb = _rgb(color)
+    if rgb is None or not all(0 <= v <= 1 for v in rgb) or max(rgb) <= BLACK:
+        return None
+    return "#" + "".join(f"{round(v * 255):02x}" for v in rgb)
+
+
+def _colored(color: str | None) -> dict:
+    return {"color": color} if color else {}
 
 
 def _inserted(out: list[Entity], extra: list[tuple[int, Entity]]) -> list[Entity]:
@@ -525,6 +556,7 @@ class _Strip:
     dot: bool  # about as long as wide: its direction comes from its neighbours
     shape: _Shape
     order: int = 0
+    color: str | None = None  # None: by layer
 
 
 def _signed_area(pts) -> float:
@@ -768,18 +800,23 @@ def _dotted(lengths: list[float]) -> bool:
 
 def _strip_lines(strips: list[_Strip], box, to_mm, k: float) -> list[tuple[int, Entity]]:
     """Lines drawn by filled strips, each with the drawing position of its first strip.
-    A single dot or a single wide strip stays the filled area it is."""
+    A single dot or a single wide strip stays the filled area it is. Only strips of one
+    colour make a line together."""
+    by_color: dict[str | None, list[_Strip]] = {}
+    for s in strips:
+        by_color.setdefault(s.color, []).append(s)
     out: list[tuple[int, Entity]] = []
-    for run in _runs(strips):
-        if run.lone is not None and (run.lone.dot or run.width > MAX_SOLID_STRIP):
-            shape = run.lone.shape
-            entities = _clipped(shape, box, to_mm, {"lineweight": AREA_OUTLINE}, True)
-        else:
-            style: dict = {"lineweight": _lineweight(run.width * k)}
-            if run.linetype:
-                style["linetype"] = run.linetype
-            entities = _clipped(_Shape([run.a, run.b], False, 0), box, to_mm, style)
-        out += [(run.order, e) for e in entities]
+    for color, same in by_color.items():
+        for run in _runs(same):
+            if run.lone is not None and (run.lone.dot or run.width > MAX_SOLID_STRIP):
+                area = {"lineweight": AREA_OUTLINE, **_colored(color)}
+                entities = _clipped(run.lone.shape, box, to_mm, area, True)
+            else:
+                style: dict = {"lineweight": _lineweight(run.width * k), **_colored(color)}
+                if run.linetype:
+                    style["linetype"] = run.linetype
+                entities = _clipped(_Shape([run.a, run.b], False, 0), box, to_mm, style)
+            out += [(run.order, e) for e in entities]
     return out
 
 
@@ -810,12 +847,18 @@ class _Glyph:
     angle: float
     size: float
     end: tuple[float, float]  # where the next character of the string starts
+    color: str | None = None
 
 
-def _texts(chars, box, to_mm, k: float) -> list[Entity]:
-    """Characters joined into texts: neighbours in the file where the next character
-    starts where the previous one ends (a small gap is a space). Some programs write
-    turned texts backwards, so the order in the file may run either way."""
+def _char_color(char) -> str | None:
+    state = getattr(char, "graphicstate", None)
+    return _hex(getattr(state, "ncolor", None))
+
+
+def _texts(chars, box, to_mm, k: float, colors: bool = True) -> list[Entity]:
+    """Characters joined into texts: neighbours in the file of one colour where the
+    next character starts where the previous one ends (a small gap is a space). Some
+    programs write turned texts backwards, so the order in the file may run either way."""
     glyphs = []
     for c in chars:
         angle = _angle(c)
@@ -833,6 +876,7 @@ def _texts(chars, box, to_mm, k: float) -> list[Entity]:
                 angle,
                 _size(c, ux, uy),
                 (x + c.adv * a, y + c.adv * b),
+                _char_color(c) if colors else None,
             )
         )
     cell = 20.0
@@ -851,7 +895,7 @@ def _texts(chars, box, to_mm, k: float) -> list[Entity]:
                     # Neighbours in the file, in either direction.
                     if abs(j - i) != 1 or abs((h.angle - g.angle + 180) % 360 - 180) > 1.0:
                         continue
-                    if abs(h.size - g.size) > 0.1 * g.size:
+                    if abs(h.size - g.size) > 0.1 * g.size or h.color != g.color:
                         continue
                     dx, dy = h.x - g.end[0], h.y - g.end[1]
                     along = dx * g.ux + dy * g.uy
@@ -892,6 +936,7 @@ def _texts(chars, box, to_mm, k: float) -> list[Entity]:
                     text=" ".join(text.split()),
                     height=round(first.size * CAP_HEIGHT * k, 2),
                     rotation=round(first.angle, 2) % 360,
+                    **_colored(first.color),
                 )
             )
     return out
