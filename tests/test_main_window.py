@@ -166,6 +166,46 @@ def test_panning_moves_the_cached_picture_like_a_full_redraw(window):
     assert canvas._layer.toImage() == panned
 
 
+def test_a_change_redraws_only_its_area_like_a_full_redraw(window, qapp):
+    from electrogridy.commands.entities import AddEntitiesCommand, RemoveEntitiesCommand
+    from electrogridy.model.entities import Wire
+
+    for i in range(30):
+        window.document.model_space.add(
+            Wire(id=f"w{i}", points=(Point(10 * i, 0), Point(10 * i, 80), Point(10 * i + 6, 80)))
+        )
+    canvas = window.canvas
+    canvas.set_layer_cache_enabled(True)
+    canvas.set_view(2.0, QPointF(150, 40))
+    qapp.processEvents()
+    canvas.viewport().repaint()
+    full = []
+    paint = canvas._render_layer
+    canvas._render_layer = lambda p, rect: (full.append(rect.size()), paint(p, rect))
+
+    def check(change):
+        full.clear()
+        change()
+        for _ in range(3):  # junction dots and removals follow in later passes
+            qapp.processEvents()
+        canvas.viewport().repaint()
+        assert full and all(s != canvas.viewport().size() for s in full)  # parts only
+        partial = canvas._layer.toImage()
+        canvas._invalidate_layer()
+        canvas.viewport().repaint()
+        assert canvas._layer.toImage() == partial
+
+    model = window.document.model_space
+    # A branch onto wire 15 in the middle of the view (a new junction dot), moving
+    # it, selecting, removing.
+    branch = Wire(id="b", points=(Point(150, 40), Point(156, 40)))
+    check(lambda: window.push(AddEntitiesCommand(model, [branch], "")))
+    check(lambda: model.replace(Wire(id="b", points=(Point(140, 30), Point(146, 30)))))
+    check(lambda: window.space.sync.item("b").setSelected(True))
+    check(lambda: window.push(RemoveEntitiesCommand(model, ["b"], "")))
+    canvas._render_layer = paint
+
+
 def test_program_settings_have_their_own_menu(window):
     titles = [a.text().replace("&", "") for a in window.menuBar().actions()]
     assert titles[:3] == ["Datei", "Bearbeiten", "Einstellungen"]

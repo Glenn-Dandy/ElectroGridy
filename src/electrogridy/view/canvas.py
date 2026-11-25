@@ -34,6 +34,11 @@ from electrogridy.view.items import SELECTION_COLOR, EntityItem, StyleResolver
 from electrogridy.view.render import Style, mpt, paint_entity, qpt
 
 MM_PER_INCH = 25.4
+# Fast display after a change: the changed areas are drawn again with this margin
+# (antialiased edges); more than this share of the view or this many areas: all of it.
+DIRTY_MARGIN_PX = 2
+DIRTY_SHARE_MAX = 0.5
+DIRTY_RECTS_MAX = 200
 
 # Practical bound of the "unbounded" model space: +/- 1 km. Keeps scroll bar
 # ranges inside int32 up to MAX_ZOOM.
@@ -143,6 +148,8 @@ class Canvas(QGraphicsView):
         # The paper of the shown page (drawn as background, with the grid on it).
         self.paper_item = None
         self._layer: QPixmap | None = None
+        # Viewport areas of the cached picture that a change made stale.
+        self._layer_dirty: list[QRect] = []
         # Switched by Settings > Fast display (off until the user switches it on).
         self.layer_cache_enabled = False
         self._layer_key_value: tuple = ()
@@ -226,7 +233,7 @@ class Canvas(QGraphicsView):
             -SCENE_EXTENT_MM, -SCENE_EXTENT_MM, 2 * SCENE_EXTENT_MM, 2 * SCENE_EXTENT_MM
         )
         if scene not in self._watched_scenes:
-            scene.changed.connect(self._invalidate_layer)
+            scene.changed.connect(self._on_scene_changed)
             self._watched_scenes.append(scene)
             scene.destroyed.connect(self._forget_scene)
 
@@ -240,6 +247,34 @@ class Canvas(QGraphicsView):
 
     def _invalidate_layer(self, *_args) -> None:
         self._layer = None
+        self._layer_dirty = []
+
+    def _on_scene_changed(self, regions: list[QRectF]) -> None:
+        """Only the changed areas of the shown scene are drawn again; a change that
+        covers much of the view draws it all."""
+        if self._layer is None:
+            return
+        if self.sender() is not self.scene():
+            return  # another page: drawn anew when it is shown
+        transform = self.viewportTransform()
+        view = self.viewport().rect()
+        area = 0
+        for region in regions:
+            r = (
+                transform.mapRect(region)
+                .toAlignedRect()
+                .adjusted(-DIRTY_MARGIN_PX, -DIRTY_MARGIN_PX, DIRTY_MARGIN_PX, DIRTY_MARGIN_PX)
+            )
+            r = r.intersected(view)
+            if r.isEmpty():
+                continue
+            self._layer_dirty.append(r)
+            area += r.width() * r.height()
+        if (
+            area > DIRTY_SHARE_MAX * view.width() * view.height()
+            or len(self._layer_dirty) > DIRTY_RECTS_MAX
+        ):
+            self._invalidate_layer()
 
     def resetCachedContent(self) -> None:  # noqa: N802 - Qt name
         self._invalidate_layer()
@@ -296,12 +331,40 @@ class Canvas(QGraphicsView):
             finally:
                 self._rendering_layer = False
             self._layer, self._layer_key_value = pixmap, key
+            self._layer_dirty = []
+        elif self._layer_dirty:
+            self._redraw_dirty()
         painter = QPainter(vp)
         painter.drawPixmap(0, 0, self._layer)
         painter.setRenderHints(self.renderHints())
         painter.setTransform(self.viewportTransform())
         self.drawForeground(painter, self.mapToScene(vp.rect()).boundingRect())
         painter.end()
+
+    def _redraw_dirty(self) -> None:
+        """Draws the stale areas of the cached picture again, each on fresh background."""
+        dirty, self._layer_dirty = self._layer_dirty, []
+        background = theme.surface(self.background_color)
+        self._rendering_layer = True
+        try:
+            dpr = self._layer.devicePixelRatio()
+            p = QPainter(self._layer)
+            for r in _merged(dirty):
+                # Edges on whole device pixels (125 % screen scale: the clip would
+                # otherwise blend half pixels at its border).
+                device = QRectF(r.x() * dpr, r.y() * dpr, r.width() * dpr, r.height() * dpr)
+                device = QRectF(device.toAlignedRect())
+                clip = QRectF(
+                    device.x() / dpr, device.y() / dpr, device.width() / dpr, device.height() / dpr
+                )
+                p.save()
+                p.setClipRect(clip)
+                p.fillRect(clip, background)
+                self._render_layer(p, clip.toAlignedRect())
+                p.restore()
+            p.end()
+        finally:
+            self._rendering_layer = False
 
     def _render_layer(self, painter: QPainter, rect: QRect) -> None:
         self.render(painter, QRectF(rect), rect, Qt.AspectRatioMode.IgnoreAspectRatio)
@@ -650,7 +713,7 @@ class Canvas(QGraphicsView):
         """Bounding box of what is visible (hidden layers do not count)."""
         rect = QRectF()
         for item in self.scene().items():
-            if item.isVisible() and item.parentItem() is None:
+            if item.isVisible() and item.parentItem() is None and getattr(item, "in_extents", True):
                 rect = rect.united(item.sceneBoundingRect())
         return rect
 
@@ -1417,6 +1480,19 @@ class Canvas(QGraphicsView):
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(QRectF(c.x() - r, c.y() - r, 2 * r, 2 * r))
         painter.restore()
+
+
+def _merged(rects: list[QRect]) -> list[QRect]:
+    """Overlapping areas joined, so nothing is drawn twice."""
+    out: list[QRect] = []
+    for r in rects:
+        while True:
+            hit = next((i for i, o in enumerate(out) if o.intersects(r)), None)
+            if hit is None:
+                break
+            r = r.united(out.pop(hit))
+        out.append(r)
+    return out
 
 
 def _is_multiple(value: float, step: float) -> bool:

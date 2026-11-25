@@ -8,6 +8,7 @@ functions (contacts): terminal, a small contact symbol, terminal, place ("13 -/-
 The roles come from the block definitions (``function``, ``contact``).
 """
 
+import bisect
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
@@ -21,7 +22,7 @@ from electrogridy.model.blocks import (
 from electrogridy.model.document import Document
 from electrogridy.model.entities import BlockReference, Entity, Line, Text
 from electrogridy.model.geometry import Point
-from electrogridy.model.sheet import column_at
+from electrogridy.model.sheet import column_at, column_edges
 
 BMK = "BMK"
 MODEL, SHEET = "model", "sheet"
@@ -123,6 +124,8 @@ def occurrences(doc: Document) -> list[Occurrence]:
     places = [(MODEL, None, doc.model_space)]
     places += [(SHEET, s.id, s.entities) for s in doc.sheets]
     found = []
+    # Terminals and poles per symbol and own terminal names (most references share them).
+    ends: dict[tuple, tuple[tuple[str, ...], tuple[tuple[str, str], ...]]] = {}
     for where, layout_id, container in places:
         for e in container:
             if not isinstance(e, BlockReference):
@@ -132,6 +135,15 @@ def occurrences(doc: Document) -> list[Occurrence]:
                 continue
             definition = doc.blocks.get(e.name)
             attributes = dict(e.attributes)
+            key = (e.name, e.terminal_labels)
+            if key not in ends:
+                ends[key] = (
+                    tuple(e.terminal_label(c.name) for c in definition.connection_points())
+                    if definition
+                    else (),
+                    poles(definition, e) if definition else (),
+                )
+            terminals, ref_poles = ends[key]
             found.append(
                 Occurrence(
                     bmk=bmk,
@@ -142,14 +154,10 @@ def occurrences(doc: Document) -> list[Occurrence]:
                     position=e.insert,
                     function=definition.function if definition else "",
                     contact=definition.contact if definition else "",
-                    terminals=tuple(
-                        e.terminal_label(c.name) for c in definition.connection_points()
-                    )
-                    if definition
-                    else (),
+                    terminals=terminals,
                     manufacturer=attributes.get("HERSTELLER", ""),
                     type=attributes.get("TYP", ""),
-                    poles=poles(definition, e) if definition else (),
+                    poles=ref_poles,
                 )
             )
     return found
@@ -172,8 +180,34 @@ def place(doc: Document, sheet_id: str, x: float) -> tuple[int, int | None]:
 
 def page_reference(doc: Document, occ: Occurrence) -> str:
     """ "/3.4": page 3, column 4 (just "/3" on pages without columns)."""
-    number, column = place(doc, occ.layout_id, occ.position.x)
+    return _reference(*place(doc, occ.layout_id, occ.position.x))
+
+
+def _reference(number: int, column: int | None) -> str:
     return f"/{number}.{column}" if column is not None else f"/{number}"
+
+
+class _Places:
+    """``place`` for many points: page numbers and column borders found once per page."""
+
+    def __init__(self, doc: Document) -> None:
+        self._doc = doc
+        self._pages: dict[str, tuple[int, list[float] | None]] = {}
+        for index, sheet in enumerate(doc.sheets):
+            w, h = sheet.size
+            edges = column_edges(w, h, sheet.columns) if sheet.columns > 0 else None
+            self._pages[sheet.id] = (sheet.number or index + 1, edges)
+
+    def reference(self, occ: Occurrence) -> str:
+        found = self._pages.get(occ.layout_id)
+        if found is None:
+            return page_reference(self._doc, occ)
+        number, edges = found
+        if edges is None:
+            return _reference(number, None)
+        x = occ.position.x
+        column = bisect.bisect_right(edges, x, 1, len(edges) - 1) - 1
+        return _reference(number, column)
 
 
 def crossrefs(doc: Document) -> dict[str, list]:
@@ -181,20 +215,24 @@ def crossrefs(doc: Document) -> dict[str, list]:
     gets its contact mirror (``MirrorLine`` per pole), a contact the places of its main
     function ("/2.5")."""
     lines: dict[str, list] = {}
+    places = _Places(doc)
     for group in devices(doc).values():
         on_pages = [o for o in group if o.where == SHEET]
         mains = [o for o in on_pages if o.function == "main"]
         auxes = [o for o in on_pages if o.function == "aux"]
+        if not mains or not auxes:
+            continue
+        at = {o.entity_id: (places.reference(o), target_of(o)) for o in mains + auxes}
         for main in mains:
             mirror = [
-                MirrorLine(first, aux.contact, second, page_reference(doc, aux), target_of(aux))
+                MirrorLine(first, aux.contact, second, *at[aux.entity_id])
                 for aux in auxes
                 for first, second in aux.poles or (("", ""),)
             ]
             if mirror:
                 lines[main.entity_id] = mirror
         for aux in auxes:
-            refs = [XRef(page_reference(doc, m), target_of(m)) for m in mains]
+            refs = [XRef(*at[m.entity_id]) for m in mains]
             if refs:
                 lines[aux.entity_id] = refs
     return lines

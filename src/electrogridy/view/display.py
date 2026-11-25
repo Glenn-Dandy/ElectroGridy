@@ -219,6 +219,24 @@ def symbol_extras(
     return parts
 
 
+def generated_key(doc: Document, entity: Entity) -> object:
+    """What the project adds to how ``entity`` is drawn (cross references, contact
+    mirror, terminal names, interruption targets, cable cores): equal keys draw the
+    same. A change elsewhere redraws only the symbols whose key changed."""
+    if isinstance(entity, BlockReference):
+        lines = crossrefs_of(doc).get(entity.id) or ()
+        return (
+            terminal_labels_of(doc).get(entity.id),
+            entity.id in pole_labelled_of(doc),
+            tuple((line, getattr(line, "target", None)) for line in lines),
+        )
+    if isinstance(entity, InterruptionPoint):
+        return interruption_targets_of(doc).get(entity.id)
+    if isinstance(entity, CableMark):
+        return cable_cores_of(doc).get(entity.id)
+    return None
+
+
 def cable_cores_of(doc: Document) -> dict[str, list]:
     cache = page_cache(doc)
     if "cables" not in cache:

@@ -1,5 +1,6 @@
 """Wire helpers: orthogonal routing, junctions, labels and following moved symbols."""
 
+import bisect
 import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
@@ -83,6 +84,32 @@ JUNCTION_MIN_DIAMETER = 1.0  # mm
 JUNCTION_WEIGHT_FACTOR = 4.0  # diameter as a multiple of the wire's line width
 
 
+class _Runs:
+    """The runs (low, high, wire id) on one line, sorted for quick lookups: a plan
+    with long rows of wires on the same line checks only the runs near a point."""
+
+    def __init__(self, runs: list[tuple[float, float, str]]) -> None:
+        self._runs = sorted(runs)
+        self._lows = [r[0] for r in self._runs]
+        # Highest end among the runs up to each index: going down from a point, the
+        # search stops at the first index whose runs all end before it.
+        self._reach: list[float] = []
+        top = float("-inf")
+        for _lo, hi, _wid in self._runs:
+            top = max(top, hi)
+            self._reach.append(top)
+
+    def inside(self, v: float, owner_ids: set[str]) -> bool:
+        """``v`` lies strictly inside a run of a wire not in ``owner_ids``."""
+        j = bisect.bisect_left(self._lows, v - EPS) - 1
+        while j >= 0 and self._reach[j] > v + EPS:
+            lo, hi, wid = self._runs[j]
+            if lo + EPS < v < hi - EPS and wid not in owner_ids:
+                return True
+            j -= 1
+        return False
+
+
 def junctions(entities: Iterable[Entity]) -> list[tuple[Point, Entity]]:
     """Connection dots with the entity that gives their style.
 
@@ -116,8 +143,11 @@ def junctions(entities: Iterable[Entity]) -> list[tuple[Point, Entity]]:
         for p in (w.points[0], w.points[-1]):
             ends.setdefault((round(p.x, 6), round(p.y, 6)), []).append(w)
 
-    def inside(runs: list[tuple[float, float, str]], v: float, owner_ids: set[str]) -> bool:
-        return any(lo + EPS < v < hi - EPS and wid not in owner_ids for lo, hi, wid in runs)
+    vertical_runs = {k: _Runs(v) for k, v in vertical.items()}
+    horizontal_runs = {k: _Runs(v) for k, v in horizontal.items()}
+
+    def inside(runs: "_Runs | None", v: float, owner_ids: set[str]) -> bool:
+        return runs is not None and runs.inside(v, owner_ids)
 
     dots: dict[tuple[float, float], tuple[Point, Entity]] = {}
     for (x, y), owners in ends.items():
@@ -128,8 +158,8 @@ def junctions(entities: Iterable[Entity]) -> list[tuple[Point, Entity]]:
         owner_ids = {w.id for w in owners}
         if (
             corners.get((x, y), set()) - owner_ids
-            or inside(vertical.get(x, ()), y, owner_ids)
-            or inside(horizontal.get(y, ()), x, owner_ids)
+            or inside(vertical_runs.get(x), y, owner_ids)
+            or inside(horizontal_runs.get(y), x, owner_ids)
             or any(wid not in owner_ids and _on_segment_interior(p, a, b) for wid, a, b in other)
             or any(on_segment(p, bar.p1, bar.p2) for bar in bars)
         ):

@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 
+from PyQt6.QtCore import QRectF, QTimer
 from PyQt6.QtWidgets import QGraphicsScene
 
 from electrogridy.model.container import EntityContainer
@@ -10,6 +11,7 @@ from electrogridy.view.items import EntityItem, Expander, StyleResolver, _identi
 
 # Returns (visible, locked) for an entity, derived from its layer.
 LayerState = Callable[[Entity], tuple[bool, bool]]
+BATCH_RECTS_MAX = 200
 
 
 def _always_visible(_e: Entity) -> tuple[bool, bool]:
@@ -38,6 +40,11 @@ class SceneSync:
         self._batch_blocked: bool | None = None
         self._batch_selection = False
         self._batch_restack = False
+        # Scene areas the batch touched (before and after), drawn again at its end.
+        self._batch_rects: list[QRectF] = []
+        # Removed items, hidden and taken out of the scene once Qt has drawn their area
+        # anew (removing a visible item makes Qt redraw the whole scene).
+        self._hidden: list[EntityItem] = []
         for e in container:
             self._add(e)
         self._restack()
@@ -48,6 +55,22 @@ class SceneSync:
         for item in self._items.values():
             self._scene.removeItem(item)
         self._items.clear()
+        self._remove_hidden()
+
+    def _discard(self, item: EntityItem) -> None:
+        item.hide()
+        if not self._hidden:
+            QTimer.singleShot(0, self._remove_hidden)
+        self._hidden.append(item)
+
+    def _remove_hidden(self) -> None:
+        hidden, self._hidden = self._hidden, []
+        for item in hidden:
+            try:
+                if item.scene() is self._scene:
+                    self._scene.removeItem(item)
+            except RuntimeError:  # the scene is gone already
+                return
 
     def item(self, entity_id: str) -> EntityItem:
         return self._items[entity_id]
@@ -78,6 +101,7 @@ class SceneSync:
         if event == "batch_start":
             self._batch_blocked = self._scene.blockSignals(True)
             self._batch_selection = self._batch_restack = False
+            self._batch_rects = []
             return
         if event == "batch_end":
             self._scene.blockSignals(bool(self._batch_blocked))
@@ -86,12 +110,21 @@ class SceneSync:
                 self._restack()
             if self._batch_selection:
                 self._scene.selectionChanged.emit()
-            self._scene.update()
+            # Only what changed (a full update redrew the whole view after each edit);
+            # many changes at once: everything.
+            rects, self._batch_rects = self._batch_rects, []
+            if len(rects) > BATCH_RECTS_MAX:
+                self._scene.update()
+            else:
+                for r in rects:
+                    self._scene.update(r)
             return
         assert e is not None
         batch = self._batch_blocked is not None
         if event == "added":
             self._add(e)
+            if batch:
+                self._batch_rects.append(self._items[e.id].sceneBoundingRect())
             if self._container.index_of(e.id) == len(self._container) - 1:
                 self._items[e.id].setZValue(self._next_z)
                 self._next_z += 1
@@ -101,10 +134,16 @@ class SceneSync:
                 self._restack()
         elif event == "removed":
             item = self._items.pop(e.id)
+            if batch:
+                self._batch_rects.append(item.sceneBoundingRect())
             if batch and item.isSelected():
                 self._batch_selection = True
-            self._scene.removeItem(item)
+            self._discard(item)
         elif event == "changed":
             item = self._items[e.id]
+            if batch:
+                self._batch_rects.append(item.sceneBoundingRect())
             item.set_entity(e)
             item.set_layer_state(*self._layer_state(e))
+            if batch:
+                self._batch_rects.append(item.sceneBoundingRect())

@@ -168,6 +168,7 @@ from electrogridy.view.display import (
     crossrefs_of,
     expand_for_display,
     frame_parts,
+    generated_key,
     interruption_targets_of,
     sheet_links,
     symbol_extras,
@@ -248,6 +249,8 @@ class MainWindow(QMainWindow):
         self.document._revision = 0  # counts changes; generated content follows it
         self._interruption_refresh_pending = False
         self._snap_parts: dict[tuple, tuple[Entity, list[Entity]]] = {}
+        # Entity id -> ``generated_key`` its item was last drawn with.
+        self._drawn_generated: dict[str, object] = {}
         self.last_outlet_cable = ""
         self._watched_pages: dict[int, EntityContainer] = {}
         self.file_path: Path | None = None
@@ -344,7 +347,7 @@ class MainWindow(QMainWindow):
     ) -> Space:
         """``blocks`` resolves references in this space; None means the drawing's blocks."""
         scene = QGraphicsScene(self)
-        expand = partial(self.expand_with, blocks)
+        expand = partial(self._expand_item, blocks)
         sync = SceneSync(
             scene, container, self._resolve_style, self._layer_state, expand, item_factory
         )
@@ -1267,6 +1270,14 @@ class MainWindow(QMainWindow):
     def _expand(self, entity: Entity) -> list[Entity]:
         return self.expand_with(self.block_definitions, entity)
 
+    def _expand_item(
+        self, blocks: Mapping[str, BlockDefinition] | None, entity: Entity
+    ) -> list[Entity]:
+        """``expand_with`` for the item of ``entity``, noting what it was drawn with."""
+        if isinstance(entity, InterruptionPoint | CableMark | BlockReference):
+            self._drawn_generated[entity.id] = generated_key(self.document, entity)
+        return self.expand_with(blocks, entity)
+
     def expand_with(
         self, blocks: Mapping[str, BlockDefinition] | None, entity: Entity
     ) -> list[Entity]:
@@ -1392,8 +1403,11 @@ class MainWindow(QMainWindow):
         self._watched_pages = {}
 
     def _on_page_changed(self, event: str, _entity: Entity | None) -> None:
-        if event != "batch_start":
-            self._content_changed()
+        if event == "batch_start":
+            return
+        if event != "batch_end" and any(c.in_batch for c in self._watched_pages.values()):
+            return  # once at "batch_end"
+        self._content_changed()
 
     def _content_changed(self) -> None:
         """Something changed: generated content is computed anew (once per change, see
@@ -1405,9 +1419,14 @@ class MainWindow(QMainWindow):
 
     def _refresh_generated(self) -> None:
         self._interruption_refresh_pending = False
+        drawn = self._drawn_generated
+        missing = object()
         for space in self.sheets.all_spaces():
             for item in space.sync.items():
-                if isinstance(item.entity, InterruptionPoint | BlockReference | CableMark):
+                entity = item.entity
+                if isinstance(entity, InterruptionPoint | BlockReference | CableMark) and drawn.get(
+                    entity.id, missing
+                ) != generated_key(self.document, entity):
                     item.refresh()
             space.extra["frame"].update()  # title block, cover and lists
         if hasattr(self, "devices_dock"):
@@ -1456,6 +1475,11 @@ class MainWindow(QMainWindow):
             lambda width: schematic_title_block_definition(width, title_labels())
         )
         self.document = document
+        # Counted from here: building the items below reads the generated content once
+        # (without the counter every symbol compared the whole drawing, 4000 objects
+        # took seconds).
+        document._revision = 0
+        self._drawn_generated = {}
         self.file_path = path
         self.sheets.reset()
         self.model_view = self._make_space(MODEL, document.model_space, self.undo_stack)
@@ -1468,7 +1492,6 @@ class MainWindow(QMainWindow):
         self.undo_group.setActiveStack(self.undo_stack)
         self._drop_space(old)
         self._unwatch_pages()
-        document._revision = 0
         self._subscribe_document()
         self._watch_pages()
         self.undo_stack.clear()

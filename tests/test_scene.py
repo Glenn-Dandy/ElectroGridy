@@ -35,7 +35,7 @@ def entity_items(scene):
     return [i for i in scene.items() if isinstance(i, EntityItem)]
 
 
-def test_scene_follows_container(setup):
+def test_scene_follows_container(setup, qapp):
     _, scene, container, _ = setup
     for e in sample_entities():
         container.add(e)
@@ -43,6 +43,10 @@ def test_scene_follows_container(setup):
     container.replace(container.get("l1").translated(0, 100))
     assert scene.items(QPointF(5, 100))  # moved line is hit at its new place
     container.remove("l1")
+    # Hidden at once, out of the scene once its area is drawn anew (removing a
+    # visible item makes Qt redraw the whole scene).
+    assert len([i for i in entity_items(scene) if i.isVisible()]) == len(sample_entities()) - 1
+    qapp.processEvents()
     assert len(entity_items(scene)) == len(sample_entities()) - 1
 
 

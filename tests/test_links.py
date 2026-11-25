@@ -138,3 +138,38 @@ def test_double_click_on_a_reference_jumps(window):
     assert window.follow_link_at(back.center())
     assert window.sheets.current_sheet() is doc.sheets[1]
     assert not window.follow_link_at(rect.center() + type(rect.center())(500, 500))
+
+
+def test_a_new_contact_redraws_its_coil_only(window, qapp):
+    from electrogridy.commands.entities import AddEntitiesCommand
+    from electrogridy.model.entities import Text
+
+    doc = window.document
+    window.sheets.show_sheet(doc.sheets[1].id)
+    page = doc.sheets[1]
+    page.entities.add(
+        BlockReference(
+            id="other", name="Schützspule", insert=Point(160, 60), attributes=(("BMK", "-K9"),)
+        )
+    )
+    qapp.processEvents()
+    space = window.space
+    refreshed = []
+    for item in space.sync.items():
+        original = item.refresh
+        item.refresh = lambda item=item, original=original: (
+            refreshed.append(item.entity.id),
+            original(),
+        )
+
+    def mirror_texts():
+        return {p.text for p in space.sync.item("coil")._parts if isinstance(p, Text)}
+
+    before = mirror_texts()
+    contact = BlockReference(
+        id="nc", name="Öffner", insert=Point(300, 60), attributes=(("BMK", "-K1"),)
+    )
+    window.push(AddEntitiesCommand(doc.sheets[2].entities, [contact], ""))
+    qapp.processEvents()
+    assert refreshed == ["coil"]  # -K9 and the other symbols stay as they are
+    assert mirror_texts() - before  # the new contact's line in the mirror
