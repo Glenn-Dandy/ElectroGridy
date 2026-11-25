@@ -72,3 +72,21 @@ def test_render_does_not_fail(canvas):
     canvas.zoom_extents()
     image = canvas.grab()
     assert not image.isNull()
+
+
+def test_panning_without_fast_display_leaves_no_smear(canvas, qapp):
+    """Qt's background cache is shifted by whole pixels when panning; with a fractional
+    screen scale that smeared the grid. Without it the panned view equals a fresh one."""
+    from PyQt6.QtWidgets import QGraphicsView
+
+    assert canvas.cacheMode() == QGraphicsView.CacheModeFlag.CacheNone
+    canvas.set_layer_cache_enabled(False)
+    canvas.show()
+    canvas.set_zoom(1.7)
+    for _ in range(5):
+        canvas._scroll_by(QPointF(13.0, 7.0))
+        canvas.viewport().repaint()
+    panned = canvas.viewport().grab().toImage()
+    canvas.resetCachedContent()
+    canvas.viewport().repaint()
+    assert panned == canvas.viewport().grab().toImage()

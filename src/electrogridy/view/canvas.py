@@ -160,7 +160,10 @@ class Canvas(QGraphicsView):
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.NoAnchor)
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.setCacheMode(QGraphicsView.CacheModeFlag.CacheBackground)
+        # No background cache: Qt scrolls the cached background by whole pixels, with
+        # a fractional screen scale (125 %) panning smeared the grid (Florian
+        # 2026-11-25). The whole viewport is drawn anew on every update anyway.
+        self.setCacheMode(QGraphicsView.CacheModeFlag.CacheNone)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.viewport().setCursor(Qt.CursorShape.BlankCursor)
