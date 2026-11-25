@@ -75,10 +75,8 @@ Conflicts: sldgridy
 Replaces: sldgridy
 Homepage: https://github.com/Glenn-Dandy/ElectroGridy
 Description: CAD-style editor for single-line electrical diagrams
- ElectroGridy draws single-line diagrams for photovoltaic systems,
- transformer stations and low-voltage distribution boards. It works in
- millimetres with separate model and sheet layouts, grid and object snap,
- layers, reusable blocks, and prints or plots up to A0.
+ Single-line diagrams, circuit diagram projects and scaled drawings.
+ Symbols to DIN EN 60617, printing up to A0, import of PDF plans and photos.
 CONTROL
 
 dpkg-deb --build --root-owner-group "$STAGE" "$OUT" >/dev/null

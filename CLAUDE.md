@@ -399,5 +399,5 @@ Immer nur einen Meilenstein bearbeiten. Der deb-Build wird in M1 angelegt und bl
 - Zahlenformat folgt der Sprache (`i18n.ui_locale()`: Dezimalkomma bzw. Dezimalpunkt), Längen über `styles.mm_label()`.
 - Texte, die in Bibliotheken und Zeichnungen gespeichert sind (Symbolnamen, Kategorien, Beschreibungen, Abfragetexte, Titel von Bibliotheken und Vorlagen), werden nur in der Anzeige übersetzt (`i18n.library_text()`); die gespeicherten Namen bleiben deutsch, damit Zeichnungen sprachunabhängig zusammenpassen.
 - Zeichnungsinhalt folgt der Sprache beim Anlegen: neue Zeichnungen bekommen Schriftfeld-Beschriftungen in der aktiven Sprache (`Document.new(..., title_labels)`); „Blatt x von y“/„Sheet x of y“, quer/landscape und die Kachelnummer `Z1/S2`/`R1/C2` werden beim Zeichnen übersetzt. Bereits gespeicherte Zeichnungen behalten ihre Beschriftungen.
-- Repository-Seite (README) zweisprachig: Englisch zuerst, dann Deutsch, mit Hinweis zu Normen und Marken (DIN, IEC, VDE, Autodesk, EPLAN, LibreCAD).
+- README (seit 2026-11-25 auf Florians Wunsch kurz, ohne Fülltext: Beschreibung, Installation, Snap-Doppelklick-Befehle, Tasten, Entwicklung, Lizenz mit tessdata_best und Markenhinweis DIN/IEC/VDE/DXF): Deutsch zuerst, dann Englisch, gleiche Gliederung. Sie ist zugleich Hilfe > README im Programm, also keine Anleitung in Absätzen dort, nur das Nötigste.
 

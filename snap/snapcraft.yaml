@@ -2,19 +2,9 @@ name: electrogridy
 title: ElectroGridy
 summary: Single-line diagrams for PV systems and transformer stations
 description: |
-  ElectroGridy draws single-line diagrams (one-line / Einstrich-Übersichtsschaltpläne)
-  for photovoltaic systems, transformer stations and low-voltage distribution.
-
-  * Symbol library to DIN EN 60617 plus common PV symbols (PV module, inverter,
-    DC storage, wallbox, selective main switches)
-  * Orthogonal wires that stay connected when devices are moved, wire labels,
-    bus bars and junction dots
-  * Blocks with attributes, block editor, own symbol libraries, DXF import
-  * Sheets with title block and viewports, printing and export to PDF, SVG, PNG
-  * English and German user interface
-
-  ElectroGridy zeichnet einpolige Übersichtsschaltpläne für PV-Anlagen,
-  Trafostationen und Niederspannungsverteilungen, auf Deutsch und Englisch.
+  Single-line diagrams, circuit diagram projects and scaled drawings.
+  Symbols to DIN EN 60617, printing up to A0, import of PDF plans and photos.
+  English and German.
 license: GPL-3.0-or-later
 website: https://github.com/Glenn-Dandy/ElectroGridy
 source-code: https://github.com/Glenn-Dandy/ElectroGridy
