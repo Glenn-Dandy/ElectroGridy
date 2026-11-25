@@ -25,11 +25,12 @@ from electrogridy.model.sheet import column_at
 
 BMK = "BMK"
 MODEL, SHEET = "model", "sheet"
-XREF_HEIGHT = 2.0
+XREF_HEIGHT = 1.5  # contact mirror and references (2.0 until 1.4.2.dev6: too dominant)
 XREF_GAP = 1.5
-MIRROR_GAP = 1.2  # mm between the attributes and the first mirror line
+MIRROR_GAP = 1.0  # mm between the attributes and the first mirror line
 CHAR_WIDTH = 0.75  # rough width of a character as a share of the text height
 MIRROR_WEIGHT = 0.18
+GLYPH_LENGTH = 2.5  # contact symbol in the mirror, in text heights
 
 
 @dataclass(frozen=True)
@@ -217,12 +218,12 @@ def crossref_texts(
     out: list[Entity] = []
     for i, m in enumerate(mirror):
         y = first + i * 1.4 * h
-        glyph_x = x + 3.0 + 0.6
-        second_x = glyph_x + 5.0 + 0.6
-        reference_x = second_x + widest * CHAR_WIDTH * h + 1.5
+        glyph_x = x + 1.8 * h
+        second_x = glyph_x + GLYPH_LENGTH * h + 0.3 * h
+        reference_x = second_x + widest * CHAR_WIDTH * h + 0.75 * h
         for j, (text, tx, align) in enumerate(
             (
-                (m.first, x + 3.0, "right"),
+                (m.first, x + 1.5 * h, "right"),
                 (m.second, second_x, "left"),
                 (m.reference, reference_x, "left"),
             )
@@ -241,7 +242,7 @@ def crossref_texts(
                 )
         out += [
             Line(id=f"{ref.id}:xref{i}:g{k}", p1=a, p2=b, lineweight=MIRROR_WEIGHT, **style)
-            for k, (a, b) in enumerate(contact_glyph(m.contact, glyph_x, y))
+            for k, (a, b) in enumerate(contact_glyph(m.contact, glyph_x, y, h))
         ]
     return out
 
@@ -286,10 +287,14 @@ def pole_texts(ref: BlockReference, blocks: Mapping[str, BlockDefinition]) -> li
     return out
 
 
-def contact_glyph(contact: str, x: float, y: float) -> list[tuple[Point, Point]]:
-    """A small lying contact symbol 5 mm long starting at ``x`` on the middle line ``y``:
-    make contact (also for an unknown kind), break contact with its stop, changeover."""
-    a, b, c, d = x, x + 1.8, x + 3.2, x + 5.0
+def contact_glyph(
+    contact: str, x: float, y: float, h: float = XREF_HEIGHT
+) -> list[tuple[Point, Point]]:
+    """A small lying contact symbol ``GLYPH_LENGTH`` text heights long starting at ``x``
+    on the middle line ``y``: make contact (also for an unknown kind), break contact
+    with its stop, changeover."""
+    k = h / 2.0  # drawn for 2 mm text
+    a, b, c, d = x, x + 1.8 * k, x + 3.2 * k, x + 5.0 * k
 
     def seg(x1, y1, x2, y2):
         return Point(round(x1, 4), round(y1, 4)), Point(round(x2, 4), round(y2, 4))
@@ -298,17 +303,17 @@ def contact_glyph(contact: str, x: float, y: float) -> list[tuple[Point, Point]]
         return [
             seg(a, y, b, y),
             seg(c, y, d, y),
-            seg(c, y, c, y + 0.9),
-            seg(b, y, c + 0.3, y + 0.9),
+            seg(c, y, c, y + 0.9 * k),
+            seg(b, y, c + 0.3 * k, y + 0.9 * k),
         ]
     if contact == "co":
         return [
             seg(a, y, b, y),
-            seg(c, y - 0.9, d, y - 0.9),
-            seg(c, y + 0.9, d, y + 0.9),
-            seg(b, y, c + 0.2, y + 0.9),
+            seg(c, y - 0.9 * k, d, y - 0.9 * k),
+            seg(c, y + 0.9 * k, d, y + 0.9 * k),
+            seg(b, y, c + 0.2 * k, y + 0.9 * k),
         ]
-    return [seg(a, y, b, y), seg(c, y, d, y), seg(b, y, c + 0.2, y - 1.0)]
+    return [seg(a, y, b, y), seg(c, y, d, y), seg(b, y, c + 0.2 * k, y - 1.0 * k)]
 
 
 def _attribute_column(
