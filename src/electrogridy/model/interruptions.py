@@ -93,6 +93,26 @@ def interruption_targets(doc: Document) -> dict[str, tuple[str, str]]:
     return targets
 
 
+def interruption_partners(doc: Document) -> dict[str, tuple[str, InterruptionPoint]]:
+    """Point id -> page id and point it refers to (the same pairing as the reference
+    texts); unpaired points are left out."""
+    groups: dict[str, list[tuple[InterruptionPoint, str, int, int]]] = {}
+    for place in _places(doc):
+        name = place[0].name.strip()
+        if name:
+            groups.setdefault(name, []).append(place)
+    found: dict[str, tuple[str, InterruptionPoint]] = {}
+    for places in groups.values():
+        if len(places) < 2:
+            continue
+        places.sort(key=lambda p: (p[2], p[3], p[0].position.y, p[0].position.x))
+        for i, (point, _page, _index, _column) in enumerate(places):
+            j = _target(places, i)
+            if j is not None:
+                found[point.id] = (places[j][1], places[j][0])
+    return found
+
+
 def partner(doc: Document, point_id: str) -> tuple[str, InterruptionPoint] | None:
     """Page id and point the given point refers to."""
     places = _places(doc)

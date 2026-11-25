@@ -168,6 +168,8 @@ class Canvas(QGraphicsView):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.viewport().setCursor(Qt.CursorShape.BlankCursor)
 
+        # Set by the window: follows a reference at a scene point, True if there was one.
+        self.link_at: Callable[[QPointF], bool] | None = None
         self._grid_visible = True
         self._grid_spacing = DEFAULT_GRID_SPACING_MM
         self.snap_enabled = True
@@ -822,6 +824,10 @@ class Canvas(QGraphicsView):
 
     def mouseDoubleClickEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton and not self._tool_active():
+            # A reference text ("/2.4") leads to its target before anything else.
+            if self.link_at is not None and self.link_at(self.map_to_scene_f(event.position())):
+                event.accept()
+                return
             items = self.entity_items_at(event.position())
             if items:
                 self.entity_double_clicked.emit(items[0].entity_id)

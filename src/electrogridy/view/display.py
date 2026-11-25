@@ -15,8 +15,10 @@ from electrogridy.model.cables import cable_mark_geometry, mark_cores
 from electrogridy.model.devices import (
     POLE_TEXT_GAP,
     POLE_TEXT_HEIGHT,
+    Target,
     crossref_texts,
     crossrefs,
+    link_texts,
     pole_texts,
 )
 from electrogridy.model.dimensions import dimension_geometry
@@ -41,7 +43,11 @@ from electrogridy.model.entities import (
     Wire,
 )
 from electrogridy.model.geometry import Point
-from electrogridy.model.interruptions import interruption_geometry, interruption_targets
+from electrogridy.model.interruptions import (
+    interruption_geometry,
+    interruption_partners,
+    interruption_targets,
+)
 from electrogridy.model.reports import generated_entities, report_rows
 from electrogridy.model.sheet import (
     frame_entities,
@@ -78,6 +84,7 @@ from electrogridy.view.render import (
     make_pen,
     paint_entity,
     paint_tee,
+    text_scene_path,
     text_width,
 )
 
@@ -328,6 +335,44 @@ def _decimal_comma() -> bool:
     from electrogridy.i18n import ui_locale
 
     return ui_locale().decimalPoint() == ","
+
+
+LINK_MARGIN = 0.4  # mm around a reference text that still hits it
+
+
+def link_targets_of(doc: Document) -> dict[str, Target]:
+    """Id of a drawn reference text -> where it leads: cross references of devices and
+    the references of interruption points."""
+    cache = page_cache(doc)
+    if "links" not in cache:
+        links: dict[str, Target] = {}
+        for ref_id, lines in crossrefs_of(doc).items():
+            links.update(link_texts(ref_id, lines))
+        for point_id, (page_id, point) in interruption_partners(doc).items():
+            links[f"{point_id}:text"] = Target(page_id, point.id, point.position)
+        cache["links"] = links
+    return cache["links"]
+
+
+def sheet_links(
+    doc: Document, sheet: SheetLayout, options: OutputOptions = SCREEN
+) -> list[tuple[QRectF, Target]]:
+    """Areas on a page (in mm) that lead elsewhere, with their targets."""
+    links = link_targets_of(doc)
+    if not links:
+        return []
+    owners = {key.split(":", 1)[0] for key in links}
+    found = []
+    for e in sheet.entities:
+        if e.id not in owners or not _shown(doc, e, options):
+            continue
+        for part in expand_for_display(doc, e):
+            target = links.get(part.id) if isinstance(part, Text) else None
+            if target is not None:
+                rect = text_scene_path(part).boundingRect()
+                m = LINK_MARGIN
+                found.append((rect.adjusted(-m, -m, m, m), target))
+    return found
 
 
 def _shown(doc: Document, e: Entity, options: OutputOptions) -> bool:

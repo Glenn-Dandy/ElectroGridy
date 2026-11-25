@@ -1,5 +1,6 @@
 """Rendering sheets onto printers, PDF, SVG and PNG."""
 
+import contextlib
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,7 +22,14 @@ from PyQt6.QtSvg import QSvgGenerator
 from electrogridy import __version__
 from electrogridy.model.document import Document, SheetLayout
 from electrogridy.printing.layout import Mode, Page, fit, fit_rect, one_to_one, tiles
-from electrogridy.view.display import OutputOptions, expand_for_display, paint_entities, paint_sheet
+from electrogridy.printing.pdf_links import Link, PdfStructureError, add_links
+from electrogridy.view.display import (
+    OutputOptions,
+    expand_for_display,
+    paint_entities,
+    paint_sheet,
+    sheet_links,
+)
 from electrogridy.view.render import entity_bounds
 
 MM_PER_INCH = 25.4
@@ -183,7 +191,37 @@ def export_pdf(
     writer.setCreator(f"ElectroGridy {__version__}")
     writer.setTitle(Path(path).stem)
     pages = [(s, p) for s in sheets for p in one_to_one(*s.size)]
-    return render(writer, doc, pages, options)
+    count = render(writer, doc, pages, options)
+    del writer  # the file is complete only once the writer is gone
+    _add_links(Path(path), doc, sheets, options)
+    return count
+
+
+def _add_links(
+    path: Path, doc: Document, sheets: Sequence[SheetLayout], options: OutputOptions
+) -> None:
+    """References that lead to a page in the same file become links. Pages missing from
+    the export leave their references as plain text."""
+    index = {s.id: i for i, s in enumerate(sheets)}
+    links = [
+        [
+            Link(
+                rect.left(),
+                rect.top(),
+                rect.right(),
+                rect.bottom(),
+                index[target.sheet_id],
+                target.position.x,
+                target.position.y,
+            )
+            for rect, target in sheet_links(doc, sheet, options)
+            if target.sheet_id in index
+        ]
+        for sheet in sheets
+    ]
+    # On a surprise the PDF stays as Qt wrote it, without links.
+    with contextlib.suppress(PdfStructureError, OSError, ValueError, IndexError):
+        add_links(path, links)
 
 
 def export_svg(path: Path, doc: Document, sheet: SheetLayout, options: OutputOptions) -> None:

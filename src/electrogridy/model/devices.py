@@ -10,7 +10,7 @@ The roles come from the block definitions (``function``, ``contact``).
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from electrogridy.model.blocks import (
     BlockDefinition,
@@ -50,6 +50,26 @@ class Occurrence:
 
 
 @dataclass(frozen=True)
+class Target:
+    """Where a reference leads: an object on a page."""
+
+    sheet_id: str
+    entity_id: str
+    position: Point
+
+
+class XRef(str):
+    """A reference text ("/2.5") that knows where it leads."""
+
+    target: Target | None
+
+    def __new__(cls, text: str, target: Target | None = None) -> "XRef":
+        made = super().__new__(cls, text)
+        made.target = target
+        return made
+
+
+@dataclass(frozen=True)
 class MirrorLine:
     """One pole in the contact mirror of a main function."""
 
@@ -57,6 +77,13 @@ class MirrorLine:
     contact: str  # "no", "nc", "co" or ""
     second: str
     reference: str  # "/3.4"
+    target: Target | None = field(default=None, compare=False)
+
+
+def target_of(occ: Occurrence) -> Target | None:
+    if occ.where != SHEET or occ.layout_id is None:
+        return None
+    return Target(occ.layout_id, occ.entity_id, occ.position)
 
 
 def poles(definition: BlockDefinition, ref: BlockReference) -> tuple[tuple[str, str], ...]:
@@ -160,17 +187,33 @@ def crossrefs(doc: Document) -> dict[str, list]:
         auxes = [o for o in on_pages if o.function == "aux"]
         for main in mains:
             mirror = [
-                MirrorLine(first, aux.contact, second, page_reference(doc, aux))
+                MirrorLine(first, aux.contact, second, page_reference(doc, aux), target_of(aux))
                 for aux in auxes
                 for first, second in aux.poles or (("", ""),)
             ]
             if mirror:
                 lines[main.entity_id] = mirror
         for aux in auxes:
-            refs = [page_reference(doc, m) for m in mains]
+            refs = [XRef(page_reference(doc, m), target_of(m)) for m in mains]
             if refs:
                 lines[aux.entity_id] = refs
     return lines
+
+
+def link_texts(ref_id: str, lines: list) -> dict[str, Target]:
+    """Ids of the texts ``crossref_texts`` draws for ``lines`` that lead somewhere: the
+    reference under a contact, every text of a mirror line."""
+    links: dict[str, Target] = {}
+    for i, line in enumerate(lines):
+        target = getattr(line, "target", None)
+        if target is None:
+            continue
+        if isinstance(line, MirrorLine):
+            for j in range(3):
+                links[f"{ref_id}:xref{i}:{j}"] = target
+        else:
+            links[f"{ref_id}:xref{i}"] = target
+    return links
 
 
 def crossref_texts(

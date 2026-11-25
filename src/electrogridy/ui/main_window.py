@@ -169,6 +169,7 @@ from electrogridy.view.display import (
     expand_for_display,
     frame_parts,
     interruption_targets_of,
+    sheet_links,
     symbol_extras,
     title_block_parts,
     title_labels,
@@ -302,6 +303,7 @@ class MainWindow(QMainWindow):
         self.canvas.cursor_moved.connect(self._show_cursor_position)
         self.canvas.zoom_changed.connect(self._show_zoom)
         self.canvas.entity_double_clicked.connect(self._edit_entity)
+        self.canvas.link_at = self.follow_link_at
         self.canvas.text_typed.connect(self.command_line.start_typing)
         self.canvas.block_dropped.connect(self.blocks.on_drop)
         # Side buttons of the mouse anywhere in this window: back undoes, forward redoes.
@@ -529,6 +531,30 @@ class MainWindow(QMainWindow):
             self._sync.item(occ.entity_id).setSelected(True)
             self.canvas.end_initial_view()
             self.canvas.centerOn(QPointF(occ.position.x, occ.position.y))
+
+    def follow_link_at(self, scene_pos: QPointF) -> bool:
+        """Double-click on a reference ("/2.4", "L1  /5.0"): show its target."""
+        if self.space.kind != SHEET:
+            return False
+        sheet = self.sheets.current_sheet()
+        if sheet is None:
+            return False
+        for rect, target in sheet_links(self.document, sheet):
+            if rect.contains(scene_pos):
+                self.go_to_target(target)
+                return True
+        return False
+
+    def go_to_target(self, target) -> None:
+        """Show the page of ``target``, centred on it and selected."""
+        if not any(s.id == target.sheet_id for s in self.document.sheets):
+            return
+        self.sheets.show_sheet(target.sheet_id)
+        self.scene.clearSelection()
+        if target.entity_id in self.container:
+            self._sync.item(target.entity_id).setSelected(True)
+        self.canvas.end_initial_view()
+        self.canvas.centerOn(QPointF(target.position.x, target.position.y))
 
     def go_to_partner(self, point_id: str) -> bool:
         """Show the page of the interruption point's partner, centred and selected."""
